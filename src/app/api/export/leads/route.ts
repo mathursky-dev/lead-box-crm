@@ -19,6 +19,7 @@ const cell = (v: unknown) => {
 export async function GET(req: NextRequest) {
   const s = await getSession();
   if (!s?.profile) return new NextResponse("Unauthorized", { status: 401 });
+  if (!s.entitled) return new NextResponse("Payment required", { status: 402 });
   if (!can(s.profile, "leads.export")) return new NextResponse("You do not have export permission", { status: 403 });
   if (!hasServiceRole()) return new NextResponse("Exports need the audit log (server not configured)", { status: 503 });
   if (!(await rateLimit(`export:${s.profile.id}`, 10, 3600))) return new NextResponse("Export limit reached (10/hour)", { status: 429 });

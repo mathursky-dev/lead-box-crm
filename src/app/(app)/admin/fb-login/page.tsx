@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
-import { PageHeader, ErrorBox } from "@/components/static";
+import { ErrorBox } from "@/components/static";
 import { fbAccount } from "@/lib/facebook";
 import { graph } from "@/lib/whatsapp";
 import { FbHeader, FbPickers, SavedPages, SavedAds } from "./forms";
@@ -14,11 +14,11 @@ export default async function FbLoginPage({ searchParams }: { searchParams: Prom
   const ready = hasServiceRole() && Boolean(process.env.LB_SECRETS_KEY);
   const acct = ready ? await fbAccount(profile.company_id).catch(() => null) : null;
 
-  const crumbs = <><Link className="text-brand-700 hover:underline" href="/admin/quick-setup">Quick Setup</Link> / FB Login</>;
+  const crumbs = <span className="flex items-center gap-1 font-semibold text-slate-600"><Link href="/admin/quick-setup" aria-label="Quick Setup" className="text-violet-700">⌂</Link><span className="text-violet-700">›</span> FB-Login</span>;
   if (!acct) {
     return (
       <>
-        <PageHeader title="FB Login" sub={crumbs} />
+        <nav aria-label="Breadcrumb" className="mb-4 text-sm">{crumbs}</nav>
         {error && <div className="mb-4"><ErrorBox message={error} /></div>}
         {!ready && <div className="mb-4"><ErrorBox message="Server setting(s) missing — SUPABASE_SERVICE_ROLE_KEY / LB_SECRETS_KEY." /></div>}
         <section className="card flex flex-col items-center gap-3 p-8 text-center">
@@ -41,7 +41,7 @@ export default async function FbLoginPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="FB Login" sub={crumbs} />
+      <nav aria-label="Breadcrumb" className="mb-4 text-sm">{crumbs}</nav>
       {(error || fbError) && <div className="mb-4"><ErrorBox message={error || fbError} /></div>}
       <section className="card space-y-5 p-4">
         <FbHeader name={acct.fb_user_name ?? "Facebook"} id={acct.fb_user_id} onlySelected={acct.only_selected} />

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
-import { PageHeader } from "@/components/static";
 import { testFacebook, type TestResult } from "@/lib/actions/facebook";
 import { TestButton } from "./test-button";
 
@@ -33,13 +32,13 @@ export default async function QuickSetupPage() {
 
   return (
     <>
-      <PageHeader title="Quick Setup" />
-      <h2 className="mb-3 text-sm font-semibold text-navy-900">Integration</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-1 text-sm font-semibold text-slate-600"><Link href="/dashboard" aria-label="Home" className="text-violet-700">⌂</Link><span className="text-violet-700">›</span> Quick Setup</nav>
+      <h2 className="mb-3 text-lg font-semibold text-navy-900">Integration</h2>
+      <div className="grid gap-4 lg:grid-cols-2">
         {integrations.map((i) => (
           <div key={i.key} className="relative rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
-              <Link href={i.setHref} className="btn btn-sm rounded-full bg-violet-600 px-4 text-white hover:bg-violet-700">Set</Link>
+              <Link href={i.setHref} className="btn btn-sm rounded-full bg-indigo-700 px-4 text-white hover:bg-indigo-800">Set</Link>
               <TestButton action={i.test} />
             </div>
             <div className="flex flex-col items-center gap-3 py-6">

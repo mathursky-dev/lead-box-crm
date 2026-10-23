@@ -7,7 +7,7 @@ export function TestButton({ action }: { action: () => Promise<TestResult> }) {
   const [res, setRes] = useState<TestResult>();
   return (
     <>
-      <button type="button" className="btn btn-sm rounded-full bg-violet-600 px-4 text-white hover:bg-violet-700" disabled={pending}
+      <button type="button" className="btn btn-sm rounded-full bg-indigo-700 px-4 text-white hover:bg-indigo-800" disabled={pending}
         onClick={() => start(async () => setRes(await action()))}>
         {pending ? "Testing…" : "Test"}
       </button>

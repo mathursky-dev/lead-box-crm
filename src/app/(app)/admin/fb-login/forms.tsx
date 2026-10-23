@@ -21,7 +21,7 @@ export function FbHeader({ name, id, onlySelected }: { name: string; id: string;
   const { pending, state, run } = useRun();
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-300 pb-2">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm font-semibold text-navy-900">Meta Account - {name} ({id.slice(-4)})</span>
           <ActionButton action={disconnectFacebook} className="btn btn-sm rounded-full bg-red-600 px-3 text-white hover:bg-red-700"
@@ -97,7 +97,7 @@ export function SavedPages({ pages }: { pages: { page_id: string; page_name: str
         <ul className="space-y-2">
           {pages.map((p) => (
             <li key={p.page_id} className="flex items-center gap-2">
-              <input type="checkbox" aria-label={`Process leads from ${p.page_name ?? p.page_id}`} checked={p.is_selected} disabled={pending}
+              <input type="checkbox" className="h-4 w-4 rounded-full accent-violet-600" aria-label={`Process leads from ${p.page_name ?? p.page_id}`} checked={p.is_selected} disabled={pending}
                 onChange={(e) => run(() => setFbPageSelected(p.page_id, e.target.checked))} />
               <input className="input" disabled value={`${p.page_name ?? ""} (${p.page_id})`} />
               {!p.subscribed && <span className="badge bg-amber-50 text-amber-800">not subscribed</span>}

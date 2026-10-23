@@ -1,0 +1,8 @@
+.env*
+!.env.example
+.planning
+.claude
+scripts/qa-verify.mjs
+scripts/qa-accounts.local.json
+node_modules
+.next

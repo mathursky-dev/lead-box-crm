@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-950: #071427;
+  --color-navy-900: #0b1f3a;
+  --color-navy-800: #12305a;
+  --color-navy-700: #1c4278;
+  --color-brand-50: #ecfdf3;
+  --color-brand-100: #d1fae1;
+  --color-brand-500: #16a34a;
+  --color-brand-600: #15803d;
+  --color-brand-700: #166534;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html, body { height: 100%; }
+body { background: #f4f6f9; color: #0f172a; }
+
+@utility btn { @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
+@utility btn-navy { @apply btn bg-navy-900 text-white hover:bg-navy-800; }
+@utility btn-ghost { @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
+@utility btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+@utility btn-sm { @apply px-2 py-1 text-xs; }
+@utility input { @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
+@utility label { @apply mb-1 block text-xs font-medium text-slate-600; }
+@utility card { @apply rounded-lg border border-slate-200 bg-white; }
+@utility th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500; }
+@utility td { @apply px-3 py-2 text-sm; }
+@utility badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+
+/* Brand logo: entrance + periodic light sweep. Disabled for reduced motion. */
+@keyframes lb-logo-in { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes lb-logo-shine { 0%, 70% { transform: translateX(-120%) skewX(-20deg); } 100% { transform: translateX(260%) skewX(-20deg); } }
+.lb-logo { position: relative; display: inline-block; overflow: hidden; animation: lb-logo-in .7s cubic-bezier(.2,.8,.2,1) both; }
+.lb-logo::after { content: ""; position: absolute; inset: 0; width: 40%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); animation: lb-logo-shine 4.5s ease-in-out 1s infinite; }
+@media (prefers-reduced-motion: reduce) { .lb-logo, .lb-logo::after { animation: none; } .lb-logo::after { display: none; } }
+
+/* Boxy mascot */
+@keyframes lb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes lb-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+@keyframes lb-wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
+@keyframes lb-wave { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-35deg); } 80% { transform: rotate(10deg); } 90% { transform: rotate(-35deg); } }
+@keyframes lb-glow { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes lb-jump-k { 0% { transform: translateY(0) scale(1, 1); } 30% { transform: translateY(-22px) scale(.95, 1.08); } 60% { transform: translateY(0) scale(1.08, .92); } 100% { transform: none; } }
+@keyframes lb-dance-k { 0%, 100% { transform: rotate(0) translateY(0); } 20% { transform: rotate(-15deg) translateY(-8px); } 40% { transform: rotate(15deg) translateY(0); } 60% { transform: rotate(-15deg) translateY(-8px); } 80% { transform: rotate(15deg); } }
+@keyframes lb-heart-k { from { opacity: 1; transform: translate(-50%, 0) scale(.8); } to { opacity: 0; transform: translate(-50%, -44px) scale(1.3); } }
+@keyframes lb-pop { from { opacity: 0; transform: translateY(6px) scale(.95); } to { opacity: 1; transform: none; } }
+.lb-bot { animation: lb-float 3s ease-in-out infinite; filter: drop-shadow(0 6px 8px rgb(11 31 58 / .25)); cursor: pointer; }
+.lb-bot.lb-jump { animation: lb-jump-k .6s ease-out; }
+.lb-bot.lb-dance { animation: lb-dance-k .6s ease-in-out 4; }
+.lb-eyes, .lb-eye { transform-box: fill-box; transform-origin: center; animation: lb-blink 4s infinite; }
+.lb-antenna { transform-box: fill-box; transform-origin: bottom center; animation: lb-wiggle 2.5s ease-in-out infinite; }
+.lb-bulb { animation: lb-glow 1.6s ease-in-out infinite; }
+.lb-arm-r { transform-box: fill-box; transform-origin: top center; animation: lb-wave 5s ease-in-out infinite; }
+.lb-heart { animation: lb-heart-k 1.2s ease-out forwards; }
+.lb-bubble { animation: lb-pop .25s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .lb-bot, .lb-bot.lb-jump, .lb-bot.lb-dance, .lb-eyes, .lb-eye, .lb-antenna, .lb-bulb, .lb-arm-r, .lb-heart, .lb-bubble { animation: none; }
+}

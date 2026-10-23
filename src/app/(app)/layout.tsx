@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...(can(profile, "customers.view") ? [{ href: "/customers", label: "Customers 360" }] : []),
     ...(can(profile, "reports.view") ? [{ href: "/reports", label: "360 Reports" }] : []),
     ...(can(profile, "leads.import") ? [{ href: "/import", label: "Import" }] : []),
-    ...(isAdmin(profile) ? [{ href: "/admin", label: "Admin" }] : []),
+    ...(isAdmin(profile) ? [{ href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin", label: "Admin" }] : []),
   ];
   let brief: Brief | null = null;
   if ((await cookies()).get("lb_brief")) {

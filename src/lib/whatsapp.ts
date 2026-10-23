@@ -2,8 +2,8 @@ import "server-only";
 import { createAdminClient } from "./supabase/server";
 import { decryptSecret } from "./util";
 
-const VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
-const GRAPH = `https://graph.facebook.com/${VERSION}`;
+export const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export type GraphResult<T = Record<string, unknown>> =
   | { ok: true; status: number; data: T }

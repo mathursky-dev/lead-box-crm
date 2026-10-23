@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 
 const TABS = [
-  ["/admin/users", "Users"], ["/admin/roles", "Roles & permissions"], ["/admin/org", "Organisation"], ["/admin/integrations", "Integrations"], ["/admin/numbers", "WhatsApp numbers"], ["/admin/templates", "Templates"],
+  ["/admin/quick-setup", "Quick Setup"], ["/admin/users", "Users"], ["/admin/roles", "Roles & permissions"], ["/admin/org", "Organisation"], ["/admin/integrations", "Integrations"], ["/admin/numbers", "WhatsApp numbers"], ["/admin/templates", "Templates"],
   ["/admin/allocation", "Allocation"], ["/admin/statuses", "Statuses"], ["/admin/catalog", "Products · Sources · Tags · Quick replies"],
   ["/admin/settings", "Settings"], ["/admin/audit", "Audit log"],
 ] as const;

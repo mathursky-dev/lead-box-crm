@@ -36,3 +36,10 @@ select cron.schedule('lb-jobs', '* * * * *', $$select net.http_post(url := 'http
 ## Email
 
 Password-reset and invite emails need custom SMTP (**Supabase → Auth → SMTP**). The built-in mailer only delivers to project team members.
+
+## Self-serve signup, trial and billing
+
+- `/signup` creates a company, its first `company_admin` and a 24-hour trial (`lb_billing`). One trial per email (Gmail dots/`+tags` ignored) and per mobile number, recorded in `lb_trial_claims`, which is never deleted.
+- When the trial or paid period ends, access is blocked in three places: `requireProfile()` redirects to `/billing`; a restrictive RLS policy `lb_paid` sits on every `lb_` table; and the PostgREST pre-request hook `lb_pre_request` returns HTTP 402 for `lb_` RPCs. No data is deleted.
+- Payment goes through a Razorpay payment link. Access is extended by `lb_record_payment`, which is idempotent per payment id, from the signed callback or the `payment_link.paid` webhook.
+- Companies that existed before this feature are `internal` and never expire. To activate a company by hand: `update lb_billing set plan='paid', paid_until=now()+interval '365 days' where company_id='…';`

@@ -23,6 +23,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       </ActionForm>
       <div className="mt-4 text-center text-sm">
         <Link href="/forgot-password" className="text-brand-700 hover:underline">Forgot password?</Link>
+        <span className="mx-2 text-slate-300">·</span>
+        <Link href="/signup" className="text-brand-700 hover:underline">Start a free trial</Link>
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/server";
 import { downloadMedia, numberCredentials } from "./whatsapp";
+import { runAutoReplies } from "./wa-bots";
 
 type WaMessage = {
   id: string; from: string; timestamp: string; type: string;
@@ -35,6 +36,7 @@ export async function processWebhookEvent(eventId: string) {
   if (!ev || ev.processed_at) return;
   try {
     const mediaJobs: { messageId: string; conversationId: string; companyId: string; numberId: string; mediaId: string; filename?: string }[] = [];
+    const botJobs: Parameters<typeof runAutoReplies>[0][] = [];
     for (const entry of (ev.payload?.entry ?? []) as { changes?: Change[] }[]) {
       for (const change of entry.changes ?? []) {
         if (change.field === "message_template_status_update") {
@@ -63,6 +65,7 @@ export async function processWebhookEvent(eventId: string) {
             },
           });
           if (error) throw new Error(`ingest: ${error.message}`);
+          if (data?.message_id) botJobs.push({ messageId: data.message_id, conversationId: data.conversation_id, companyId: data.company_id, body: bodyOf(m), type: m.type });
           if (data?.message_id && m.context?.id) {
             const r = await db.rpc("lb__link_reply", { p_msg: data.message_id, p_context_wamid: m.context.id });
             if (r.error) throw new Error(`reply link: ${r.error.message}`);
@@ -84,6 +87,7 @@ export async function processWebhookEvent(eventId: string) {
     }
     await db.from("lb_webhook_events").update({ processed_at: new Date().toISOString(), error: null, attempts: ev.attempts + 1 }).eq("id", ev.id);
     for (const j of mediaJobs) await storeInboundMedia(j);
+    for (const j of botJobs) await runAutoReplies(j);
   } catch (e) {
     await db.from("lb_webhook_events").update({ attempts: ev.attempts + 1, error: (e as Error).message.slice(0, 500) }).eq("id", ev.id);
     throw e;

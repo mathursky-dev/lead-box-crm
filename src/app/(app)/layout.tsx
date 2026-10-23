@@ -17,6 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const nav = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/inbox", label: "Inbox" },
+    { href: "/whatsapp", label: "WhatsApp Business" },
     { href: "/leads", label: "Leads" },
     { href: "/followups", label: "Follow-ups" },
     ...(can(profile, "nurture.view") ? [{ href: "/nurture", label: "Nurture & Recovery" }] : []),

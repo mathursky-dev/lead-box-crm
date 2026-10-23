@@ -128,35 +128,176 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
--- SECURITY DEFINER RPCs skip RLS, so gate them before PostgREST runs them.
--- Only lb_ paths are checked; anything else in this project is untouched.
-create or replace function lb_pre_request() returns void
-language plpgsql stable security definer set search_path = public as $$
-declare p text := coalesce(current_setting('request.path', true), '');
+-- SECURITY DEFINER RPCs skip RLS, so the gate also lives in the access
+-- helpers every lb_ policy and RPC already calls. They now resolve the caller
+-- through lb__entitled_uid(), so a lapsed user is treated like a signed-out
+-- one everywhere (REST, RPC, Realtime) without touching anything outside lb_.
+create or replace function lb__entitled_uid() returns uuid
+language sql stable security definer set search_path = public as $$
+  select p.id from lb_profiles p
+  where p.id = auth.uid() and (p.role = 'super_admin' or lb_company_entitled(p.company_id))
+$$;
+
+-- The caller's own company, even when lapsed (billing page, sign-in).
+create or replace function lb__own_company() returns uuid
+language sql stable security definer set search_path = public as $$
+  select company_id from lb_profiles where id = auth.uid() and is_active
+$$;
+
+drop policy if exists lb_billing_read on lb_billing;
+create policy lb_billing_read on lb_billing for select to authenticated
+  using (lb_is_super() or company_id = lb__own_company());
+create policy lb_profiles_read_self on lb_profiles for select to authenticated using (id = auth.uid());
+create policy lb_companies_read_own on lb_companies for select to authenticated using (id = lb__own_company());
+
+-- The trial window is fixed once written; trial claims are permanent.
+create or replace function lb__guard_trial() returns trigger
+language plpgsql set search_path = public as $$
 begin
-  if auth.role() is distinct from 'authenticated' then return; end if;
-  if p !~ '^/(rpc/)?lb_' then return; end if;
-  if p ~ '^/(lb_profiles|lb_companies|lb_billing|lb_payments|rpc/lb_my_permissions|rpc/lb_access_ok)$' then return; end if;
-  if not lb_access_ok() then
-    raise sqlstate 'PT402' using message = 'Your Lead Box trial has ended. Payment is required to continue.';
+  if new.trial_ends_at is distinct from old.trial_ends_at then
+    raise exception 'The trial window cannot be changed' using errcode = '42501';
   end if;
+  return new;
+end $$;
+create trigger lb_billing_guard before update on lb_billing for each row execute function lb__guard_trial();
+
+create or replace function lb__guard_claims() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  raise exception 'Trial claims are permanent' using errcode = '42501';
+end $$;
+create trigger lb_trial_claims_guard before update or delete on lb_trial_claims
+  for each row execute function lb__guard_claims();
+
+-- Same bodies as before, with auth.uid() -> lb__entitled_uid().
+create or replace function lb__me() returns lb_profiles
+language plpgsql stable security definer set search_path = public as $$
+declare p lb_profiles;
+begin
+  select * into p from lb_profiles where id = lb__entitled_uid() and is_active;
+  if p.id is null then
+    if exists (select 1 from lb_profiles where id = auth.uid() and is_active) then
+      raise exception 'Your Lead Box trial has ended. Payment is required to continue.' using errcode = '42501';
+    end if;
+    raise exception 'Not authorized' using errcode = '42501';
+  end if;
+  return p;
 end $$;
 
-do $$ declare v text; begin
-  select s into v from pg_db_role_setting d, unnest(d.setconfig) s
-    where d.setrole = 'authenticator'::regrole and s like 'pgrst.db_pre_request=%';
-  if v is not null and v <> 'pgrst.db_pre_request=public.lb_pre_request' then
-    raise exception 'Another PostgREST pre-request hook is configured (%); combine them by hand.', v;
-  end if;
-end $$;
-alter role authenticator set pgrst.db_pre_request = 'public.lb_pre_request';
-notify pgrst, 'reload config';
+create or replace function lb_can(p_perm text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select p.role in ('super_admin','company_admin')
+        or p_perm = any(p.permissions)
+        or coalesce((select rp.allowed from lb_role_permissions rp
+                     where rp.company_id = p.company_id and rp.role = p.role and rp.permission = p_perm),
+                    (select case p.role when 'agent' then c.agent_default else c.team_leader_default end
+                     from lb_permission_catalog c where c.key = p_perm), false)
+    from lb_profiles p where p.id = lb__entitled_uid() and p.is_active), false)
+$$;
 
-revoke execute on function lb__start_trial(), lb_company_entitled(uuid), lb_access_ok(), lb_pre_request(),
+create or replace function lb_can_see_conversation(p_company uuid, p_team uuid, p_assignee uuid, p_number uuid) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare r record;
+begin
+  select id, role, company_id into r from lb_profiles where id = lb__entitled_uid() and is_active;
+  if r.id is null then return false; end if;
+  if r.role = 'super_admin' then return true; end if;
+  if r.company_id <> p_company then return false; end if;
+  if r.role = 'company_admin' or p_assignee = r.id then return true; end if;
+  if r.role = 'team_leader' then
+    return (p_team is not null and p_team = any(lb_team_ids_for(r.id)))
+      or (p_assignee is not null and p_assignee = any(lb_visible_user_ids()))
+      or (p_assignee is null and lb_can_use_number(p_number));
+  end if;
+  return false;
+end $$;
+
+create or replace function lb_can_see_lead(p_company uuid, p_team uuid, p_owner uuid) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare r record;
+begin
+  select id, role, company_id into r from lb_profiles where id = lb__entitled_uid() and is_active;
+  if r.id is null then return false; end if;
+  if r.role = 'super_admin' then return true; end if;
+  if r.company_id <> p_company then return false; end if;
+  if r.role = 'company_admin' or p_owner = r.id then return true; end if;
+  if r.role = 'team_leader' then
+    return (p_team is not null and p_team = any(lb_team_ids_for(r.id)))
+      or (p_owner is not null and p_owner = any(lb_visible_user_ids()));
+  end if;
+  return false;
+end $$;
+
+create or replace function lb_can_use_number(p_number uuid) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare r record; v_company uuid;
+begin
+  select id, role, company_id into r from lb_profiles where id = lb__entitled_uid() and is_active;
+  if r.id is null then return false; end if;
+  select company_id into v_company from lb_wa_numbers where id = p_number;
+  if r.role = 'super_admin' then return true; end if;
+  if v_company is distinct from r.company_id then return false; end if;
+  if r.role = 'company_admin' then return true; end if;
+  return exists (select 1 from lb_wa_number_users where number_id = p_number and user_id = r.id)
+      or exists (select 1 from lb_wa_number_teams where number_id = p_number and team_id = any(lb_team_ids_for(r.id)));
+end $$;
+
+create or replace function lb_has_perm(p_perm text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select role in ('super_admin','company_admin') or p_perm = any(permissions)
+    from lb_profiles where id = lb__entitled_uid() and is_active), false)
+$$;
+
+create or replace function lb_is_admin_of(p_company uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select role = 'super_admin' or (role = 'company_admin' and company_id = p_company)
+    from lb_profiles where id = lb__entitled_uid() and is_active), false)
+$$;
+
+create or replace function lb_my_company() returns uuid
+language sql stable security definer set search_path = public as $$
+  select company_id from lb_profiles where id = lb__entitled_uid() and is_active
+$$;
+
+create or replace function lb_my_role() returns text
+language sql stable security definer set search_path = public as $$
+  select role from lb_profiles where id = lb__entitled_uid() and is_active
+$$;
+
+create or replace function lb_my_team_ids() returns uuid[]
+language sql stable security definer set search_path = public as $$
+  select lb_team_ids_for(lb__entitled_uid())
+$$;
+
+create or replace function lb_visible_user_ids() returns uuid[]
+language sql stable security definer set search_path = public as $$
+  select case
+    when p.role in ('super_admin','company_admin') then
+      (select coalesce(array_agg(id), '{}') from lb_profiles where company_id = p.company_id)
+    when p.role = 'team_leader' then
+      (select coalesce(array_agg(id), '{}') from lb_profiles
+        where company_id = p.company_id and (id = p.id or team_id = any(lb_team_ids_for(p.id))))
+    else array[p.id] end
+  from lb_profiles p where p.id = lb__entitled_uid() and p.is_active
+$$;
+
+-- TRUNCATE ignores RLS, so no client role may hold it on lb_ tables (public
+-- signup would otherwise let any new user wipe every tenant). anon never
+-- writes lb_ tables directly.
+do $$ declare t text; begin
+  for t in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'lb\_%'
+  loop
+    execute format('revoke truncate, references, trigger on %I from anon, authenticated', t);
+    execute format('revoke insert, update, delete on %I from anon', t);
+  end loop;
+end $$;
+
+revoke execute on function lb__start_trial(), lb_company_entitled(uuid), lb_access_ok(), lb__entitled_uid(), lb__own_company(),
   lb_signup(uuid,text,text,text,text,text[]), lb_record_payment(text,uuid,text,bigint,text,integer,integer,jsonb)
   from public, anon, authenticated;
-grant execute on function lb_access_ok(), lb_pre_request() to authenticated;
-grant execute on function lb_pre_request() to anon;
-grant execute on function lb__start_trial(), lb_company_entitled(uuid), lb_access_ok(), lb_pre_request(),
+grant execute on function lb_access_ok(), lb__own_company() to authenticated;
+grant execute on function lb__start_trial(), lb_company_entitled(uuid), lb_access_ok(), lb__entitled_uid(), lb__own_company(),
   lb_signup(uuid,text,text,text,text,text[]), lb_record_payment(text,uuid,text,bigint,text,integer,integer,jsonb)
   to service_role;

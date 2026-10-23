@@ -8,6 +8,12 @@ export const PLAN = {
   days: Number(process.env.LB_PLAN_DAYS ?? 365),
 };
 
+/** Active users billed for a company. Uses the service role: a lapsed admin can no longer read teammates. */
+export async function activeSeats(companyId: string) {
+  const { count } = await createAdminClient().from("lb_profiles").select("id", { count: "exact", head: true }).eq("company_id", companyId).eq("is_active", true);
+  return Math.max(1, count ?? 1);
+}
+
 export const razorpayConfigured = () => Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
 
 async function rzp<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {

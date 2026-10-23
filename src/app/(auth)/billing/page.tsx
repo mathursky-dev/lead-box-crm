@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { requireProfile, isAdmin } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { ActionForm, Submit } from "@/components/ui";
 import { startCheckout } from "@/lib/actions/billing";
 import { logout } from "@/lib/actions/auth";
-import { PLAN, razorpayConfigured } from "@/lib/billing";
+import { PLAN, activeSeats, razorpayConfigured } from "@/lib/billing";
 import { fmtDateTime } from "@/lib/dates";
 
 export const metadata = { title: "Billing" };
@@ -14,8 +13,7 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   const { profile, billing, entitled } = await requireProfile({ allowUnpaid: true });
-  const { count } = await (await createClient()).from("lb_profiles").select("id", { count: "exact", head: true }).eq("company_id", profile.company_id).eq("is_active", true);
-  const seats = Math.max(1, count ?? 1);
+  const seats = await activeSeats(profile.company_id);
   const status = billing?.plan === "internal" ? "Active"
     : billing?.paid_until && new Date(billing.paid_until) > new Date() ? `Paid until ${fmtDateTime(billing.paid_until)}`
     : entitled ? `Free trial ends ${fmtDateTime(billing?.trial_ends_at)}` : "Your free trial has ended";

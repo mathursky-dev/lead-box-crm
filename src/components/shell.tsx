@@ -7,6 +7,14 @@ import { logout } from "@/lib/actions/auth";
 import { setAvailability } from "@/lib/actions/automation";
 import { fmtDateTime } from "@/lib/dates";
 import { Mascot } from "./mascot";
+import { Icon } from "./kit";
+import { Logo } from "./logo";
+
+// Sidebar icon per route; unknown routes fall back to a neutral dot.
+const NAV_ICON: Record<string, string> = {
+  "/dashboard": "grid", "/inbox": "inbox", "/whatsapp": "chat", "/leads": "target", "/followups": "calendar", "/nurture": "refresh",
+  "/customers": "user", "/reports": "chart", "/import": "upload", "/admin/quick-setup": "bolt", "/admin": "shield",
+};
 
 type Nav = { href: string; label: string };
 type User = { id: string; name: string; role: string; company: string; availability: string };
@@ -16,35 +24,44 @@ export function Shell({ nav, user, children }: { nav: Nav[]; user: User; childre
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const fullBleed = path.startsWith("/inbox");
+  // Most specific match wins, so /admin/quick-setup does not also light up /admin.
+  const activeHref = nav.filter((n) => path === n.href || path.startsWith(n.href + "/")).sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const initial = user.name.trim().charAt(0).toUpperCase() || "?";
   return (
     <div className="flex h-full">
-      <aside className={`fixed inset-y-0 left-0 z-40 w-56 transform bg-navy-900 text-slate-200 transition md:static md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-14 items-center bg-white px-4">
-          {/* eslint-disable-next-line @next/next/no-img-element -- static brand asset */}
-          <span className="lb-logo"><img src="/leadbox-wordmark.svg" alt="leadbox" width={849} height={179} className="block h-7 w-auto" /></span>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col bg-navy-900 text-slate-300 transition md:static md:w-60 md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-14 shrink-0 items-center bg-white px-4">
+          <Logo className="h-8" />
         </div>
-        <nav className="space-y-0.5 px-2">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
           {nav.map((n) => {
-            const active = path === n.href || path.startsWith(n.href + "/");
+            const active = n.href === activeHref;
             return (
-              <Link key={n.href} href={n.href} onClick={() => setOpen(false)}
-                className={`block rounded-md px-3 py-2 text-sm ${active ? "bg-navy-700 font-medium text-white" : "hover:bg-navy-800"}`}>
-                {n.label}
+              <Link key={n.href} href={n.href} onClick={() => setOpen(false)} aria-current={active ? "page" : undefined}
+                className={`relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-white/10 font-semibold text-white" : "hover:bg-white/5 hover:text-white"}`}>
+                {active && <span className="absolute inset-y-1.5 left-0 w-1 rounded-r bg-brand-500" />}
+                <Icon name={NAV_ICON[n.href] ?? "chat"} className={`h-4 w-4 shrink-0 ${active ? "text-brand-400" : "text-slate-400"}`} />
+                <span className="truncate">{n.label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="absolute inset-x-0 bottom-0 border-t border-navy-800 p-3 text-xs">
-          <div className="truncate font-medium text-white">{user.name}</div>
-          <div className="truncate text-slate-400">{user.role} · {user.company}</div>
-          <form action={logout} className="mt-2"><button className="text-brand-500 hover:underline">Sign out</button></form>
+        <div className="shrink-0 border-t border-white/10 p-3">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-600 text-sm font-semibold text-white">{initial}</span>
+            <div className="min-w-0 text-xs">
+              <div className="truncate font-semibold text-white">{user.name}</div>
+              <div className="truncate text-slate-400">{user.role} · {user.company}</div>
+            </div>
+          </div>
+          <form action={logout} className="mt-2"><button className="flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-medium text-brand-400 hover:text-brand-100"><Icon name="logout" className="h-3.5 w-3.5" />Sign out</button></form>
         </div>
       </aside>
-      {open && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setOpen(false)} />}
+      {open && <div className="fixed inset-0 z-30 bg-navy-950/50 md:hidden" onClick={() => setOpen(false)} />}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4">
-          <button className="rounded p-1 text-navy-900 md:hidden" aria-label="Open menu" onClick={() => setOpen(true)}>☰</button>
-          <div className="text-sm font-medium text-slate-500 max-md:hidden">{user.company}</div>
+        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4">
+          <button className="grid h-9 w-9 place-items-center rounded-lg text-navy-900 hover:bg-slate-100 md:hidden" aria-label="Open menu" onClick={() => setOpen(true)}><Icon name="menu" className="h-5 w-5" /></button>
+          <div className="flex items-center gap-2 text-sm font-semibold text-navy-900 max-md:hidden"><Icon name="building" className="h-4 w-4 text-slate-400" />{user.company}</div>
           <span className="flex items-center gap-2"><Availability value={user.availability} /><Bell userId={user.id} /></span>
         </header>
         <main className={`min-h-0 flex-1 ${fullBleed ? "overflow-hidden" : "overflow-auto p-4 md:p-6"}`}>{children}</main>
@@ -88,8 +105,8 @@ function Bell({ userId }: { userId: string }) {
         {unread > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-2 w-80 max-w-[90vw] rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b px-3 py-2 text-sm font-medium">
+        <div className="absolute right-0 z-50 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div className="flex items-center justify-between border-b px-3 py-2.5 text-sm font-semibold text-navy-900">
             Notifications {unread > 0 && <button className="text-xs text-brand-700" onClick={markAll}>Mark all read</button>}
           </div>
           <div className="max-h-96 overflow-auto">
@@ -120,7 +137,7 @@ function Availability({ value }: { value: string }) {
   const router = useRouter();
   const color = v === "available" ? "bg-brand-500" : v === "away" ? "bg-amber-500" : "bg-slate-400";
   return (
-    <label className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2 py-1 text-xs" title="Your availability for smart allocation and SLA routing">
+    <label className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-navy-900" title="Your availability for smart allocation and SLA routing">
       <span className={`h-2 w-2 rounded-full ${color}`} />
       <select className="bg-transparent outline-none" value={v} aria-label="Availability"
         onChange={async (e) => { const n = e.target.value as "available" | "away" | "offline"; setV(n); const r = await setAvailability(n); if (r.error) { setV(value); alert(r.error); } else router.refresh(); }}>

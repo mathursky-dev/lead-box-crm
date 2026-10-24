@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { Shell } from "@/components/shell";
 import { DayBrief, type Brief } from "@/components/day-brief";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
+import { fmtDateTime } from "@/lib/dates";
 
 function istGreeting() {
   const now = new Date();
@@ -13,7 +15,8 @@ function istGreeting() {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { profile, company } = await requireProfile();
+  const { profile, company, billing } = await requireProfile();
+  const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const nav = [
     { href: "/dashboard", label: "Dashboard" },
     { href: "/inbox", label: "Inbox" },
@@ -33,6 +36,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
   return (
     <Shell nav={nav} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+      {onTrial && (
+        <div className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Free trial ends {fmtDateTime(billing.trial_ends_at)}. <Link href="/billing" className="font-medium underline">Upgrade to keep access</Link>
+        </div>
+      )}
       {children}
       {brief && <DayBrief name={profile.full_name} brief={brief} {...istGreeting()} />}
     </Shell>

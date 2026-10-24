@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
 import { z } from "zod";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
+import { createHash } from "node:crypto";
+import { normalizePhone } from "@/lib/util";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -83,5 +85,57 @@ export async function updatePassword(_: FormState, form: FormData): Promise<Form
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: pw });
   if (error) return { error: error.message };
+  redirect("/dashboard");
+}
+
+const signupSchema = z.object({
+  company: z.string().trim().min(2, "Enter your company name.").max(120),
+  name: z.string().trim().min(2, "Enter your name.").max(120),
+  email: z.email("Enter a valid email.").trim().toLowerCase().max(200),
+  phone: z.string().trim().min(6, "Enter your mobile number.").max(20),
+  password: z.string().min(8, "Password must be at least 8 characters.").max(200),
+  website: z.string().max(0).optional(), // honeypot: real users leave it empty
+});
+
+/** One trial per person: Gmail dots/+tags and phone formatting don't create new identities. */
+function trialIdentities(email: string, phone: string) {
+  const [local, domain] = email.split("@");
+  const gmail = domain === "gmail.com" || domain === "googlemail.com";
+  const base = (gmail ? local.replace(/\./g, "") : local).split("+")[0];
+  const normEmail = `${base}@${gmail ? "gmail.com" : domain}`;
+  const hash = (v: string) => createHash("sha256").update(v).digest("hex");
+  return [hash(`email:${normEmail}`), hash(`phone:${phone}`)];
+}
+
+export async function signup(_: FormState, form: FormData): Promise<FormState> {
+  const parsed = signupSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form and try again." };
+  if (!hasServiceRole()) return { error: "Sign-up is not available right now." };
+  const { company, name, email, password } = parsed.data;
+  const phone = normalizePhone(parsed.data.phone);
+  if (!phone) return { error: "Enter a valid mobile number." };
+  const ip = await clientIp();
+  if (!(await rateLimit(`signup:${ip}`, 5, 3600))) return { error: "Too many sign-ups from this network. Try again later." };
+
+  const admin = createAdminClient();
+  const identities = trialIdentities(email, phone);
+  const { data: used } = await admin.from("lb_trial_claims").select("identity").in("identity", identities).limit(1);
+  if (used?.length) return { error: "A free trial was already used with this email or mobile number. Sign in, or contact us to buy a plan." };
+
+  const created = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: name } });
+  if (created.error || !created.data.user) {
+    return { error: /already|registered|exists/i.test(created.error?.message ?? "") ? "An account with this email already exists. Sign in instead." : "Could not create your account. Try again." };
+  }
+  const uid = created.data.user.id;
+  const { error } = await admin.rpc("lb_signup", { p_user: uid, p_company: company, p_full_name: name, p_email: email, p_phone: phone, p_identities: identities });
+  if (error) {
+    await admin.auth.admin.deleteUser(uid); // roll back the half-created account
+    return { error: /trial_used/.test(error.message) ? "A free trial was already used with this email or mobile number." : "Could not create your workspace. Try again." };
+  }
+
+  const supabase = await createClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+  if (signInError) redirect("/login");
+  (await cookies()).set("lb_brief", "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 12 * 3600 });
   redirect("/dashboard");
 }

@@ -26,13 +26,13 @@ export default async function CampaignsPage() {
   ]);
   return (
     <>
-      <PageHeader title="Campaigns" sub="One-off sends of an approved template to a segment. Draft → approval → scheduled send. Each recipient is checked for consent, suppression, frequency cap, quiet hours and offer validity right before sending."
+      <PageHeader icon="megaphone" tone="amber" title="Campaigns" sub="One-off sends of an approved template to a segment. Draft → approval → scheduled send. Each recipient is checked for consent, suppression, frequency cap, quiet hours and offer validity right before sending."
         actions={manage ? <CampaignForm segments={segments ?? []} offers={offers ?? []} numbers={numbers ?? []}
           templates={(templates ?? []).map((t) => ({ name: t.name, language: t.language, category: t.category, waba_id: t.waba_id, body: ((t.components as { type: string; text?: string }[]).find((c) => c.type === "BODY")?.text) ?? "" }))} /> : null} />
       {!campaigns?.length ? <Empty title="No campaigns yet" /> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b bg-slate-50"><tr><th className="th">Campaign</th><th className="th">Segment</th><th className="th">Template</th><th className="th">Scheduled</th><th className="th">Status</th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Campaign</th><th className="th">Segment</th><th className="th">Template</th><th className="th">Scheduled</th><th className="th">Status</th></tr></thead>
             <tbody className="divide-y">{campaigns.map((c) => (
               <tr key={c.id}>
                 <td className="td"><Link className="font-medium text-brand-700 hover:underline" href={`/nurture/campaigns/${c.id}`}>{c.name}</Link></td>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { WA_API_SETUP } from "@/components/guides";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
@@ -55,7 +55,7 @@ export default async function IntegrationsPage() {
 
   return (
     <>
-      <PageHeader title="Integration master" sub="Everything needed to connect LEAD BOX to the official WhatsApp Business Platform (Cloud API)." />
+      <PageHeader icon="link" tone="blue" title="Integration master" sub="Everything needed to connect LEAD BOX to the official WhatsApp Business Platform (Cloud API)." />
 
       <section className="card mb-4 p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -96,12 +96,7 @@ export default async function IntegrationsPage() {
       <section className="card p-4 text-sm">
         <h2 className="mb-2 text-sm font-semibold text-navy-900">Setup steps</h2>
         <ol className="list-decimal space-y-1 pl-5 text-slate-700">
-          <li>In Meta for Developers, create (or open) a <b>Business</b> app and add the <b>WhatsApp</b> product.</li>
-          <li>Copy the <b>App ID</b> and <b>App Secret</b> (App → Settings → Basic) into “Meta app credentials” above.</li>
-          <li>In WhatsApp → Configuration, paste the <b>Callback URL</b> and <b>Verify token</b> above, click Verify and save, and subscribe <b>messages</b>.</li>
-          <li>In Business Settings → System users, create a system user, assign the app and your WhatsApp account, and generate a permanent token with <code>whatsapp_business_messaging</code> and <code>whatsapp_business_management</code>.</li>
-          <li>In <Link className="text-brand-700 hover:underline" href="/admin/numbers">WhatsApp numbers</Link>, add each number (Phone number ID, WABA ID, token), then click <b>Subscribe webhook</b> and <b>Sync templates</b>.</li>
-          <li>Send a WhatsApp message to the number: it should appear in the Inbox, and “Webhook receiving events” turns green.</li>
+          {WA_API_SETUP.map((step, i) => <li key={i}>{step}</li>)}
         </ol>
       </section>
     </>

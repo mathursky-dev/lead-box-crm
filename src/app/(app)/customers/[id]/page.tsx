@@ -41,7 +41,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <PageHeader title={c.name || c.wa_profile_name || c.phone_e164} sub={<>{c.phone_e164}{c.email ? ` · ${c.email}` : ""}{c.location ? ` · ${c.location}` : ""} · customer since {fmtDateTime(c.created_at)}</>}
+      <PageHeader icon="user" tone="violet" title={c.name || c.wa_profile_name || c.phone_e164} sub={<>{c.phone_e164}{c.email ? ` · ${c.email}` : ""}{c.location ? ` · ${c.location}` : ""} · customer since {fmtDateTime(c.created_at)}</>}
         actions={leads?.[0] && <Link className="btn-ghost" href={`/leads/new?repeat=${leads[0].id}`}>+ Repeat opportunity</Link>} />
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <span className="badge bg-slate-100 text-slate-700">{leads?.length ?? 0} opportunities</span>

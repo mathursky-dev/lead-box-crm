@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WA_GETTING_STARTED } from "@/components/guides";
 import { requireProfile, isAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDateTime } from "@/lib/dates";
@@ -27,13 +28,11 @@ export default async function WaOverview() {
   const credits = nums.reduce((s, n) => s + Number(n.credit_balance ?? 0), 0);
   const admin = isAdmin(profile);
 
-  const steps: [string, string, boolean, string][] = [
-    ["Connect a number", "Phone number ID, WABA ID and a permanent access token.", connected > 0, "/whatsapp/connections"],
-    ["Approved template", "Sync from Meta or create one — needed outside the 24-hour window.", (templates ?? 0) > 0, "/whatsapp/templates"],
-    ["Add contacts", "Single add, CSV import, or let inbound messages create them.", (contacts ?? 0) > 0, "/whatsapp/contacts"],
-    ["Send a message", "Single send first, then campaigns, chatbots and flows.", r.sent > 0, "/whatsapp/send"],
-    ["Turn on a chatbot", "Answer “price”, “hi”, “timing” instantly, 24×7.", (bots ?? 0) > 0, "/whatsapp/chatbots"],
-  ];
+  const ok: Record<string, boolean> = {
+    "/whatsapp/connections": connected > 0, "/whatsapp/templates": (templates ?? 0) > 0, "/whatsapp/contacts": (contacts ?? 0) > 0,
+    "/whatsapp/send": r.sent > 0, "/whatsapp/chatbots": (bots ?? 0) > 0,
+  };
+  const steps: [string, string, boolean, string][] = WA_GETTING_STARTED.map(([t, s, href]) => [t, s, ok[href], href]);
   const done = steps.filter((s) => s[2]).length;
 
   const quick: [string, string, string, string][] = [

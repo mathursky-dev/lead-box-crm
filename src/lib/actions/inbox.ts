@@ -75,7 +75,7 @@ export async function sendReaction(messageId: string, emoji: string): Promise<Re
   if (error) return { error: errMsg(error) };
   const c = await numberCredentials(t.number_id);
   if (!c?.is_active) return { error: "Business number is disconnected or has no access token." };
-  const r = await graph(c.token, `${c.phone_number_id}/messages`, { method: "POST", body: JSON.stringify({
+  const r = await graph(c.token, `${c.endpoint}/messages`, { method: "POST", body: JSON.stringify({
     messaging_product: "whatsapp", recipient_type: "individual", to: String(t.to).replace(/^\+/, ""), type: "reaction", reaction: { message_id: t.wamid, emoji } }) });
   if (!r.ok) return { error: r.message };
   await createAdminClient().from("lb_messages").update({ agent_reaction: emoji || null }).eq("id", messageId);

@@ -1,30 +1,35 @@
 import Link from "next/link";
+import { Icon, TILE } from "./kit";
 
 // Server-safe presentational helpers.
 
-export function PageHeader({ title, sub, actions }: { title: string; sub?: React.ReactNode; actions?: React.ReactNode }) {
+export function PageHeader({ title, sub, actions, icon, tone = "green" }: { title: string; sub?: React.ReactNode; actions?: React.ReactNode; icon?: string; tone?: keyof typeof TILE }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold text-navy-900">{title}</h1>
-        {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {icon && <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl shadow-sm ${TILE[tone] ?? TILE.green}`}><Icon name={icon} className="h-5 w-5" /></span>}
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-navy-900">{title}</h1>
+          {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
+        </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
 
-export function Empty({ title, children }: { title: string; children?: React.ReactNode }) {
+export function Empty({ title, children, icon = "inbox" }: { title: string; children?: React.ReactNode; icon?: string }) {
   return (
     <div className="card flex flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="text-sm font-medium text-slate-700">{title}</div>
+      <span className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-400"><Icon name={icon} className="h-6 w-6" /></span>
+      <div className="text-sm font-semibold text-navy-900">{title}</div>
       {children && <div className="mt-1 max-w-md text-sm text-slate-500">{children}</div>}
     </div>
   );
 }
 
 export function ErrorBox({ message }: { message: string }) {
-  return <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{message}</div>;
+  return <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" /><span>{message}</span></div>;
 }
 
 const CAT_STYLE: Record<string, string> = {

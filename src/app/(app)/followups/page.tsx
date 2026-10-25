@@ -4,10 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Empty, ErrorBox, Pager } from "@/components/static";
 import { istDate, istMidnight, fmtDateTime } from "@/lib/dates";
 import { FollowupActions } from "./actions";
+import { PillTabs } from "@/components/kit";
 
 export const metadata = { title: "Follow-ups" };
 const LIMIT = 50;
-const TABS = [["today", "Due today"], ["overdue", "Overdue"], ["upcoming", "Upcoming"], ["done", "Completed"]] as const;
+const TABS = [["today", "Due today", "calendar"], ["overdue", "Overdue", "alert"], ["upcoming", "Upcoming", "clock"], ["done", "Completed", "check"]] as const;
 
 export default async function FollowupsPage({ searchParams }: { searchParams: Promise<{ tab?: string; mine?: string; offset?: string }> }) {
   const sp = await searchParams;
@@ -29,26 +30,26 @@ export default async function FollowupsPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader title="Follow-ups" sub="Times shown in IST. Reminders arrive as in-app notifications 15 minutes before due." />
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {TABS.map(([t, l]) => (
-          <Link key={t} href={`/followups?tab=${t}${sp.mine ? `&mine=${sp.mine}` : ""}`} className={tab === t ? "btn-navy btn-sm" : "btn-ghost btn-sm"}>{l}</Link>
-        ))}
+      <PageHeader icon="calendar" tone="amber" title="Follow-ups" sub="Times shown in IST. Reminders arrive as in-app notifications 15 minutes before due." />
+      <div className="relative">
+        <PillTabs label="Follow-up lists" tabs={TABS.map(([t, l, i]) => ({ href: `/followups?tab=${t}${sp.mine ? `&mine=${sp.mine}` : ""}`, label: l, icon: i, active: tab === t }))} />
         {isManager(profile) && (
-          <Link href={`/followups?tab=${tab}&mine=${mine ? "0" : "1"}`} className="ml-auto text-sm text-brand-700 hover:underline">{mine ? "Show my team's" : "Show only mine"}</Link>
+          <div className="-mt-2 mb-3 flex justify-end sm:absolute sm:right-0 sm:top-1 sm:m-0">
+            <Link href={`/followups?tab=${tab}&mine=${mine ? "0" : "1"}`} className="btn-ghost btn-sm">{mine ? "Show my team's" : "Show only mine"}</Link>
+          </div>
         )}
       </div>
-      {error ? <ErrorBox message={error.message} /> : !data?.length ? <Empty title="Nothing here">No follow-ups in this list.</Empty> : (
+      {error ? <ErrorBox message={error.message} /> : !data?.length ? <Empty icon="calendar" title="Nothing here">No follow-ups in this list.</Empty> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[700px]">
-            <thead className="border-b bg-slate-50"><tr><th className="th">Due</th><th className="th">Lead</th><th className="th">Note</th><th className="th">Owner</th><th className="th"></th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Due</th><th className="th">Lead</th><th className="th">Note</th><th className="th">Owner</th><th className="th"></th></tr></thead>
             <tbody className="divide-y">
               {data.map((f) => {
                 const lead = f.lead as unknown as { id: string; lead_no: number; customer: { name: string | null; phone_e164: string } };
                 return (
-                  <tr key={f.id}>
+                  <tr key={f.id} className="hover:bg-slate-50">
                     <td className={`td whitespace-nowrap ${f.status === "pending" && f.due_at < new Date().toISOString() ? "font-medium text-red-600" : ""}`}>{fmtDateTime(f.due_at)}</td>
-                    <td className="td"><Link className="text-brand-700 hover:underline" href={`/leads/${lead.id}`}>LB-{lead.lead_no}</Link> <span className="text-sm">{lead.customer.name ?? lead.customer.phone_e164}</span></td>
+                    <td className="td"><Link className="font-medium text-brand-700 hover:underline" href={`/leads/${lead.id}`}>LB-{lead.lead_no}</Link> <span className="text-sm">{lead.customer.name ?? lead.customer.phone_e164}</span></td>
                     <td className="td text-sm text-slate-600">{f.note}</td>
                     <td className="td text-sm">{(f.owner as unknown as { full_name: string } | null)?.full_name ?? "—"}</td>
                     <td className="td text-right">{f.status === "pending" ? <FollowupActions id={f.id} /> : <span className="text-xs capitalize text-slate-500">{f.status} {fmtDateTime(f.completed_at)}</span>}</td>

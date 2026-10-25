@@ -1,0 +1,14 @@
+{
+  "name": "lead-box-wa-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "QR-scan WhatsApp numbers for LEAD BOX (WhatsApp Web protocol via Baileys). Long-running server, not for Vercel.",
+  "scripts": { "start": "node index.mjs" },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "baileys": "6.7.24",
+    "pino": "^10.4.0",
+    "qrcode": "^1.5.4"
+  }
+}

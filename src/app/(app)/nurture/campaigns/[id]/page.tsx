@@ -45,7 +45,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
   const tplT = tpl as { category: string } | null;
   return (
     <>
-      <PageHeader title={c.name} sub={<><Link className="text-brand-700 hover:underline" href="/nurture/campaigns">← Campaigns</Link> · <span className={`badge ${STATE[c.status]}`}>{c.status.replace("_", " ")}</span></>}
+      <PageHeader icon="megaphone" tone="amber" title={c.name} sub={<><Link className="text-brand-700 hover:underline" href="/nurture/campaigns">← Campaigns</Link> · <span className={`badge ${STATE[c.status]}`}>{c.status.replace("_", " ")}</span></>}
         actions={<span className="flex gap-1">
           {edit && <CampaignForm campaign={{ ...c, template_params: c.template_params as string[] }} segments={edit[0].data ?? []} offers={edit[1].data ?? []} numbers={edit[2].data ?? []}
             templates={(edit[3].data ?? []).map((t) => ({ name: t.name, language: t.language, category: t.category, waba_id: t.waba_id, body: ((t.components as { type: string; text?: string }[]).find((x) => x.type === "BODY")?.text) ?? "" }))} />}

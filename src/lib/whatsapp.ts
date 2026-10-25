@@ -37,12 +37,21 @@ export function isRetryable(r: Extract<GraphResult, { ok: false }>) {
   return [1, 2, 4, 17, 80007, 130429, 131000, 131016, 133004].includes(r.code ?? -1);
 }
 
+/** QR-scan numbers are served by the self-hosted wa-gateway, which speaks the same /messages and media API as Graph. */
+export const gatewayConfigured = () => Boolean(process.env.WA_GATEWAY_URL && process.env.WA_GATEWAY_KEY);
+export const gatewayBase = () => `${process.env.WA_GATEWAY_URL!.replace(/\/+$/, "")}/v1`;
+
+/** `endpoint` is what `/messages` is appended to: the Graph phone number id, or the gateway session URL. */
 export async function numberCredentials(numberId: string) {
   const db = createAdminClient();
-  const { data: n } = await db.from("lb_wa_numbers").select("id,company_id,phone_number_id,waba_id,is_active").eq("id", numberId).single();
+  const { data: n } = await db.from("lb_wa_numbers").select("id,company_id,phone_number_id,waba_id,is_active,provider").eq("id", numberId).single();
+  if (n?.provider === "qr") {
+    if (!gatewayConfigured()) return null;
+    return { ...n, token: process.env.WA_GATEWAY_KEY!, endpoint: `${gatewayBase()}/${n.phone_number_id}` };
+  }
   const { data: s } = await db.from("lb_wa_number_secrets").select("access_token").eq("number_id", numberId).maybeSingle();
   if (!n || !s) return null;
-  return { ...n, token: decryptSecret(s.access_token) };
+  return { ...n, token: decryptSecret(s.access_token), endpoint: n.phone_number_id as string };
 }
 
 export async function markNumberError(numberId: string, message: string | null) {

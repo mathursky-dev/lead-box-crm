@@ -10,7 +10,7 @@ export default async function OrgPage() {
   const dName = new Map(r.departments.map((d) => [d.id, d.name]));
   return (
     <>
-      <PageHeader title="Organisation" sub="Company → Branch → Department → Team → Users. Deactivate instead of deleting to keep history." />
+      <PageHeader icon="building" tone="navy" title="Organisation" sub="Company → Branch → Department → Team → Users. Deactivate instead of deleting to keep history." />
       <div className="grid gap-4 lg:grid-cols-3">
         <OrgList table="lb_branches" title="Branches" items={r.branches} />
         <OrgList table="lb_departments" title="Departments" parents={[{ name: "branch_id", label: "Branch", options: r.branches }]}

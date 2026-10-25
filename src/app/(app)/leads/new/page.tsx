@@ -24,7 +24,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams: Prom
   }
   return (
     <>
-      <PageHeader title={repeatOf ? "New repeat opportunity" : "New lead"} sub="Phone numbers are normalised and checked for duplicates within your company." />
+      <PageHeader icon="userPlus" tone="blue" title={repeatOf ? "New repeat opportunity" : "New lead"} sub="Phone numbers are normalised and checked for duplicates within your company." />
       <div className="max-w-4xl"><NewLeadForm refs={refs} canChooseOwner={isManager(profile)} defaults={defaults} repeatOf={repeatOf} /></div>
     </>
   );

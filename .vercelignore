@@ -6,3 +6,4 @@ scripts/qa-verify.mjs
 scripts/qa-accounts.local.json
 node_modules
 .next
+wa-gateway

@@ -79,6 +79,7 @@ export async function testNumber(numberId: string): Promise<FormState> {
   await requireAdmin();
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
+  if (c.provider === "qr") return { error: "QR-scan numbers are checked from Admin → Integrations." };
   const r = await phoneInfo(c.token, c.phone_number_id);
   if (!r.ok) { await markNumberError(numberId, r.message); revalidatePath("/admin/numbers"); return { error: r.message }; }
   await createAdminClient().from("lb_wa_numbers").update({
@@ -93,6 +94,7 @@ export async function subscribeWebhook(numberId: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
+  if (c.provider === "qr") return { error: "QR-scan numbers don't use Meta webhooks." };
   const r = await subscribeApp(c.token, c.waba_id);
   if (!r.ok) return { error: r.message };
   await audit(me.company_id, me.id, "wa_number.subscribe", numberId);
@@ -103,6 +105,7 @@ export async function syncTemplates(numberId: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
+  if (c.provider === "qr") return { error: "Templates need the official API; QR-scan numbers send normal messages only." };
   const r = await listTemplates(c.token, c.waba_id);
   if (!r.ok) return { error: r.message };
   const db = createAdminClient();
@@ -148,6 +151,7 @@ export async function createTemplate(_: FormState, form: FormData): Promise<Form
   const v = p.data;
   const c = await numberCredentials(v.number_id);
   if (!c || c.company_id !== me.company_id) return { error: "No credentials stored for this number." };
+  if (c.provider === "qr") return { error: "Templates need the official API; pick a Meta-connected number." };
   const bodyVars = vars(v.body);
   if (bodyVars.some((n, i) => n !== i + 1)) return { error: "Body variables must be numbered {{1}}, {{2}}, … without gaps." };
   const examples = (v.examples ?? "").split("\n").map((x) => x.trim()).filter(Boolean);

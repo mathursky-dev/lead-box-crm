@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { PageHeader, ErrorBox, Empty } from "@/components/static";
 import { Filters } from "@/components/filters";
+import { Kpi, PillTabs } from "@/components/kit";
 import { METRICS, toRpcFilters, pickFilters, pct } from "@/lib/metrics";
 import { PRESETS, rangeFor, fmtDay, money, type Preset } from "@/lib/dates";
 
@@ -58,7 +59,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     body = error ? <ErrorBox message={error.message} /> : !rows.length ? <Empty title="No activity in this period" /> : (
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
-          <thead className="border-b bg-slate-50"><tr><th className="th">Day (IST)</th><th className="th">Leads created</th><th className="th">First allocated</th><th className="th">Converted</th><th className="th">Won value</th><th className="th w-1/3">Created vs converted</th></tr></thead>
+          <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Day (IST)</th><th className="th">Leads created</th><th className="th">First allocated</th><th className="th">Converted</th><th className="th">Won value</th><th className="th w-1/3">Created vs converted</th></tr></thead>
           <tbody className="divide-y">{rows.map((r) => (
             <tr key={r.day}>
               <td className="td whitespace-nowrap">{fmtDay(r.day + "T12:00:00Z")}</td>
@@ -75,19 +76,17 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   } else if (tab === "whatsapp") {
     const { data, error } = await sb.rpc("lb_report_messages", { p: { from: p.from, to: p.to, number_id: filters.number_id } });
     const d = data as { inbound: number; outbound: number; delivered: number; read: number; failed: number; templates: number; chats: number; new_chats: number; by_number: { number_id: string; inbound: number; outbound: number; failed: number }[] } | null;
-    const tile = (label: string, v: React.ReactNode, sub?: string) => (
-      <div className="card p-4"><div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div><div className="mt-1 text-2xl font-semibold text-navy-900">{v}</div>{sub && <div className="text-xs text-slate-500">{sub}</div>}</div>
-    );
+    const tile = (label: string, v: React.ReactNode, sub: string | undefined, icon: string, tone: string) => <Kpi label={label} value={v} sub={sub} icon={icon} tone={tone} />;
     body = error || !d ? <ErrorBox message={error?.message ?? "Could not load"} /> : (
       <>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {tile("Messages received", d.inbound)}{tile("Messages sent", d.outbound, `${d.templates} templates`)}
-          {tile("Delivered", pct(d.delivered, d.outbound), `${d.delivered} of ${d.outbound}`)}{tile("Read", pct(d.read, d.outbound), `${d.read} of ${d.outbound}`)}
-          {tile("Failed sends", d.failed)}{tile("Active chats", d.chats)}{tile("New chats", d.new_chats)}
+          {tile("Messages received", d.inbound, undefined, "inbox", "violet")}{tile("Messages sent", d.outbound, `${d.templates} templates`, "send", "blue")}
+          {tile("Delivered", pct(d.delivered, d.outbound), `${d.delivered} of ${d.outbound}`, "check", "green")}{tile("Read", pct(d.read, d.outbound), `${d.read} of ${d.outbound}`, "eye", "blue")}
+          {tile("Failed sends", d.failed, undefined, "alert", "red")}{tile("Active chats", d.chats, undefined, "chat", "green")}{tile("New chats", d.new_chats, undefined, "plus", "orange")}
         </div>
         {d.by_number.length > 0 && (
           <div className="card mt-4 overflow-x-auto">
-            <table className="w-full text-sm"><thead className="border-b bg-slate-50"><tr><th className="th">Number</th><th className="th">Received</th><th className="th">Sent</th><th className="th">Failed</th></tr></thead>
+            <table className="w-full text-sm"><thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Number</th><th className="th">Received</th><th className="th">Sent</th><th className="th">Failed</th></tr></thead>
               <tbody className="divide-y">{d.by_number.map((n) => <tr key={n.number_id}><td className="td">{names.number.get(n.number_id) ?? "—"}</td><td className="td">{n.inbound}</td><td className="td">{n.outbound}</td><td className="td">{n.failed}</td></tr>)}</tbody></table>
           </div>
         )}
@@ -107,7 +106,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     body = error ? <ErrorBox message={error.message} /> : !rows.length ? <Empty title="No data for these filters" /> : (
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[1100px] text-sm">
-          <thead className="border-b bg-slate-50"><tr>
+          <thead className="border-b border-slate-200 bg-slate-50"><tr>
             <th className="th">{DIMS[dim].label.replace(/s$/, "")}</th>
             {COLS.map((c) => <th key={c} className="th" title={METRICS[c].def}>{METRICS[c].label}</th>)}
             <th className="th">Won value</th><th className="th" title="Cohort: first allocated in period and now won">Conv. rate (cohort)</th>
@@ -129,13 +128,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="360 Reports" sub={`${manager ? "Team" : "My"} performance across every dimension · ${period}`}
+      <PageHeader icon="chart" tone="blue" title="360 Reports" sub={`${manager ? "Team" : "My"} performance across every dimension · ${period}`}
         actions={<Link className="btn-ghost" href="/customers">Customer 360 directory</Link>} />
-      <nav className="mb-3 flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
-        {TABS.map(([t, l]) => (
-          <Link key={t} href={`/reports?${qs({ tab: t })}`} className={`whitespace-nowrap border-b-2 px-3 py-2 ${tab === t ? "border-brand-600 font-medium text-navy-900" : "border-transparent text-slate-600 hover:text-navy-900"}`}>{l}</Link>
-        ))}
-      </nav>
+      <PillTabs label="Report dimensions" tabs={TABS.map(([t, l]) => ({ href: `/reports?${qs({ tab: t })}`, label: l, active: tab === t, icon: t === "trend" ? "chart" : t === "whatsapp" ? "chat" : undefined }))} />
       <Filters sp={filters} refs={refs} manager={manager} visible={visibleSet} basePath="/reports" hidden={{ tab }} />
       {body}
     </>

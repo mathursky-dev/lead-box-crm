@@ -16,12 +16,12 @@ export default async function OffersPage() {
   const now = new Date().toISOString();
   return (
     <>
-      <PageHeader title="Offers" sub="Offers must be approved and inside their validity window at the moment of sending — otherwise the journey step or campaign message is held. Editing an offer sends it back for approval."
+      <PageHeader icon="gift" tone="amber" title="Offers" sub="Offers must be approved and inside their validity window at the moment of sending — otherwise the journey step or campaign message is held. Editing an offer sends it back for approval."
         actions={manage ? <OfferForm /> : null} />
       {!offers?.length ? <Empty title="No offers yet" /> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b bg-slate-50"><tr><th className="th">Offer</th><th className="th">Code</th><th className="th">Valid</th><th className="th">Status</th><th className="th"></th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Offer</th><th className="th">Code</th><th className="th">Valid</th><th className="th">Status</th><th className="th"></th></tr></thead>
             <tbody className="divide-y">{offers.map((o) => {
               const live = o.status === "approved" && o.valid_from <= now && o.valid_to > now;
               return (

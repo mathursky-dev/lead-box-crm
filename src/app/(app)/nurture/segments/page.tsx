@@ -17,7 +17,7 @@ export default async function SegmentsPage() {
   const previews = await Promise.all((segments ?? []).map(async (s) => (await sb.rpc("lb_segment_preview", { p_segment: s.id })).data));
   return (
     <>
-      <PageHeader title="Customer segments" sub="Reusable audiences for campaigns and segment-triggered journeys. Counts are live; consent and suppression are applied again right before each send."
+      <PageHeader icon="layers" tone="blue" title="Customer segments" sub="Reusable audiences for campaigns and segment-triggered journeys. Counts are live; consent and suppression are applied again right before each send."
         actions={<span className="flex gap-2"><CsvListForm canConsent={can(profile, "consent.manage")} /><SegmentForm refs={refs} /></span>} />
       {!segments?.length ? <Empty title="No segments yet" /> : (
         <div className="grid gap-3 lg:grid-cols-2">

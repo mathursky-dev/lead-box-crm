@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WA_NUMBER_CHECKLIST } from "@/components/guides";
 import { headers } from "next/headers";
 import { requireProfile, isAdmin } from "@/lib/auth";
 import { createClient, hasServiceRole } from "@/lib/supabase/server";
@@ -82,10 +83,7 @@ export default async function Connections() {
         </Panel>
         <Panel title="Checklist" icon="check">
           <ol className="list-decimal space-y-1 pl-4 text-sm text-slate-600">
-            <li>Create a System User in Business Settings, give it the WhatsApp account, generate a permanent token.</li>
-            <li>Connect the number here (token is tested live).</li>
-            <li>Press <b>Subscribe webhook</b> so Meta sends messages to this CRM.</li>
-            <li>Press <b>Sync templates</b>, then send a test from <Link className="text-brand-700 hover:underline" href="/whatsapp/send">Send</Link>.</li>
+            {WA_NUMBER_CHECKLIST.map((step, i) => <li key={i}>{step}</li>)}
           </ol>
           <p className="mt-3 flex items-center gap-1 text-xs text-slate-500"><Icon name="wallet" className="h-3.5 w-3.5" /> Message credits per number are topped up from the company wallet.</p>
         </Panel>

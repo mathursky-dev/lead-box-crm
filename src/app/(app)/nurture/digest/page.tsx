@@ -19,7 +19,7 @@ export default async function DigestPage() {
     ["failed_jobs", "Failed automation", "/nurture?q=failed_jobs"]];
   return (
     <>
-      <PageHeader title="Manager digest" sub={`Admins and team leaders get a daily digest notification at ${co?.digest_hour ?? 9}:00 IST (change in Admin → Settings). It covers the previous day for the whole company.`} />
+      <PageHeader icon="mail" tone="blue" title="Manager digest" sub={`Admins and team leaders get a daily digest notification at ${co?.digest_hour ?? 9}:00 IST (change in Admin → Settings). It covers the previous day for the whole company.`} />
       <h2 className="mb-2 text-sm font-semibold text-navy-900">Right now</h2>
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {now.map(([k, l, href]) => (

@@ -41,7 +41,7 @@ export async function drainOutbox(budgetMs = 20000) {
         failed++;
         continue;
       }
-      const r = await graph<{ messages?: { id: string }[] }>(c.token, `${c.phone_number_id}/messages`, { method: "POST", body: JSON.stringify(payload) });
+      const r = await graph<{ messages?: { id: string }[] }>(c.token, `${c.endpoint}/messages`, { method: "POST", body: JSON.stringify(payload) });
       if (r.ok && r.data.messages?.[0]?.id) {
         await db.rpc("lb_mark_send_result", { p_msg: m.id, p_wamid: r.data.messages[0].id, p_code: null, p_error: null, p_retryable: false });
         sent++;

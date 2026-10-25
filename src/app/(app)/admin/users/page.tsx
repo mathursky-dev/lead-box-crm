@@ -20,14 +20,14 @@ export default async function UsersPage() {
   const teamName = new Map(refs.teams.map((t) => [t.id, t.name]));
   return (
     <>
-      <PageHeader title="Users" sub="Create users, set role, placement, scoped permissions and allocation limits."
+      <PageHeader icon="contacts" tone="violet" title="Users" sub="Create users, set role, placement, scoped permissions and allocation limits."
         actions={hasServiceRole() ? <UserForm refs={refs} meRole={me.role} />
           : <button className="btn-primary" disabled title="Server key missing — see the message below">+ Add user</button>} />
       {!hasServiceRole() && <div className="mb-4"><ErrorBox message="Adding, deactivating and inviting users is disabled: the server setting SUPABASE_SERVICE_ROLE_KEY is missing. Add it in Vercel → Project → Settings → Environment Variables (Production), then redeploy." /></div>}
       {error && <ErrorBox message={error.message} />}
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[760px]">
-          <thead className="border-b bg-slate-50"><tr>
+          <thead className="border-b border-slate-200 bg-slate-50"><tr>
             <th className="th">Name</th><th className="th">Role</th><th className="th">Team</th><th className="th">Open leads</th><th className="th">Limit</th><th className="th">Status</th><th className="th"></th>
           </tr></thead>
           <tbody className="divide-y">

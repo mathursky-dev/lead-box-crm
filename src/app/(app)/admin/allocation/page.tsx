@@ -18,7 +18,7 @@ export default async function AllocationPage() {
   const users = refs.users.map((u) => ({ id: u.id, name: u.full_name, active: u.is_active }));
   return (
     <>
-      <PageHeader title="Allocation rules"
+      <PageHeader icon="refresh" tone="amber" title="Allocation rules"
         sub="New unassigned leads are matched to the first active rule (lowest priority number) whose conditions all match, then given round-robin to its eligible users: active, opted into auto-allocation, and under their open-lead limit."
         actions={<RuleForm refs={refs} users={users} />} />
       {!rules?.length ? <Empty title="No rules yet">Without rules, new leads stay in the unassigned queue for manual assignment.</Empty> : (

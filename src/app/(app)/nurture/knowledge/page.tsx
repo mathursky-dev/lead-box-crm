@@ -15,7 +15,7 @@ export default async function KnowledgePage() {
   const { data } = await sb.from("lb_knowledge").select("id,title,content,status,updated_at,approved_at").neq("status", "archived").order("updated_at", { ascending: false });
   return (
     <>
-      <PageHeader title="AI knowledge" sub="Suggested replies may only use APPROVED entries (prices, policies, product facts). Editing an entry returns it to draft until re-approved." actions={<KnowledgeForm />} />
+      <PageHeader icon="book" tone="violet" title="AI knowledge" sub="Suggested replies may only use APPROVED entries (prices, policies, product facts). Editing an entry returns it to draft until re-approved." actions={<KnowledgeForm />} />
       {!data?.length ? <Empty title="No knowledge yet">Add product, pricing and policy facts, then approve them.</Empty> : (
         <div className="space-y-3">{data.map((k) => (
           <section key={k.id} className="card p-4">

@@ -16,12 +16,12 @@ export default async function TemplatesPage() {
   const admin = ["company_admin", "super_admin"].includes(profile.role);
   return (
     <>
-      <PageHeader title="Message templates" sub="Submit new templates to Meta here, or create them in WhatsApp Manager and sync. Only APPROVED templates can be sent; MARKETING templates are blocked for opted-out customers."
+      <PageHeader icon="template" tone="violet" title="Message templates" sub="Submit new templates to Meta here, or create them in WhatsApp Manager and sync. Only APPROVED templates can be sent; MARKETING templates are blocked for opted-out customers."
         actions={admin && numbers?.length ? <span className="flex flex-wrap gap-2">{numbers.map((n) => <SyncButton key={n.id} id={n.id} label={n.label} />)}<TemplateForm numbers={numbers} /></span> : null} />
       {!data?.length ? <Empty title="No templates synced" /> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[720px]">
-            <thead className="border-b bg-slate-50"><tr><th className="th">Name</th><th className="th">Language</th><th className="th">Category</th><th className="th">Status</th><th className="th">Body</th><th className="th">Synced</th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Name</th><th className="th">Language</th><th className="th">Category</th><th className="th">Status</th><th className="th">Body</th><th className="th">Synced</th></tr></thead>
             <tbody className="divide-y">
               {data.map((t) => {
                 const body = (t.components as { type: string; text?: string }[]).find((c) => c.type === "BODY")?.text;

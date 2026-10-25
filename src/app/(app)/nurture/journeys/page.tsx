@@ -24,13 +24,13 @@ export default async function JourneysPage() {
   const manage = can(profile, "journeys.manage");
   return (
     <>
-      <PageHeader title="Nurturing journeys"
+      <PageHeader icon="flow" tone="violet" title="Nurturing journeys"
         sub="Automated sequences of approved-template messages, agent tasks, waits and branches. One running journey per lead; lower priority number wins conflicts. Drafts never run: preview and publish to create a version. Eligibility, consent, caps and quiet hours are rechecked before every send."
         actions={manage ? <Link className="btn-primary" href="/nurture/journeys/new">+ New journey</Link> : null} />
       {!journeys?.length ? <Empty title="No journeys yet">{manage ? "Create one to start nurturing leads automatically." : "Ask an admin to set up journeys."}</Empty> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[1000px] text-sm">
-            <thead className="border-b bg-slate-50"><tr>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr>
               <th className="th">Journey</th><th className="th">Trigger</th><th className="th">Version</th><th className="th">Priority</th><th className="th">Active</th><th className="th">Paused</th>
               <th className="th">Completed</th><th className="th">Failed</th><th className="th">Replies</th><th className="th">Conversions</th><th className="th">Revenue</th><th className="th"></th>
             </tr></thead>

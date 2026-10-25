@@ -23,7 +23,7 @@ export default async function NumbersPage() {
   ].filter(Boolean);
   return (
     <>
-      <PageHeader title="WhatsApp Business numbers" sub="Official WhatsApp Business Platform (Cloud API). Tokens are verified with Meta, encrypted, and never sent to the browser."
+      <PageHeader icon="phone" tone="green" title="WhatsApp Business numbers" sub="Official WhatsApp Business Platform (Cloud API). Tokens are verified with Meta, encrypted, and never sent to the browser."
         actions={missing.length === 0 ? <NumberForm refs={refs} /> : null} />
       {missing.length > 0 && <div className="mb-4"><ErrorBox message={`WhatsApp is disconnected: server setting(s) missing — ${missing.join(", ")}.`} /></div>}
       <p className="mb-4 text-sm text-slate-600">Webhook callback URL, verify token and Meta App Secret are managed in <Link className="text-brand-700 hover:underline" href="/admin/integrations">Integrations</Link>.</p>

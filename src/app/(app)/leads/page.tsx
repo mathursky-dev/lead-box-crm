@@ -6,6 +6,7 @@ import { PageHeader, Pager, Empty, ErrorBox } from "@/components/static";
 import { METRICS, toRpcFilters, pickFilters } from "@/lib/metrics";
 import { PRESETS } from "@/lib/dates";
 import { LeadTable } from "./lead-table";
+import { Icon } from "@/components/kit";
 
 export const metadata = { title: "Leads" };
 const LIMIT = 50;
@@ -51,16 +52,16 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHeader title={metric ? `${statusName ? `Status: ${statusName}` : METRICS[metric]?.label ?? "Leads"}${mUser ? ` · ${mUser}` : ""}` : "Leads"}
+      <PageHeader icon="target" tone="blue" title={metric ? `${statusName ? `Status: ${statusName}` : METRICS[metric]?.label ?? "Leads"}${mUser ? ` · ${mUser}` : ""}` : "Leads"}
         sub={metric ? <>{statusName ? "Current leads in this status." : METRICS[metric]?.def} {METRICS[metric]?.kind === "period" && <b>Period: {preset}.</b>} <Link className="text-brand-700 hover:underline" href={`/dashboard?${new URLSearchParams(pickFilters(sp) as Record<string, string>)}`}>Back to dashboard</Link></> : `${total} lead${total === 1 ? "" : "s"}`}
         actions={<>
-          {can(profile, "leads.export") && <a className="btn-ghost" href={`/api/export/leads?${exportQs}`}>Export CSV</a>}
-          {can(profile, "leads.create") && <Link className="btn-primary" href="/leads/new">+ New lead</Link>}
+          {can(profile, "leads.export") && <a className="btn-ghost" href={`/api/export/leads?${exportQs}`}><Icon name="download" />Export CSV</a>}
+          {can(profile, "leads.create") && <Link className="btn-primary" href="/leads/new"><Icon name="plus" />New lead</Link>}
         </>} />
 
       {!metric && (
-        <form className="card mb-3 grid gap-2 p-3 sm:grid-cols-3 lg:grid-cols-6">
-          <input className="input sm:col-span-2" name="q" defaultValue={sp.q} placeholder="Search name, phone, email, LB-123" />
+        <form className="card mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:grid-cols-6">
+          <input className="input col-span-2" name="q" defaultValue={sp.q} placeholder="Search name, phone, email, LB-123" />
           <select className="input" name="status_id" defaultValue={sp.status_id ?? ""}><option value="">All statuses</option>{refs.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           {isManager(profile) && (
             <select className="input" name="owner_id" defaultValue={sp.owner_id ?? ""}><option value="">All owners</option>{refs.users.map((u) => <option key={u.id} value={u.id}>{u.full_name}{u.is_active ? "" : " (inactive)"}</option>)}</select>
@@ -73,17 +74,17 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <select className="input" name="tag_id" defaultValue={sp.tag_id ?? ""}><option value="">Any tag</option>{refs.tags.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select className="input" name="followup" defaultValue={sp.followup ?? ""}><option value="">Any follow-up</option><option value="today">Due today</option><option value="overdue">Overdue</option></select>
           <select className="input" name="sort" defaultValue={sp.sort ?? ""}><option value="">Recent activity</option><option value="created">Newest</option><option value="followup">Next follow-up</option></select>
-          <div className="flex items-center gap-3 text-sm">
-            <label className="flex items-center gap-1"><input type="checkbox" name="open" value="1" defaultChecked={sp.open === "1"} /> Open</label>
-            {isManager(profile) && <label className="flex items-center gap-1"><input type="checkbox" name="unassigned" value="1" defaultChecked={sp.unassigned === "1"} /> Unassigned</label>}
-            <label className="flex items-center gap-1" title="No activity for 14+ days"><input type="checkbox" name="stale" value="1" defaultChecked={sp.stale === "1"} /> Stale 14d+</label>
+          <div className="col-span-2 flex flex-wrap items-center gap-3 text-sm sm:col-span-1">
+            <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="open" value="1" defaultChecked={sp.open === "1"} /> Open</label>
+            {isManager(profile) && <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="unassigned" value="1" defaultChecked={sp.unassigned === "1"} /> Unassigned</label>}
+            <label className="flex items-center gap-1" title="No activity for 14+ days"><input type="checkbox" className="accent-brand-600" name="stale" value="1" defaultChecked={sp.stale === "1"} /> Stale 14d+</label>
           </div>
-          <div className="flex gap-2"><button className="btn-navy flex-1">Apply</button><Link href="/leads" className="btn-ghost">Clear</Link></div>
+          <div className="col-span-2 flex gap-2 sm:col-span-1"><button className="btn-primary flex-1"><Icon name="filter" className="h-3.5 w-3.5" />Apply</button><Link href="/leads" className="btn-ghost">Clear</Link></div>
         </form>
       )}
 
       {error ? <ErrorBox message={error} /> : rows.length === 0 ? (
-        <Empty title="No leads found">{metric ? "Nothing matches this metric for the selected filters." : "Try different filters, create a lead, or import a CSV."}</Empty>
+        <Empty icon="target" title="No leads found">{metric ? "Nothing matches this metric for the selected filters." : "Try different filters, create a lead, or import a CSV."}</Empty>
       ) : (
         <LeadTable rows={rows} canAssign={can(profile, "leads.assign")}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />

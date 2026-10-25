@@ -19,7 +19,7 @@ export function Alert({ state }: { state: FormState }) {
   if (!state?.error && !state?.ok) return null;
   return (
     <div role={state.error ? "alert" : "status"}
-      className={`rounded-md px-3 py-2 text-sm ${state.error ? "bg-red-50 text-red-700" : "bg-brand-50 text-brand-700"}`}>
+      className={`rounded-lg px-3 py-2 text-sm ${state.error ? "bg-red-50 text-red-700" : "bg-brand-50 text-brand-700"}`}>
       {state.error ?? state.ok}
     </div>
   );

@@ -23,7 +23,7 @@ export function LeadTable({ rows, canAssign, users }: { rows: Row[]; canAssign: 
   return (
     <>
       {canAssign && sel.size > 0 && (
-        <div className="card mb-3 border-brand-500 bg-brand-50 p-3">
+        <div className="card mb-3 border-brand-100 bg-brand-50 p-3">
           <ActionForm action={assignLeads} onOk={() => setSel(new Set())} className="flex flex-wrap items-end gap-2">
             {[...sel].map((id) => <input key={id} type="hidden" name="lead_ids" value={id} />)}
             <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
@@ -42,7 +42,7 @@ export function LeadTable({ rows, canAssign, users }: { rows: Row[]; canAssign: 
       )}
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[900px]">
-          <thead className="border-b bg-slate-50">
+          <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
               {canAssign && <th className="th w-8"><input type="checkbox" aria-label="Select all" checked={all} onChange={() => setSel(all ? new Set() : new Set(rows.map((r) => r.id)))} /></th>}
               <th className="th">Lead</th><th className="th">Customer</th><th className="th">Status</th><th className="th">Owner</th>
@@ -57,7 +57,7 @@ export function LeadTable({ rows, canAssign, users }: { rows: Row[]; canAssign: 
                   <div className="text-xs capitalize text-slate-500">{r.priority}</div></td>
                 <td className="td"><div className="font-medium text-navy-900">{r.customer_name || "—"}</div><div className="text-xs text-slate-500">{r.phone_e164}</div></td>
                 <td className="td"><span className={`badge ${CAT[r.status_category] ?? ""}`}>{r.status_name}</span></td>
-                <td className="td">{r.owner_name ?? <span className="text-amber-700">Unassigned</span>}</td>
+                <td className="td">{r.owner_name ?? <span className="badge bg-amber-50 text-amber-700">Unassigned</span>}</td>
                 <td className="td text-xs">{r.product_name ?? "—"}<div className="text-slate-500">{r.source_name ?? ""}</div></td>
                 <td className="td text-xs">{r.won_value != null ? <span className="text-brand-700">{money(r.won_value)} won</span> : money(r.expected_value)}</td>
                 <td className={`td text-xs ${r.next_followup_at && new Date(r.next_followup_at) < new Date() ? "font-medium text-red-600" : ""}`}>{r.next_followup_at ? fmtDateTime(r.next_followup_at) : "—"}</td>

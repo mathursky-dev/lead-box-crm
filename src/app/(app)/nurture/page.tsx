@@ -46,7 +46,7 @@ export default async function NurturePage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="Nurture & Recovery" sub={`Every open lead needs an owner, a next action and a due date. ${profile.role === "agent" ? "Showing your leads and chats." : "Showing everything you can access."}`}
+      <PageHeader icon="refresh" tone="green" title="Nurture & Recovery" sub={`Every open lead needs an owner, a next action and a due date. ${profile.role === "agent" ? "Showing your leads and chats." : "Showing everything you can access."}`}
         actions={control && !co?.automation_paused ? <AutomationSwitch paused={false} reason={null} /> : null} />
       {co?.automation_paused && (control ? <AutomationSwitch paused reason={co.automation_paused_reason} />
         : <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">All automation is paused by an admin.</div>)}

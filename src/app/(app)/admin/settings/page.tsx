@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   const { data: c } = await (await createClient()).from("lb_companies").select("*").eq("id", profile.company_id).single();
   return (
     <>
-      <PageHeader title="Company settings" sub="Reporting timezone: Asia/Kolkata (IST)." />
+      <PageHeader icon="gear" tone="navy" title="Company settings" sub="Reporting timezone: Asia/Kolkata (IST)." />
       <div className="card max-w-xl p-5">
         <ActionForm action={saveCompanySettings}>
           <Field label="Company name"><input className="input" name="name" defaultValue={c?.name} required /></Field>

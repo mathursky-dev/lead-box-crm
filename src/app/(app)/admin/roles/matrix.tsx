@@ -9,7 +9,7 @@ export function PermissionMatrix({ rows, counts }: { rows: Row[]; counts: Record
   return (
     <ActionForm action={saveRolePermissions} className="card overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
-        <thead className="border-b bg-slate-50">
+        <thead className="border-b border-slate-200 bg-slate-50">
           <tr>
             <th className="th">Permission</th>
             <th className="th text-center">Agent <span className="font-normal normal-case text-slate-400">({counts.agent})</span></th>

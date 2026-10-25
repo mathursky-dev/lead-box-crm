@@ -11,7 +11,7 @@ export default async function CatalogPage() {
   const { data: qr } = await (await createClient()).from("lb_quick_replies").select("id,shortcut,title,body").order("shortcut");
   return (
     <>
-      <PageHeader title="Products, sources, tags & quick replies" />
+      <PageHeader icon="tag" tone="green" title="Products, sources, tags & quick replies" />
       <div className="grid gap-4 lg:grid-cols-3">
         <OrgList table="lb_products" title="Products / Services" items={r.products} />
         <OrgList table="lb_sources" title="Sources" items={r.sources} />

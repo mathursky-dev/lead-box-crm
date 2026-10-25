@@ -19,7 +19,7 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   const [{ data, count, error }, { data: journeys }] = await Promise.all([q, sb.from("lb_journeys").select("id,name").order("name")]);
   return (
     <>
-      <PageHeader title="Execution log" sub="Every journey step, deferral, retry and stop, newest first. Deferred = held by consent, cap, quiet hours or a pause; it runs later automatically." />
+      <PageHeader icon="pulse" tone="navy" title="Execution log" sub="Every journey step, deferral, retry and stop, newest first. Deferred = held by consent, cap, quiet hours or a pause; it runs later automatically." />
       <form className="mb-3 flex flex-wrap gap-2">
         <select className="input w-56" name="journey" defaultValue={sp.journey ?? ""}><option value="">All journeys</option>{(journeys ?? []).map((j) => <option key={j.id} value={j.id}>{j.name}</option>)}</select>
         <select className="input w-48" name="event" defaultValue={sp.event ?? ""}><option value="">All events</option>{EVENTS.map((e) => <option key={e} value={e}>{e.replace(/_/g, " ")}</option>)}</select>
@@ -28,7 +28,7 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
       {error ? <ErrorBox message={error.message} /> : !data?.length ? <Empty title="No events" /> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b bg-slate-50"><tr><th className="th">When</th><th className="th">Journey</th><th className="th">Event</th><th className="th">Detail</th><th className="th"></th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">When</th><th className="th">Journey</th><th className="th">Event</th><th className="th">Detail</th><th className="th"></th></tr></thead>
             <tbody className="divide-y">{data.map((e) => {
               const en = e.enrollment as unknown as { lead_id: string; version: number } | null;
               return (

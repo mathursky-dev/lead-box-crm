@@ -1,21 +1,17 @@
-import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { SectionTabs } from "@/components/section-tabs";
 
 const TABS = [
-  ["/admin/quick-setup", "Quick Setup"], ["/admin/users", "Users"], ["/admin/roles", "Roles & permissions"], ["/admin/org", "Organisation"], ["/admin/integrations", "Integrations"], ["/admin/numbers", "WhatsApp numbers"], ["/admin/templates", "Templates"],
-  ["/admin/allocation", "Allocation"], ["/admin/statuses", "Statuses"], ["/admin/catalog", "Products · Sources · Tags · Quick replies"],
-  ["/admin/settings", "Settings"], ["/admin/audit", "Audit log"],
+  ["/admin/quick-setup", "Quick Setup", "bolt"], ["/admin/users", "Users", "contacts"], ["/admin/roles", "Roles & permissions", "shield"], ["/admin/org", "Organisation", "building"], ["/admin/integrations", "Integrations", "link"], ["/admin/numbers", "WhatsApp numbers", "phone"], ["/admin/templates", "Templates", "template"],
+  ["/admin/allocation", "Allocation", "refresh"], ["/admin/statuses", "Statuses", "list"], ["/admin/catalog", "Products · Sources · Tags · Quick replies", "tag"],
+  ["/admin/settings", "Settings", "gear"], ["/admin/audit", "Audit log", "clock"],
 ] as const;
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requireAdmin();
   return (
     <div>
-      <nav className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
-        {TABS.map(([href, label]) => (
-          <Link key={href} href={href} className="whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-slate-600 hover:border-brand-500 hover:text-navy-900">{label}</Link>
-        ))}
-      </nav>
+      <SectionTabs label="Admin sections" tabs={TABS.map(([href, label, icon]) => ({ href, label, icon }))} />
       {children}
     </div>
   );

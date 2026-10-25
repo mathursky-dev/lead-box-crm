@@ -18,7 +18,7 @@ export default async function ConsentPage() {
   ]);
   return (
     <>
-      <PageHeader title="Consent & suppression"
+      <PageHeader icon="shield" tone="amber" title="Consent & suppression"
         sub="Automated journeys and campaigns only message customers with a recorded WhatsApp opt-in. STOP/UNSUBSCRIBE replies opt customers out automatically and START opts them back in. Suppressed numbers are never messaged by automation." />
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card p-4">

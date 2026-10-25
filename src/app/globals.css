@@ -7,27 +7,31 @@
   --color-navy-700: #1c4278;
   --color-brand-50: #ecfdf3;
   --color-brand-100: #d1fae1;
+  --color-brand-400: #4ade80;
   --color-brand-500: #16a34a;
   --color-brand-600: #15803d;
   --color-brand-700: #166534;
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-html, body { height: 100%; }
-body { background: #f4f6f9; color: #0f172a; }
+/* Tailwind v4 borders default to currentColor; keep dividers and borders a soft slate unless a colour is set. */
+@layer base { *, ::after, ::before, ::backdrop, ::file-selector-button { border-color: #e2e8f0; } }
 
-@utility btn { @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed; }
-@utility btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700; }
-@utility btn-navy { @apply btn bg-navy-900 text-white hover:bg-navy-800; }
-@utility btn-ghost { @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
-@utility btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
-@utility btn-sm { @apply px-2 py-1 text-xs; }
-@utility input { @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
+html, body { height: 100%; }
+body { background: #f5f7fb; color: #0f172a; }
+
+@utility btn { @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-100 disabled:opacity-50 disabled:cursor-not-allowed; }
+@utility btn-primary { @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700; }
+@utility btn-navy { @apply btn bg-navy-900 text-white shadow-sm hover:bg-navy-800; }
+@utility btn-ghost { @apply btn border border-slate-200 bg-white text-navy-900 hover:border-slate-300 hover:bg-slate-50; }
+@utility btn-danger { @apply btn bg-red-600 text-white shadow-sm hover:bg-red-700; }
+@utility btn-sm { @apply rounded-md px-2.5 py-1 text-xs; }
+@utility input { @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-navy-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
 @utility label { @apply mb-1 block text-xs font-medium text-slate-600; }
-@utility card { @apply rounded-lg border border-slate-200 bg-white; }
-@utility th { @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500; }
-@utility td { @apply px-3 py-2 text-sm; }
-@utility badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium; }
+@utility card { @apply rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04)]; }
+@utility th { @apply px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap text-slate-500; }
+@utility td { @apply px-3 py-2.5 text-sm; }
+@utility badge { @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium; }
 
 /* Brand logo: entrance + periodic light sweep. Disabled for reduced motion. */
 @keyframes lb-logo-in { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
@@ -36,6 +40,21 @@ body { background: #f4f6f9; color: #0f172a; }
 .lb-logo::after { content: ""; position: absolute; inset: 0; width: 40%; pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent); animation: lb-logo-shine 4.5s ease-in-out 1s infinite; }
 @media (prefers-reduced-motion: reduce) { .lb-logo, .lb-logo::after { animation: none; } .lb-logo::after { display: none; } }
+
+/* leadbox logo: paper plane flies in from behind "lead" to its spot, leaving a fading dashed trail (once per load). */
+@keyframes lb-plane-fly {
+  0% { opacity: 0; transform: translate(-640%, 160%) rotate(12deg) scale(.55); }
+  12% { opacity: 1; }
+  70% { transform: translate(-40%, 15%) rotate(-4deg) scale(1.05); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes lb-trail { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 20% { opacity: .9; } 70% { opacity: .9; clip-path: inset(0 0 0 0); } 100% { opacity: 0; clip-path: inset(0 0 0 0); } }
+.lb-logo-anim { animation: lb-logo-in .6s cubic-bezier(.2,.8,.2,1) both; }
+.lb-plane { animation: lb-plane-fly 1.8s cubic-bezier(.3,.7,.3,1) .35s both; }
+.lb-logo-anim::after { content: ""; position: absolute; left: 8%; right: 16%; top: 22%; height: 45%; pointer-events: none; opacity: 0;
+  background: no-repeat center / 100% 100% url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 30' preserveAspectRatio='none'%3E%3Cpath d='M0 28 Q55 26 100 2' fill='none' stroke='%23ef4444' stroke-width='.8' stroke-dasharray='2 2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  animation: lb-trail 2s ease-out .35s both; }
+@media (prefers-reduced-motion: reduce) { .lb-logo-anim, .lb-plane, .lb-logo-anim::after { animation: none; } .lb-logo-anim::after { display: none; } }
 
 /* Boxy mascot */
 @keyframes lb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }

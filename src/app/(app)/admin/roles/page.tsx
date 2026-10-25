@@ -19,7 +19,7 @@ export default async function RolesPage() {
   const extras = (users ?? []).filter((u) => u.permissions?.length && u.is_active);
   return (
     <>
-      <PageHeader title="Roles & permissions"
+      <PageHeader icon="shield" tone="navy" title="Roles & permissions"
         sub="Choose what Agents and Team Leaders can do. Enforced by the database on every action, not just hidden buttons. Data visibility stays role-based: agents see their own leads and chats, team leaders their permitted teams, admins the whole company." />
       {error ? <ErrorBox message={error.message} /> : (
         <PermissionMatrix

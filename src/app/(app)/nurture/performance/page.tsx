@@ -42,12 +42,12 @@ export default async function PerformancePage() {
   }).filter((r) => r.sent + r.failed + r.replies + r.conversions > 0);
   return (
     <>
-      <PageHeader title="Journey & campaign performance (last 90 days)"
+      <PageHeader icon="chart" tone="blue" title="Journey & campaign performance (last 90 days)"
         sub="A reply is credited to the most recent automated message to that customer within 7 days; a conversion (Won) and its won value to the most recent delivered automated message within 30 days. Each lead's conversion is credited once." />
       {!rows.length ? <Empty title="No automated activity yet" /> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b bg-slate-50"><tr><th className="th">Journey / campaign</th><th className="th">Sent</th><th className="th">Read</th><th className="th">Failed</th><th className="th">Replies</th><th className="th">Reply rate</th><th className="th">Conversions</th><th className="th">Revenue</th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Journey / campaign</th><th className="th">Sent</th><th className="th">Read</th><th className="th">Failed</th><th className="th">Replies</th><th className="th">Reply rate</th><th className="th">Conversions</th><th className="th">Revenue</th></tr></thead>
             <tbody className="divide-y">{rows.map((r) => (
               <tr key={r.key}>
                 <td className="td"><span className="text-xs text-slate-500">{r.kind}</span> <Link className="font-medium text-brand-700 hover:underline" href={r.href}>{r.name}</Link></td>
@@ -62,7 +62,7 @@ export default async function PerformancePage() {
           <h2 className="px-4 pt-4 text-sm font-semibold text-navy-900">Journey funnel by version</h2>
           <p className="px-4 text-xs text-slate-500">Enrolments started in the last 90 days. Messaged = at least one template queued; replied = reply during the journey or credited reply; converted = credited conversion. Rate = converted ÷ enrolled.</p>
           <table className="mt-2 w-full min-w-[820px] text-sm">
-            <thead className="border-b bg-slate-50"><tr><th className="th">Journey</th><th className="th">Version</th><th className="th">Enrolled</th><th className="th">Messaged</th><th className="th">Replied</th><th className="th">Converted</th><th className="th">Rate</th><th className="th">Revenue</th><th className="th">Stopped / failed</th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">Journey</th><th className="th">Version</th><th className="th">Enrolled</th><th className="th">Messaged</th><th className="th">Replied</th><th className="th">Converted</th><th className="th">Rate</th><th className="th">Revenue</th><th className="th">Stopped / failed</th></tr></thead>
             <tbody className="divide-y">{funnel.map((f) => (
               <tr key={`${f.jid}${f.ver}`}>
                 <td className="td"><Link className="text-brand-700 hover:underline" href={`/nurture/journeys/${f.jid}`}>{f.name}</Link></td><td className="td">v{f.ver}</td>

@@ -15,13 +15,13 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const { data, count, error } = await q;
   return (
     <>
-      <PageHeader title="Audit log" sub="Admin and sensitive actions. Lead status/assignment history is on each lead." />
+      <PageHeader icon="clock" tone="navy" title="Audit log" sub="Admin and sensitive actions. Lead status/assignment history is on each lead." />
       <form className="mb-3 flex gap-2"><input className="input max-w-xs" name="action" defaultValue={sp.action} placeholder="Filter by action, e.g. user." /><button className="btn-ghost">Filter</button></form>
       {error && <ErrorBox message={error.message} />}
       {!error && !data?.length ? <Empty title="No audit entries" /> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[720px]">
-            <thead className="border-b bg-slate-50"><tr><th className="th">When</th><th className="th">Who</th><th className="th">Action</th><th className="th">Details</th></tr></thead>
+            <thead className="border-b border-slate-200 bg-slate-50"><tr><th className="th">When</th><th className="th">Who</th><th className="th">Action</th><th className="th">Details</th></tr></thead>
             <tbody className="divide-y">
               {data?.map((a) => (
                 <tr key={a.id}>

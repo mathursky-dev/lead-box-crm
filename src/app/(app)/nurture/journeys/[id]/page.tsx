@@ -28,7 +28,7 @@ export default async function JourneyPage({ params, searchParams }: { params: Pr
   if (isNew && !t) {
     return (
       <>
-        <PageHeader title="New journey" sub={<Link className="text-brand-700 hover:underline" href="/nurture/journeys">← All journeys</Link>} />
+        <PageHeader icon="flow" tone="violet" title="New journey" sub={<Link className="text-brand-700 hover:underline" href="/nurture/journeys">← All journeys</Link>} />
         <p className="mb-3 text-sm text-slate-600">Start from a template and adjust it, or start blank. Nothing runs until you preview and publish.</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {TEMPLATES.map((x) => (
@@ -66,7 +66,7 @@ export default async function JourneyPage({ params, searchParams }: { params: Pr
   const manage = can(profile, "journeys.manage");
   return (
     <>
-      <PageHeader title={isNew ? "New journey" : j!.name}
+      <PageHeader icon="flow" tone="violet" title={isNew ? "New journey" : j!.name}
         sub={<span className="flex flex-wrap items-center gap-2"><Link className="text-brand-700 hover:underline" href="/nurture/journeys">← All journeys</Link>
           {j && <span className="text-xs text-slate-500">· {j.status} · {j.current_version ? `published v${j.current_version}` : "never published"}</span>}</span>}
         actions={!isNew && manage ? <JourneyButtons id={j!.id} status={j!.status} published={j!.current_version > 0} /> : null} />

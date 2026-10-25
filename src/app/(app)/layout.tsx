@@ -15,10 +15,12 @@ function istGreeting() {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { profile, company, billing } = await requireProfile();
+  const { profile, company, billing, features } = await requireProfile();
   const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const admin = isAdmin(profile);
   const campaigns = can(profile, "campaigns.manage") || can(profile, "campaigns.approve");
+  // Plan features: modules outside the company's plan are hidden (their pages show an upgrade notice).
+  const nurture = can(profile, "nurture.view") && features.includes("nurture");
   // Sidebar groups. Every page keeps the same permission check it had before; a group with no visible items is dropped.
   const it = (ok: boolean, href: string, label: string) => (ok ? [{ href, label }] : []);
   const nav: NavGroup[] = [
@@ -35,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns" }, { href: "/whatsapp/commerce", label: "Commerce" },
       { href: "/whatsapp/reports", label: "Reports" }, { href: "/whatsapp/settings", label: "Settings" },
     ] },
-    ...(can(profile, "nurture.view") ? [{ label: "Marketing", icon: "megaphone", items: [
+    ...(nurture ? [{ label: "Marketing", icon: "megaphone", items: [
       { href: "/nurture", label: "Action queues" }, ...it(campaigns, "/nurture/campaigns", "Campaigns"),
       ...it(can(profile, "campaigns.manage"), "/nurture/segments", "Segments"), ...it(campaigns, "/nurture/offers", "Offers"),
       ...it(can(profile, "consent.manage"), "/nurture/consent", "Consent & suppression"), { href: "/nurture/performance", label: "Performance" },
@@ -43,9 +45,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ] }] : []),
     { label: "Automation & AI", icon: "bot", items: [
       { href: "/whatsapp/chatbots", label: "Chatbots" }, { href: "/whatsapp/flows", label: "Flows" },
-      ...it(can(profile, "nurture.view"), "/nurture/journeys", "Journeys"),
-      ...it(can(profile, "nurture.view") && can(profile, "journeys.manage"), "/nurture/logs", "Execution log"),
-      ...it(can(profile, "nurture.view") && can(profile, "knowledge.manage"), "/nurture/knowledge", "AI knowledge"),
+      ...it(nurture, "/nurture/journeys", "Journeys"),
+      ...it(nurture && can(profile, "journeys.manage"), "/nurture/logs", "Execution log"),
+      ...it(nurture && can(profile, "knowledge.manage"), "/nurture/knowledge", "AI knowledge"),
     ] },
     ...(can(profile, "reports.view") ? [{ label: "360 Reports", icon: "chart", href: "/reports" }] : []),
     ...(admin ? [
@@ -56,17 +58,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         { href: "/admin/settings", label: "Settings" }, { href: "/admin/audit", label: "Audit log" },
       ] },
       { label: "Integrations", icon: "link", items: [
-        { href: "/admin/integrations", label: "WhatsApp Cloud API" }, { href: "/admin/fb-login", label: "Facebook Lead Ads" },
+        { href: "/admin/integrations", label: "WhatsApp Cloud API" }, ...it(features.includes("fb_leads"), "/admin/fb-login", "Facebook Lead Ads"),
       ] },
     ] : []),
+    // SaaS owner console (companies, plans, billing) — platform Super Admin only.
+    ...(profile.role === "super_admin" ? [{ label: "Platform", icon: "building", items: [
+      { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" },
+    ] }] : []),
   ];
   // Quick Create: shortcuts to existing "new" screens, same permission checks as those pages.
   const quick = [
     ...it(can(profile, "leads.create"), "/leads/new", "New lead"),
     ...it(can(profile, "leads.import"), "/import", "Import leads (CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
-    ...it(can(profile, "nurture.view") && can(profile, "campaigns.manage"), "/nurture/campaigns", "New campaign"),
-    ...it(can(profile, "nurture.view") && can(profile, "journeys.manage"), "/nurture/journeys/new", "New journey"),
+    ...it(nurture && can(profile, "campaigns.manage"), "/nurture/campaigns", "New campaign"),
+    ...it(nurture && can(profile, "journeys.manage"), "/nurture/journeys/new", "New journey"),
     ...it(admin, "/whatsapp/chatbots", "New chatbot"),
     ...it(admin, "/admin/users", "Add user"),
   ];

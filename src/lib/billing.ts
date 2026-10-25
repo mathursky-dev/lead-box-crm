@@ -30,20 +30,26 @@ async function rzp<T>(path: string, init?: { method?: string; body?: unknown }):
 
 export type PaymentLink = {
   id: string; short_url: string; status: string; amount: number; amount_paid: number; currency: string;
-  notes: { company_id?: string; seats?: string; days?: string };
+  notes: { company_id?: string; seats?: string; days?: string; plan_id?: string };
   payments?: { payment_id: string; status: string }[] | null;
 };
 
-export async function createPaymentLink(o: { companyId: string; seats: number; name: string; email: string; phone: string | null; callbackUrl: string }) {
+/** Without a plan, falls back to the env-configured per-seat PLAN. */
+export async function createPaymentLink(o: {
+  companyId: string; seats: number; name: string; email: string; phone: string | null; callbackUrl: string;
+  plan?: { id: string; name: string; amountInr: number; days: number };
+}) {
+  const amount = o.plan ? o.plan.amountInr : PLAN.pricePerSeatInr * o.seats;
+  const days = o.plan?.days ?? PLAN.days;
   return rzp<PaymentLink>("/payment_links", {
     method: "POST",
     body: {
-      amount: PLAN.pricePerSeatInr * o.seats * 100,
+      amount: amount * 100,
       currency: "INR",
-      description: `Lead Box CRM — ${o.seats} user${o.seats > 1 ? "s" : ""}, ${PLAN.days} days`,
+      description: `Lead Box CRM${o.plan ? ` ${o.plan.name}` : ""} — ${o.seats} user${o.seats > 1 ? "s" : ""}, ${days} days`,
       customer: { name: o.name, email: o.email, ...(o.phone ? { contact: o.phone } : {}) },
       notify: { sms: false, email: false },
-      notes: { company_id: o.companyId, seats: String(o.seats), days: String(PLAN.days) },
+      notes: { company_id: o.companyId, seats: String(o.seats), days: String(days), ...(o.plan ? { plan_id: o.plan.id } : {}) },
       callback_url: o.callbackUrl,
       callback_method: "get",
     },
@@ -80,5 +86,7 @@ export async function settlePaymentLink(linkId: string) {
     p_seats: Number(link.notes.seats ?? 1), p_days: Number(link.notes.days ?? PLAN.days), p_raw: link,
   });
   if (error) throw error;
+  // A payment for a specific plan also moves the company onto it.
+  if (link.notes.plan_id) await createAdminClient().from("lb_billing").update({ plan_id: link.notes.plan_id }).eq("company_id", link.notes.company_id);
   return true;
 }

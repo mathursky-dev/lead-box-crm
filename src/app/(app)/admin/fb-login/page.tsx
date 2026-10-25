@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
+import { UpgradeNotice } from "@/components/upgrade";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { ErrorBox } from "@/components/static";
 import { fbAccount } from "@/lib/facebook";
@@ -9,7 +10,8 @@ import { FbHeader, FbPickers, SavedPages, SavedAds } from "./forms";
 export const metadata = { title: "FB Login" };
 
 export default async function FbLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const { profile } = await requireAdmin();
+  const { profile, features } = await requireAdmin();
+  if (!features.includes("fb_leads")) return <UpgradeNotice feature="Facebook Lead Ads" />;
   const { error } = await searchParams;
   const ready = hasServiceRole() && Boolean(process.env.LB_SECRETS_KEY);
   const acct = ready ? await fbAccount(profile.company_id).catch(() => null) : null;

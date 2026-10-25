@@ -7,7 +7,8 @@ import { rateLimit } from "./auth";
 type Out = { error?: string; text?: string; knowledge?: { id: string; title: string }[] };
 
 async function load(convId: string) {
-  const { profile, company } = await requireProfile();
+  const { profile, company, features } = await requireProfile();
+  if (!features.includes("ai")) throw new AiError("AI is not included in your plan. Upgrade from the Billing page.", false);
   if (!can(profile, "ai.use")) throw new AiError("You do not have permission to use AI.", false);
   const sb = await createClient();
   const { data: co } = await sb.from("lb_companies").select("ai_enabled").eq("id", company.id).single();

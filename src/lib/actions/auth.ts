@@ -95,6 +95,7 @@ const signupSchema = z.object({
   phone: z.string().trim().min(6, "Enter your mobile number.").max(20),
   password: z.string().min(8, "Password must be at least 8 characters.").max(200),
   website: z.string().max(0).optional(), // honeypot: real users leave it empty
+  plan: z.union([z.uuid(), z.literal("")]).optional().transform((v) => v || null),
 });
 
 /** One trial per person: Gmail dots/+tags and phone formatting don't create new identities. */
@@ -127,7 +128,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
     return { error: /already|registered|exists/i.test(created.error?.message ?? "") ? "An account with this email already exists. Sign in instead." : "Could not create your account. Try again." };
   }
   const uid = created.data.user.id;
-  const { error } = await admin.rpc("lb_signup", { p_user: uid, p_company: company, p_full_name: name, p_email: email, p_phone: phone, p_identities: identities });
+  const { error } = await admin.rpc("lb_signup", { p_user: uid, p_company: company, p_full_name: name, p_email: email, p_phone: phone, p_identities: identities, p_plan: parsed.data.plan });
   if (error) {
     await admin.auth.admin.deleteUser(uid); // roll back the half-created account
     return { error: /trial_used/.test(error.message) ? "A free trial was already used with this email or mobile number." : "Could not create your workspace. Try again." };

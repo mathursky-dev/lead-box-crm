@@ -1,15 +1,29 @@
 import Link from "next/link";
 import { ActionForm, Field, Submit } from "@/components/ui";
 import { signup } from "@/lib/actions/auth";
+import { hasServiceRole } from "@/lib/supabase/server";
+import { publicPlans, priceLabel } from "@/lib/plans";
 
 export const metadata = { title: "Start your free trial" };
 
-export default function SignupPage() {
+const trialText = (days: number) => (days === 1 ? "24 hours" : `${days} days`);
+
+export default async function SignupPage({ searchParams }: { searchParams: Promise<{ plan?: string }> }) {
+  const { plan: wanted } = await searchParams;
+  const plans = hasServiceRole() ? await publicPlans().catch(() => []) : [];
+  const pick = plans.find((p) => p.code === wanted || p.id === wanted) ?? plans[0];
   return (
     <>
       <h1 className="mb-1 text-lg font-semibold text-navy-900">Start your free trial</h1>
-      <p className="mb-4 text-sm text-slate-600">24 hours of full access. No card needed.</p>
+      <p className="mb-4 text-sm text-slate-600">{pick && pick.trial_days > 1 ? `${trialText(pick.trial_days)} of full access` : "24 hours of full access"}. No card needed.</p>
       <ActionForm action={signup}>
+        {plans.length > 1 ? (
+          <Field label="Plan">
+            <select className="input" name="plan" defaultValue={pick?.id}>
+              {plans.map((p) => <option key={p.id} value={p.id}>{p.name}: {priceLabel(p)}{p.trial_days ? ` · ${trialText(p.trial_days)} free` : ""}</option>)}
+            </select>
+          </Field>
+        ) : pick ? <input type="hidden" name="plan" value={pick.id} /> : null}
         <Field label="Company name"><input className="input" name="company" autoComplete="organization" required maxLength={120} /></Field>
         <Field label="Your name"><input className="input" name="name" autoComplete="name" required maxLength={120} /></Field>
         <Field label="Work email"><input className="input" type="email" name="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required /></Field>

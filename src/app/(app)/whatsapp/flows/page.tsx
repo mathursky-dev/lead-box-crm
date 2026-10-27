@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { requireProfile, can } from "@/lib/auth";
+import { requireProfile, can, isAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { TRIGGERS } from "../../nurture/journeys/journey-model";
 import { Panel, EmptyState, Icon } from "../ui";
+import { FlowRowActions } from "./flow-actions";
 
 export const metadata = { title: "Flows · WhatsApp" };
+const BOT_TRIGGER: Record<string, string> = { keywords: "Keywords", any: "Any message", new_contact: "New contact", manual: "Off (manual)" };
 const TRIGGER = Object.fromEntries(TRIGGERS);
 const STATE: Record<string, string> = { draft: "bg-slate-100", active: "bg-brand-100 text-brand-700", paused: "bg-amber-50 text-amber-800" };
 
@@ -20,15 +22,41 @@ const IDEAS: [string, string, string][] = [
 export default async function Flows() {
   const { profile } = await requireProfile();
   const sb = await createClient();
-  const [{ data: journeys }, { data: enr }] = await Promise.all([
+  const [{ data: journeys }, { data: enr }, { data: bots }] = await Promise.all([
     sb.from("lb_journeys").select("id,name,description,status,trigger_type,current_version,priority").neq("status", "archived").order("priority"),
     sb.from("lb_journey_enrollments").select("journey_id,status").limit(20000),
+    sb.from("lb_wa_flows").select("id,name,description,trigger_type,keywords,match_type,is_active,priority,version,run_count,updated_at").order("priority").order("name"),
   ]);
+  const admin = isAdmin(profile);
   const count = (id: string, st?: string) => (enr ?? []).filter((e) => e.journey_id === id && (!st || e.status === st)).length;
   const manage = can(profile, "journeys.manage");
   return (
     <>
-      <Panel title="Your flows" icon="flow" actions={manage ? <Link href="/nurture/journeys/new" className="btn-primary btn-sm"><Icon name="plus" className="h-3.5 w-3.5" /> New flow</Link> : null}>
+      <Panel title="Chatbot flows" icon="bot" tone="violet" className="mb-4"
+        sub="Visual chatbot builder: buttons, list menus, questions, media, tags and agent hand-off. Runs instantly when a customer messages, before keyword bots."
+        actions={admin ? <Link href="/whatsapp/flows/new" className="btn-primary btn-sm"><Icon name="plus" className="h-3.5 w-3.5" /> New chatbot flow</Link> : null}>
+        {!bots?.length ? (
+          <EmptyState icon="bot" title="No chatbot flows yet" action={admin ? <Link href="/whatsapp/flows/new" className="btn-primary">Open the flow builder</Link> : null}>
+            Drag blocks, connect them, test it in the simulator and switch it on. Start from the Library for a ready-made welcome menu or lead capture bot.
+          </EmptyState>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {bots.map((f) => (
+              <div key={f.id} className="rounded-lg border border-slate-200 p-3 hover:border-violet-400">
+                <Link href={`/whatsapp/flows/${f.id}`} className="block">
+                  <div className="flex items-center justify-between gap-2"><span className="font-semibold text-navy-900">{f.name}</span>
+                    <span className={`badge ${f.is_active ? "bg-brand-100 text-brand-700" : "bg-slate-100"}`}>{f.is_active ? "active" : "off"}</span></div>
+                  {f.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{f.description}</p>}
+                  <div className="mt-2 text-xs text-slate-500">{BOT_TRIGGER[f.trigger_type]}{f.trigger_type === "keywords" && f.keywords.length ? `: ${f.keywords.slice(0, 4).join(", ")}${f.keywords.length > 4 ? "…" : ""}` : ""} · order {f.priority} · v{f.version}</div>
+                  <div className="mt-1 text-xs"><b>{f.run_count}</b> runs</div>
+                </Link>
+                {admin && <div className="mt-2 flex flex-wrap gap-1 border-t border-slate-100 pt-2"><Link href={`/whatsapp/flows/${f.id}`} className="btn-ghost btn-sm">Edit</Link><FlowRowActions id={f.id} active={f.is_active} name={f.name} /></div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+      <Panel title="Journeys (follow-up sequences)" icon="flow" actions={manage ? <Link href="/nurture/journeys/new" className="btn-primary btn-sm"><Icon name="plus" className="h-3.5 w-3.5" /> New flow</Link> : null}>
         {!journeys?.length ? (
           <EmptyState icon="flow" title="No flows yet" action={manage ? <Link href="/nurture/journeys/new" className="btn-primary">Start from scratch</Link> : null}>
             Build a guided sequence — template messages, waits, conditions, agent tasks and hand-off — that runs on its own for every matching lead.

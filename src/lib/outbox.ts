@@ -5,6 +5,7 @@ import { graph, isRetryable, numberCredentials, markNumberError } from "./whatsa
 type Msg = {
   id: string; conversation_id: string; type: string; body: string | null; media_path: string | null; media_filename: string | null;
   template_name: string | null; template_language: string | null; template_params: unknown; reply_to_id: string | null;
+  payload: Record<string, unknown> | null; next_attempt_at: string;
 };
 
 /**
@@ -22,7 +23,8 @@ export async function drainOutbox(budgetMs = 20000) {
     const { data: batch, error } = await db.rpc("lb_claim_outbox", { p_limit: 10 });
     if (error) { console.error("claim_outbox failed:", error.message); break; }
     if (!batch?.length) break;
-    for (const m of batch as Msg[]) {
+    // Flow blocks queue several messages at once; send them in the order they were queued.
+    for (const m of (batch as Msg[]).sort((a, b) => a.next_attempt_at.localeCompare(b.next_attempt_at))) {
       const { data: conv } = await db.from("lb_conversations").select("number_id, customer:lb_customers(phone_e164)").eq("id", m.conversation_id).single();
       const numberId = conv?.number_id as string;
       if (!creds.has(numberId)) creds.set(numberId, await numberCredentials(numberId).catch(() => null));
@@ -77,6 +79,8 @@ async function buildPayload(db: ReturnType<typeof createAdminClient>, m: Msg, to
       },
     };
   }
+  // Flow blocks: interactive buttons/lists/products, location pins, contact cards and media by public link.
+  if (m.payload) return { ...base, type: m.type, [m.type]: m.type === "contacts" ? (m.payload as { contacts: unknown }).contacts : m.payload };
   if (!m.media_path) throw new Error("Attachment missing");
   const { data, error } = await db.storage.from("lb-media").createSignedUrl(m.media_path, 3600);
   if (error || !data) throw new Error("Could not read attachment from storage");

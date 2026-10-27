@@ -21,7 +21,7 @@ export const WA_TABS = [
   { href: "/whatsapp/chatbots", label: "Chatbots", icon: "bot", on: "bg-purple-600 text-white", off: "bg-purple-50 text-purple-700 border-purple-100",
     title: "Chatbots", sub: "Keyword auto-replies, opt-out handling, away messages and the questions nobody answered" },
   { href: "/whatsapp/flows", label: "Flows", icon: "flow", on: "bg-indigo-600 text-white", off: "bg-indigo-50 text-indigo-700 border-indigo-100",
-    title: "Flows", sub: "Multi-step automated journeys: welcome, follow-up, recovery and re-engagement" },
+    title: "Flows", sub: "Visual chatbot flows and multi-step follow-up journeys" },
   { href: "/whatsapp/commerce", label: "Commerce", icon: "cart", on: "bg-orange-600 text-white", off: "bg-orange-50 text-orange-700 border-orange-100",
     title: "Commerce", sub: "Products and services you sell, and the leads and revenue they bring" },
   { href: "/whatsapp/reports", label: "Reports", icon: "chart", on: "bg-sky-600 text-white", off: "bg-sky-50 text-sky-700 border-sky-100",

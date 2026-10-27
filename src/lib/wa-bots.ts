@@ -1,10 +1,11 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
+import { runFlows } from "./wa-flows";
 import { DEFAULT_PREFS, insideHours, keywordHit, pickBot, splitKeywords, type WaBot, type WaPrefs } from "./wa";
 
 type Db = ReturnType<typeof createAdminClient>;
-type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string };
+type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string; replyId?: string | null };
 
 const TEXT_TYPES = ["text", "button", "interactive"];
 
@@ -78,6 +79,9 @@ export async function runAutoReplies(ev: Inbound) {
       await maybeAway(db, ev, prefs);
       return;
     }
+
+    // Visual flows first: a chat waiting on a flow question, or a flow whose trigger matches.
+    if (await runFlows(db, ev, conv)) return;
 
     const { data: bots } = await db.from("lb_wa_bots").select("*").eq("company_id", ev.companyId).eq("is_active", true).order("priority");
     const inside = insideHours(prefs);

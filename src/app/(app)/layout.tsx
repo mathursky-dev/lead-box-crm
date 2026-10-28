@@ -45,6 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ] }] : []),
     { label: "Automation & AI", icon: "bot", items: [
       { href: "/whatsapp/chatbots", label: "Chatbots" }, { href: "/whatsapp/flows", label: "Flows" },
+      ...it(admin, "/whatsapp/flows/new", "Flow builder"),
       ...it(nurture, "/nurture/journeys", "Journeys"),
       ...it(nurture && can(profile, "journeys.manage"), "/nurture/logs", "Execution log"),
       ...it(nurture && can(profile, "knowledge.manage"), "/nurture/knowledge", "AI knowledge"),
@@ -74,6 +75,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(nurture && can(profile, "campaigns.manage"), "/nurture/campaigns", "New campaign"),
     ...it(nurture && can(profile, "journeys.manage"), "/nurture/journeys/new", "New journey"),
     ...it(admin, "/whatsapp/chatbots", "New chatbot"),
+    ...it(admin, "/whatsapp/flows/new", "New chatbot flow"),
     ...it(admin, "/admin/users", "Add user"),
   ];
   const sb = await createClient();

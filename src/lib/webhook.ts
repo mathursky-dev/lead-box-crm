@@ -5,8 +5,8 @@ import { runAutoReplies } from "./wa-bots";
 
 type WaMessage = {
   id: string; from: string; timestamp: string; type: string;
-  text?: { body: string }; button?: { text: string };
-  interactive?: { button_reply?: { title: string }; list_reply?: { title: string } };
+  text?: { body: string }; button?: { text: string; payload?: string };
+  interactive?: { button_reply?: { id?: string; title: string }; list_reply?: { id?: string; title: string } };
   location?: { latitude: number; longitude: number; name?: string; address?: string };
   image?: Media; video?: Media; audio?: Media; document?: Media & { filename?: string }; sticker?: Media;
   contacts?: { name?: { formatted_name?: string } }[];
@@ -65,7 +65,8 @@ export async function processWebhookEvent(eventId: string) {
             },
           });
           if (error) throw new Error(`ingest: ${error.message}`);
-          if (data?.message_id) botJobs.push({ messageId: data.message_id, conversationId: data.conversation_id, companyId: data.company_id, body: bodyOf(m), type: m.type });
+          if (data?.message_id) botJobs.push({ messageId: data.message_id, conversationId: data.conversation_id, companyId: data.company_id, body: bodyOf(m), type: m.type,
+            replyId: m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? m.button?.payload ?? null });
           if (data?.message_id && m.context?.id) {
             const r = await db.rpc("lb__link_reply", { p_msg: data.message_id, p_context_wamid: m.context.id });
             if (r.error) throw new Error(`reply link: ${r.error.message}`);

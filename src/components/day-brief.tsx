@@ -18,7 +18,7 @@ export type Brief = {
   top: { id: string; lead_no: number; customer_name: string | null; phone_e164: string; reason: string; priority: string }[];
 };
 
-const plural = (n: number, one: string) => `${n.toLocaleString("en-IN")} ${one}${n === 1 ? "" : "s"}`;
+const plural = (n: number | undefined, one: string) => `${(n ?? 0).toLocaleString("en-IN")} ${one}${n === 1 ? "" : "s"}`;
 
 const inr = (v: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
 

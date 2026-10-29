@@ -85,7 +85,7 @@ export default async function Chatbots({ searchParams }: { searchParams: Promise
           )}
           <p className="mt-4 flex items-start gap-1 text-xs text-slate-500"><Icon name="alert" className="mt-0.5 h-3.5 w-3.5" />
             Order for every inbound text: <b>&nbsp;opt-out / opt-in keywords → keyword bots (lowest # first, first match wins) → away message</b>.
-            {p.pause_bots_when_assigned ? " Bots stay quiet on chats already assigned to an agent." : ""}</p>
+            {p.pause_bots_when_assigned ? " Bots stay quiet for 2 hours after an assigned agent replies." : ""}</p>
         </Panel>
       )}
 

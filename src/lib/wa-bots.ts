@@ -8,6 +8,7 @@ type Db = ReturnType<typeof createAdminClient>;
 type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string; replyId?: string | null };
 
 const TEXT_TYPES = ["text", "button", "interactive"];
+const AGENT_QUIET_MS = 2 * 3600 * 1000;
 
 /** Stable uuid per (inbound message, purpose) so webhook replays never send a second reply. */
 function stableId(...parts: string[]) {
@@ -74,8 +75,8 @@ export async function runAutoReplies(ev: Inbound) {
       }
     }
 
-    if (prefs.pause_bots_when_assigned && conv.assignee_id) {
-      // A human owns this chat; still answer out of hours with the away message.
+    if (prefs.pause_bots_when_assigned && conv.assignee_id && (await agentActive(db, ev.conversationId))) {
+      // An agent is talking in this chat right now; still answer out of hours with the away message.
       await maybeAway(db, ev, prefs);
       return;
     }
@@ -98,6 +99,17 @@ export async function runAutoReplies(ev: Inbound) {
   } catch (e) {
     console.error("auto-reply failed:", (e as Error).message);
   }
+}
+
+/**
+ * A human agent replied in this chat recently. Being assigned alone does not pause bots: a flow's
+ * "Assign" block assigns every lead it qualifies, and the chat must still answer when they write again.
+ */
+async function agentActive(db: Db, conversationId: string) {
+  const since = new Date(Date.now() - AGENT_QUIET_MS).toISOString();
+  const { count } = await db.from("lb_messages").select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId).eq("direction", "out").eq("automated", false).not("sent_by", "is", null).gte("created_at", since);
+  return (count ?? 0) > 0;
 }
 
 /** Away message: outside business hours, at most once per conversation every 12 hours. */

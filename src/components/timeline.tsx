@@ -17,7 +17,7 @@ function describe(e: Ev) {
     case "call": return <>Call logged: <span className="whitespace-pre-wrap">{String(e.data?.body ?? "")}</span></>;
     case "message_out": return "WhatsApp message sent";
     case "message_in": return "WhatsApp message received";
-    case "followup_created": return <>Follow-up scheduled for {fmtDateTime(String(e.data?.due_at))}{e.data?.note ? ` — ${e.data.note}` : ""}</>;
+    case "followup_created": return <>Follow-up scheduled{e.data?.due_at ? ` for ${fmtDateTime(String(e.data.due_at))}` : e.data?.journey ? ` by ${e.data.journey}` : ""}{e.data?.note ? ` — ${e.data.note}` : ""}</>;
     case "followup_done": return e.data?.cancelled ? "Follow-up cancelled" : "Follow-up completed";
     case "field_update": return <>Updated {Object.keys(e.data ?? {}).join(", ")}</>;
     default: return e.type;

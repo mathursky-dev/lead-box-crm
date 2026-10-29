@@ -4,13 +4,23 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { encryptSecret } from "@/lib/util";
-import { phoneInfo, subscribeApp, listTemplates, numberCredentials, markNumberError, graph } from "@/lib/whatsapp";
+import { phoneInfo, subscribeApp, listTemplates, numberCredentials, markNumberError, graph, ownerWaba } from "@/lib/whatsapp";
 
 type FormState = { error?: string; ok?: string } | undefined;
 const uuidOpt = z.union([z.uuid(), z.literal("")]).optional().transform((v) => v || null);
 
 async function audit(companyId: string, actorId: string, action: string, entityId: string, data: object = {}) {
   await createAdminClient().from("lb_audit_log").insert({ company_id: companyId, actor_id: actorId, action, entity: "wa_number", entity_id: entityId, data });
+}
+
+const WRONG_WABA = "This access token can't see a WhatsApp Business Account that owns this phone number. In Business Settings → System users, assign the right WhatsApp account to the system user (Full control), generate a new token, and paste it here.";
+
+/** Make sure the stored WABA ID really owns the number; fixes it in place when the token reveals the right one. */
+async function checkWaba(c: { id: string; token: string; phone_number_id: string; waba_id: string }) {
+  const waba = await ownerWaba(c.token, c.phone_number_id, c.waba_id);
+  if (!waba) return { error: WRONG_WABA };
+  if (waba !== c.waba_id) await createAdminClient().from("lb_wa_numbers").update({ waba_id: waba }).eq("id", c.id);
+  return { waba, fixed: waba !== c.waba_id ? `WABA ID corrected to ${waba}. ` : "" };
 }
 
 const schema = z.object({
@@ -43,6 +53,9 @@ export async function saveNumber(_: FormState, form: FormData): Promise<FormStat
   if (access_token) {
     check = await phoneInfo(access_token, v.phone_number_id);
     if (!check.ok) return { error: `Meta rejected these credentials: ${check.message}` };
+    const waba = await ownerWaba(access_token, v.phone_number_id, v.waba_id);
+    if (!waba) return { error: WRONG_WABA };
+    v.waba_id = waba;
   }
   const row = {
     ...v, ...(check?.ok ? { display_phone: check.data.display_phone_number, verified_name: check.data.verified_name, quality_rating: check.data.quality_rating ?? null,
@@ -95,10 +108,13 @@ export async function subscribeWebhook(numberId: string): Promise<FormState> {
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
   if (c.provider === "qr") return { error: "QR-scan numbers don't use Meta webhooks." };
-  const r = await subscribeApp(c.token, c.waba_id);
+  const w = await checkWaba(c);
+  if ("error" in w) return { error: w.error };
+  const r = await subscribeApp(c.token, w.waba);
   if (!r.ok) return { error: r.message };
-  await audit(me.company_id, me.id, "wa_number.subscribe", numberId);
-  return { ok: "App subscribed to this WhatsApp Business Account's webhooks." };
+  await audit(me.company_id, me.id, "wa_number.subscribe", numberId, { waba_id: w.waba });
+  revalidatePath("/admin/numbers");
+  return { ok: `${w.fixed}App subscribed to this WhatsApp Business Account's webhooks.` };
 }
 
 export async function syncTemplates(numberId: string): Promise<FormState> {
@@ -106,6 +122,9 @@ export async function syncTemplates(numberId: string): Promise<FormState> {
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
   if (c.provider === "qr") return { error: "Templates need the official API; QR-scan numbers send normal messages only." };
+  const w = await checkWaba(c);
+  if ("error" in w) return { error: w.error };
+  c.waba_id = w.waba;
   const r = await listTemplates(c.token, c.waba_id);
   if (!r.ok) return { error: r.message };
   const db = createAdminClient();

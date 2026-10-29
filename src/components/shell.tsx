@@ -90,7 +90,7 @@ export function Shell({ nav, quick, user, wallet, children }: { nav: NavGroup[];
               <kbd className="rounded border border-violet-200 bg-white px-1 font-mono text-[10px] max-md:hidden">?</kbd>
             </button>
             {wallet !== null && (
-              <Link href="/whatsapp/reports" title="Company wallet (funds WhatsApp message credits)" aria-label={`Wallet ₹${fmtNum(wallet)}`}
+              <Link href="/wallet" title="Wallet balance · add balance by UPI" aria-label={`Wallet ₹${fmtNum(wallet)}`}
                 className="flex h-9 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-100">
                 <Icon name="wallet" className="h-4 w-4" /><span className="max-sm:hidden">₹{fmtNum(wallet)}</span>
               </Link>

@@ -7,6 +7,7 @@ import { requireProfile } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { normalizePhone, errMsg } from "@/lib/util";
 import { FEATURES } from "@/lib/plans";
+import { UPI_ID_RE } from "@/lib/upi";
 
 type FormState = { error?: string; ok?: string } | undefined;
 
@@ -247,6 +248,44 @@ export async function savePlan(_: FormState, form: FormData): Promise<FormState>
     if (error) return { error: error.code === "23505" ? "A plan with this code already exists." : error.message };
     revalidatePath("/platform", "layout");
     return { ok: id ? "Plan saved." : "Plan created." };
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
+}
+
+// ------------------------------------------------------------- wallet UPI
+
+export async function reviewTopup(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    const { me, db } = await requireSuper();
+    const p = z.object({
+      id: z.uuid(), approve: z.enum(["1", "0"]), note: z.string().trim().max(300).optional(),
+    }).safeParse(Object.fromEntries(form));
+    if (!p.success) return { error: "Invalid request." };
+    if (p.data.approve === "0" && !p.data.note) return { error: "Write why it is rejected (the company sees this)." };
+    const { data, error } = await db.rpc("lb_wallet_review_topup", { p_actor: me.id, p_id: p.data.id, p_approve: p.data.approve === "1", p_note: p.data.note || null });
+    if (error) return { error: error.message };
+    revalidatePath("/platform/wallet");
+    return done(p.data.approve === "1" ? `Approved. Wallet balance is now ₹${Number(data).toLocaleString("en-IN")}.` : "Rejected.");
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
+}
+
+export async function saveUpiSettings(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    const { me, db } = await requireSuper();
+    const p = z.object({
+      upi_id: z.string().trim().regex(UPI_ID_RE, "Enter a UPI ID like name@okhdfcbank."),
+      upi_name: z.string().trim().min(1, "Enter the payee name.").max(80),
+    }).safeParse(Object.fromEntries(form));
+    if (!p.success) return { error: p.error.issues[0]?.message ?? "Check the form." };
+    const { error } = await db.from("lb_platform_settings").upsert({ id: true, ...p.data, updated_at: new Date().toISOString() });
+    if (error) return { error: error.message };
+    await audit(db, me.id, me.company_id, "platform.upi_settings", p.data);
+    revalidatePath("/platform/wallet");
+    revalidatePath("/wallet");
+    return { ok: "UPI details saved." };
   } catch (e) {
     return { error: errMsg(e) };
   }

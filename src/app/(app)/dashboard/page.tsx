@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { requireProfile, isManager, ROLE_LABEL } from "@/lib/auth";
+import { requireProfile, isManager, isAdmin, ROLE_LABEL } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { PageHeader, ErrorBox } from "@/components/static";
 import { METRICS, COHORT_RATE_DEF, toRpcFilters, pickFilters, pct } from "@/lib/metrics";
 import { rangeFor, fmtDay, money, type Preset } from "@/lib/dates";
+import { inr } from "@/lib/plans";
 import { Filters } from "@/components/filters";
 import { Kpi, Panel, Icon } from "@/components/kit";
 
@@ -19,9 +20,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const refs = await loadRefs();
   const sb = await createClient();
   const filters = pickFilters(sp);
-  const [{ data, error }, { data: visible }] = await Promise.all([
+  const admin = isAdmin(profile);
+  const [{ data, error }, { data: visible }, { data: wallet }, { data: pendingTopups }] = await Promise.all([
     sb.rpc("lb_dashboard", { p: toRpcFilters(filters) }),
     sb.rpc("lb_visible_user_ids"),
+    admin ? sb.from("lb_wallets").select("balance").eq("company_id", profile.company_id).maybeSingle() : Promise.resolve({ data: null }),
+    admin ? sb.from("lb_wallet_topups").select("amount").eq("company_id", profile.company_id).eq("status", "pending") : Promise.resolve({ data: null }),
   ]);
   const d = (data ?? { totals: {}, won_value: 0, by_user: {} }) as Dash;
   const t = (k: string) => d.totals[k] ?? 0;
@@ -37,6 +41,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader icon="grid" title={manager ? "Team dashboard" : "My dashboard"} sub={`${profile.full_name} · ${ROLE_LABEL[profile.role]} · ${company.name} · ${fmtDay(from.toISOString())} – ${fmtDay(new Date(to.getTime() - 1).toISOString())} (IST)`} />
+      {admin && <WalletStrip balance={Number(wallet?.balance ?? 0)} pending={(pendingTopups ?? []).reduce((n, t) => n + Number(t.amount), 0)} />}
       <Filters sp={filters} refs={refs} manager={manager} visible={visibleSet} basePath="/dashboard" />
       {error && <div className="mb-4"><ErrorBox message={error.message} /></div>}
 
@@ -152,4 +157,20 @@ const CAT_DOT: Record<string, string> = {
 function Card({ d, drill, metric, label, value, sub, icon, tone }: { d: Dash; drill: (m: string) => string; metric: string; label?: string; value?: React.ReactNode; sub?: React.ReactNode; icon?: string; tone?: string }) {
   const [i, c] = LOOK[metric] ?? ["chart", "green"];
   return <Kpi href={drill(metric)} title={METRICS[metric]?.def} label={label ?? METRICS[metric]?.label} value={value ?? d.totals[metric] ?? 0} sub={sub} icon={icon ?? i} tone={tone ?? c} />;
+}
+
+/** Admin-only strip at the top of the dashboard: wallet balance and a shortcut to add balance by UPI. */
+function WalletStrip({ balance, pending }: { balance: number; pending: number }) {
+  return (
+    <section className="card mb-4 flex flex-wrap items-center gap-3 border-amber-200 bg-gradient-to-r from-amber-50 to-white px-4 py-3">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-700"><Icon name="wallet" className="h-5 w-5" /></span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Wallet balance</div>
+        <div className="text-xl font-bold text-navy-900">{inr(Math.round(balance * 100) / 100)}</div>
+        {pending > 0 && <div className="text-xs text-amber-700">{inr(pending)} UPI payment waiting for verification</div>}
+      </div>
+      <Link href="/wallet" className="btn-ghost btn-sm">History</Link>
+      <Link href="/wallet#add" className="btn-primary btn-sm">+ Add balance (UPI)</Link>
+    </section>
+  );
 }

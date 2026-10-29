@@ -5,6 +5,7 @@ import { SectionTabs } from "@/components/section-tabs";
 const TABS = [
   { href: "/platform", label: "Companies", icon: "building" },
   { href: "/platform/plans", label: "Plans & pricing", icon: "rupee" },
+  { href: "/platform/wallet", label: "Wallet payments", icon: "wallet" },
 ];
 
 /** SaaS owner console: only the platform Super Admin sees it. */

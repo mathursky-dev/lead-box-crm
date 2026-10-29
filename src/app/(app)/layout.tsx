@@ -64,7 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ] : []),
     // SaaS owner console (companies, plans, billing) — platform Super Admin only.
     ...(profile.role === "super_admin" ? [{ label: "Platform", icon: "building", items: [
-      { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" },
+      { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" }, { href: "/platform/wallet", label: "Wallet payments" },
     ] }] : []),
   ];
   // Quick Create: shortcuts to existing "new" screens, same permission checks as those pages.
@@ -79,7 +79,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(admin, "/admin/users", "Add user"),
   ];
   const sb = await createClient();
-  const { data: wallet } = await sb.from("lb_wallets").select("balance").maybeSingle();
+  const { data: wallet } = await sb.from("lb_wallets").select("balance").eq("company_id", profile.company_id).maybeSingle();
+  // Admins always see the chip (it is where they add balance); others only once there is a wallet.
+  const walletBalance = wallet ? Number(wallet.balance) : admin ? 0 : null;
 
   let brief: Brief | null = null;
   if ((await cookies()).get("lb_brief")) {
@@ -87,7 +89,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     brief = data as Brief | null;
   }
   return (
-    <Shell nav={nav} quick={quick} wallet={wallet ? Number(wallet.balance) : null} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+    <Shell nav={nav} quick={quick} wallet={walletBalance} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
       {onTrial && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
           Free trial ends {fmtDateTime(billing.trial_ends_at)}. <Link href="/billing" className="font-medium underline">Upgrade to keep access</Link>

@@ -50,9 +50,14 @@ const fmt = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, day: "2-digit", mon
 const fmtDate = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, day: "2-digit", month: "short", year: "numeric" });
 const fmtTime = new Intl.DateTimeFormat("en-IN", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
 
-export const fmtDateTime = (v?: string | null) => (v ? fmt.format(new Date(v)) : "—");
-export const fmtDay = (v?: string | null) => (v ? fmtDate.format(new Date(v)) : "—");
-export const fmtClock = (v?: string | null) => (v ? fmtTime.format(new Date(v)) : "");
+// Bad or missing values (e.g. an event without due_at) render as a placeholder instead of throwing RangeError.
+const safe = (f: Intl.DateTimeFormat, v: string | null | undefined, empty: string) => {
+  const d = v ? new Date(v) : null;
+  return d && !isNaN(d.getTime()) ? f.format(d) : empty;
+};
+export const fmtDateTime = (v?: string | null) => safe(fmt, v, "—");
+export const fmtDay = (v?: string | null) => safe(fmtDate, v, "—");
+export const fmtClock = (v?: string | null) => safe(fmtTime, v, "");
 
 /** Value for <input type="datetime-local"> in IST, and back to ISO. */
 export const toLocalInput = (v?: string | null) => (v ? new Date(new Date(v).getTime() + IST_MS).toISOString().slice(0, 16) : "");

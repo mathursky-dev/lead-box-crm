@@ -23,7 +23,7 @@ export function PrefsForm({ p, country, disabled }: { p: WaPrefs; country: strin
       <fieldset disabled={disabled} className="space-y-6">
         <section className="space-y-3">
           <h3 className="text-sm font-semibold text-navy-900">Team preferences</h3>
-          <Toggle name="pause_bots_when_assigned" defaultChecked={p.pause_bots_when_assigned} label="Pause chatbots on conversations that are assigned to a human" hint="Agents keep the conversation; only the away message can still go out of hours." />
+          <Toggle name="pause_bots_when_assigned" defaultChecked={p.pause_bots_when_assigned} label="Pause chatbots while the assigned agent is chatting" hint="Bots stay quiet for 2 hours after an agent replies in an assigned chat; only the away message can still go out of hours." />
           <Field label="Default country" hint="Used for local numbers typed without a country code (contacts, CSV import, send). Two letters, e.g. IN.">
             <input className="input max-w-24 uppercase" name="default_country" defaultValue={country} maxLength={2} />
           </Field>

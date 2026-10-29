@@ -37,7 +37,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   } else {
     const { data, error: e } = await sb.rpc("lb_list_leads", {
       p: {
-        q: sp.q, status_id: sp.status_id, sub_status_id: sp.sub_status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1",
+        q: sp.q, status_id: sp.status_id, sub_status_id: sp.sub_status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1", seen: sp.seen,
         open_only: sp.open === "1", product_id: sp.product_id, source_id: sp.source_id, team_id: sp.team_id, branch_id: sp.branch_id,
         number_id: sp.number_id, priority: sp.priority, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, sort: sp.sort, limit: LIMIT, offset,
       },
@@ -76,6 +76,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           <select className="input" name="priority" defaultValue={sp.priority ?? ""}><option value="">Any priority</option><option value="high,urgent">High + urgent</option>{["low", "normal", "high", "urgent"].map((p) => <option key={p}>{p}</option>)}</select>
           <select className="input" name="tag_id" defaultValue={sp.tag_id ?? ""}><option value="">Any tag</option>{refs.tags.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select className="input" name="followup" defaultValue={sp.followup ?? ""}><option value="">Any follow-up</option><option value="today">Due today</option><option value="overdue">Overdue</option></select>
+          <select className="input" name="seen" defaultValue={sp.seen ?? ""}><option value="">Seen + unseen</option><option value="unseen">Unseen by owner</option><option value="seen">Seen by owner</option></select>
           <select className="input" name="sort" defaultValue={sp.sort ?? ""}><option value="">Recent activity</option><option value="created">Newest</option><option value="followup">Next follow-up</option></select>
           <div className="col-span-2 flex flex-wrap items-center gap-3 text-sm sm:col-span-1">
             <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="open" value="1" defaultChecked={sp.open === "1"} /> Open</label>
@@ -89,7 +90,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       {error ? <ErrorBox message={error} /> : rows.length === 0 ? (
         <Empty icon="target" title="No leads found">{metric ? "Nothing matches this metric for the selected filters." : "Try different filters, create a lead, or import a CSV."}</Empty>
       ) : (
-        <LeadTable rows={rows} canAssign={can(profile, "leads.assign")}
+        <LeadTable rows={rows} userId={profile.id} canAssign={can(profile, "leads.assign")}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
       )}
       <Pager total={total} limit={LIMIT} offset={offset} params={sp} basePath="/leads" />
@@ -99,6 +100,6 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
 type Row = {
   id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_name: string; status_category: string; sub_status_name?: string | null;
-  priority: string; owner_id: string | null; owner_name: string | null; product_name: string | null; source_name: string | null;
+  priority: string; owner_id: string | null; owner_name: string | null; owner_seen_at?: string | null; email?: string | null; assigned_at?: string | null; converted_at?: string | null; product_name: string | null; source_name: string | null;
   expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null;
 };

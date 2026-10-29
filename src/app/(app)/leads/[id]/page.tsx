@@ -18,6 +18,9 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const sb = await createClient();
   const { data: lead } = await sb.from("lb_leads").select("*, customer:lb_customers(*), status:lb_lead_statuses(name,category), owner:lb_profiles!lb_leads_owner_id_fkey(full_name,is_active)").eq("id", id).maybeSingle();
   if (!lead) notFound();
+  // First open by the owner flips the lead to "seen" in the leads list.
+  let seenAt: string | null = lead.owner_seen_at ?? null;
+  if (lead.owner_id === profile.id && !seenAt && !(await sb.rpc("lb_mark_lead_seen", { p_lead: id })).error) seenAt = new Date().toISOString();
   const refs = await loadRefs();
   const [{ data: events }, { data: followups }, { data: tags }, { data: convs }, { data: siblings }, { data: enr }, { data: journeys }] = await Promise.all([
     sb.from("lb_lead_events").select("id,type,is_work,reason,data,created_at,to_category,actor_id,from_user_id,to_user_id,from_status_id,to_status_id").eq("lead_id", id).order("created_at", { ascending: false }).limit(200),
@@ -62,7 +65,8 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             {c.wa_opted_out_at && <span className="badge ml-2 bg-red-50 text-red-700">WhatsApp opted out</span>}
           </div>
           <div className="mt-1 text-xs text-slate-500">
-            Owner: <b>{owner ? `${owner.full_name}${owner.is_active ? "" : " (inactive)"}` : "Unassigned"}</b> · Created {fmtDateTime(lead.created_at)} · Assigned {fmtDateTime(lead.assigned_at)} · Last activity {fmtDateTime(lead.last_activity_at)}
+            Owner: <b>{owner ? `${owner.full_name}${owner.is_active ? "" : " (inactive)"}` : "Unassigned"}</b> · Created {fmtDateTime(lead.created_at)} · Assigned {fmtDateTime(lead.assigned_at)}
+            {owner && <> · {seenAt ? <>Seen by owner {fmtDateTime(seenAt)}</> : <span className="text-sky-700">Not yet seen by owner</span>}</>} · Last activity {fmtDateTime(lead.last_activity_at)}
             {lead.converted_at && <> · Converted {fmtDateTime(lead.converted_at)}</>}
           </div>
         </div>

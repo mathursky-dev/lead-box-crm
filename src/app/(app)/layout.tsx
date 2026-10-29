@@ -96,7 +96,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       )}
       {children}
-      {brief && <DayBrief name={profile.full_name} brief={brief} {...istGreeting()} />}
+      {brief && <DayBrief userId={profile.id} name={profile.full_name} brief={brief} {...istGreeting()} />}
     </Shell>
   );
 }

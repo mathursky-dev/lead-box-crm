@@ -19,7 +19,8 @@ function describe(e: Ev) {
     case "message_in": return "WhatsApp message received";
     case "followup_created": return <>Follow-up scheduled{e.data?.due_at ? ` for ${fmtDateTime(String(e.data.due_at))}` : e.data?.journey ? ` by ${e.data.journey}` : ""}{e.data?.note ? ` — ${e.data.note}` : ""}</>;
     case "followup_done": return e.data?.cancelled ? "Follow-up cancelled" : "Follow-up completed";
-    case "field_update": return <>Updated {Object.keys(e.data ?? {}).join(", ")}</>;
+    case "field_update": if (e.data && "sub_status" in e.data) return e.data.sub_status ? <>Sub-status set to <b>{String(e.data.sub_status)}</b></> : "Sub-status cleared";
+      return <>Updated {Object.keys(e.data ?? {}).join(", ")}</>;
     default: return e.type;
   }
 }

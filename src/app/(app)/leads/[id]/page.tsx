@@ -32,6 +32,8 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const enrollment = enr?.[0] ? { ...enr[0], journey: (enr[0].journey as unknown as { name: string }).name } : null;
   const c = lead.customer as { id: string; name: string | null; phone_e164: string; email: string | null; location: string | null; wa_opted_out_at: string | null };
   const st = lead.status as { name: string; category: string };
+  const subStatusId = (lead as { sub_status_id?: string | null }).sub_status_id ?? null;
+  const subSt = subStatusId ? refs.subStatuses.find((x) => x.id === subStatusId) : null;
   const owner = lead.owner as { full_name: string; is_active: boolean } | null;
   const userName = new Map(refs.users.map((u) => [u.id, u.full_name]));
   const statusName = new Map(refs.statuses.map((s) => [s.id, s.name]));
@@ -50,6 +52,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold text-navy-900">LB-{lead.lead_no}</h1>
             <StatusBadge name={st.name} category={st.category} />
+            {subSt && <span className="badge bg-slate-100 text-slate-700">{subSt.name}</span>}
             <span className={`badge capitalize ${PRIORITY_STYLE[lead.priority]}`}>{lead.priority}</span>
             {lead.is_repeat && <span className="badge bg-sky-50 text-sky-700">Repeat opportunity</span>}
           </div>
@@ -73,7 +76,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          {can(profile, "leads.status") && <StatusPanel leadId={lead.id} statusId={lead.status_id} statuses={refs.statuses.filter((s) => s.is_active || s.id === lead.status_id)} expected={lead.expected_value}
+          {can(profile, "leads.status") && <StatusPanel leadId={lead.id} statusId={lead.status_id} subStatusId={subStatusId} subStatuses={refs.subStatuses} statuses={refs.statuses.filter((s) => s.is_active || s.id === lead.status_id)} expected={lead.expected_value}
             nextAction={pending ? { note: pending.note, due_at: pending.due_at, action_type: (pending as { action_type?: string }).action_type ?? "call" } : null} />}
           <ActivityPanel leadId={lead.id} />
           <section className="card p-4">

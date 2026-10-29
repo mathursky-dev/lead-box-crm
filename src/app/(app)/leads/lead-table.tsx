@@ -6,7 +6,7 @@ import { assignLeads } from "@/lib/actions/leads";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 
 type Row = {
-  id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_name: string; status_category: string;
+  id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_name: string; status_category: string; sub_status_name?: string | null;
   priority: string; owner_name: string | null; product_name: string | null; source_name: string | null;
   expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null;
 };
@@ -56,7 +56,8 @@ export function LeadTable({ rows, canAssign, users }: { rows: Row[]; canAssign: 
                 <td className="td"><Link href={`/leads/${r.id}`} className="font-medium text-brand-700 hover:underline">LB-{r.lead_no}</Link>
                   <div className="text-xs capitalize text-slate-500">{r.priority}</div></td>
                 <td className="td"><div className="font-medium text-navy-900">{r.customer_name || "—"}</div><div className="text-xs text-slate-500">{r.phone_e164}</div></td>
-                <td className="td"><span className={`badge ${CAT[r.status_category] ?? ""}`}>{r.status_name}</span></td>
+                <td className="td"><span className={`badge ${CAT[r.status_category] ?? ""}`}>{r.status_name}</span>
+                  {r.sub_status_name && <div className="mt-1 text-xs text-slate-500">{r.sub_status_name}</div>}</td>
                 <td className="td">{r.owner_name ?? <span className="badge bg-amber-50 text-amber-700">Unassigned</span>}</td>
                 <td className="td text-xs">{r.product_name ?? "—"}<div className="text-slate-500">{r.source_name ?? ""}</div></td>
                 <td className="td text-xs">{r.won_value != null ? <span className="text-brand-700">{money(r.won_value)} won</span> : money(r.expected_value)}</td>

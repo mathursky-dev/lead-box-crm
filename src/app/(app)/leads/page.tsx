@@ -37,7 +37,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   } else {
     const { data, error: e } = await sb.rpc("lb_list_leads", {
       p: {
-        q: sp.q, status_id: sp.status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1",
+        q: sp.q, status_id: sp.status_id, sub_status_id: sp.sub_status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1",
         open_only: sp.open === "1", product_id: sp.product_id, source_id: sp.source_id, team_id: sp.team_id, branch_id: sp.branch_id,
         number_id: sp.number_id, priority: sp.priority, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, sort: sp.sort, limit: LIMIT, offset,
       },
@@ -63,6 +63,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         <form className="card mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:grid-cols-6">
           <input className="input col-span-2" name="q" defaultValue={sp.q} placeholder="Search name, phone, email, LB-123" />
           <select className="input" name="status_id" defaultValue={sp.status_id ?? ""}><option value="">All statuses</option>{refs.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          {refs.subStatuses.length > 0 && (
+            <select className="input" name="sub_status_id" defaultValue={sp.sub_status_id ?? ""}><option value="">Any sub-status</option>{refs.subStatuses.map((s) => <option key={s.id} value={s.id}>{s.name}{s.status_id ? ` (${refs.statuses.find((x) => x.id === s.status_id)?.name ?? ""})` : ""}</option>)}</select>
+          )}
           {isManager(profile) && (
             <select className="input" name="owner_id" defaultValue={sp.owner_id ?? ""}><option value="">All owners</option>{refs.users.map((u) => <option key={u.id} value={u.id}>{u.full_name}{u.is_active ? "" : " (inactive)"}</option>)}</select>
           )}
@@ -95,7 +98,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 }
 
 type Row = {
-  id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_name: string; status_category: string;
+  id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_name: string; status_category: string; sub_status_name?: string | null;
   priority: string; owner_id: string | null; owner_name: string | null; product_name: string | null; source_name: string | null;
   expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null;
 };

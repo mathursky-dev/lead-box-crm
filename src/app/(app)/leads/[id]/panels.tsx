@@ -6,13 +6,16 @@ import { ActionForm, ActionButton, Field, Submit } from "@/components/ui";
 import { assignLeads, updateLead, addFollowup, completeFollowup, logActivity, startConversation } from "@/lib/actions/leads";
 import { fmtDateTime, toLocalInput } from "@/lib/dates";
 import { changeStatusWithAction, setPayment, enrollLead, enrollmentAction } from "@/lib/actions/nurture";
-import type { Refs, StatusOpt } from "@/lib/data";
+import type { Refs, StatusOpt, SubStatusOpt } from "@/lib/data";
 
-export function StatusPanel({ leadId, statusId, statuses, expected, nextAction }: {
-  leadId: string; statusId: string; statuses: StatusOpt[]; expected: number | null;
+export function StatusPanel({ leadId, statusId, subStatusId, statuses, subStatuses, expected, nextAction }: {
+  leadId: string; statusId: string; subStatusId: string | null; statuses: StatusOpt[]; subStatuses: SubStatusOpt[]; expected: number | null;
   nextAction: { note: string | null; due_at: string; action_type: string } | null;
 }) {
   const [sel, setSel] = useState(statusId);
+  const subs = subStatuses.filter((x) => (x.status_id == null || x.status_id === sel) && (x.is_active || x.id === subStatusId));
+  const [sub, setSub] = useState(subStatusId ?? "");
+  const subVal = subs.some((x) => x.id === sub) ? sub : "";
   const cat = statuses.find((s) => s.id === sel)?.category;
   const closed = cat === "won" || cat === "lost" || cat === "invalid";
   return (
@@ -29,6 +32,15 @@ export function StatusPanel({ leadId, statusId, statuses, expected, nextAction }
             {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </Field>
+        {subs.length > 0 && (
+          <Field label="Sub-status">
+            <input type="hidden" name="sub_status_present" value="1" />
+            <select className="input" name="sub_status_id" value={subVal} onChange={(e) => setSub(e.target.value)}>
+              <option value="">—</option>
+              {subs.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </Field>
+        )}
         {cat === "won" && <Field label="Won value (₹)"><input className="input" type="number" min={0} step="0.01" name="won_value" defaultValue={expected ?? ""} /></Field>}
         {(cat === "lost" || cat === "invalid") && <Field label="Reason (required)"><input className="input" name="reason" required /></Field>}
         {!closed && <Field label="Comment (optional)"><input className="input" name="reason" /></Field>}

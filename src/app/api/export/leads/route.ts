@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const cols: [string, string][] = [
-    ["lead_no", "Lead ID"], ["customer_name", "Customer Name"], ["phone_e164", "Mobile/WhatsApp"], ["email", "Email"], ["status_name", "Status"],
+    ["lead_no", "Lead ID"], ["customer_name", "Customer Name"], ["phone_e164", "Mobile/WhatsApp"], ["email", "Email"], ["status_name", "Status"], ["sub_status_name", "Sub-status"],
     ["status_category", "Reporting Category"], ["priority", "Priority"], ["owner_name", "Owner"], ["product_name", "Product/Service"], ["source_name", "Source"],
     ["expected_value", "Expected Value"], ["won_value", "Actual Won Value"], ["created_at", "Created At (IST)"], ["assigned_at", "Assigned At (IST)"],
     ["last_activity_at", "Last Activity (IST)"], ["next_followup_at", "Next Follow-up (IST)"], ["converted_at", "Converted At (IST)"],

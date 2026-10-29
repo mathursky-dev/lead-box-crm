@@ -279,6 +279,35 @@ export async function saveStatus(_: FormState, form: FormData): Promise<FormStat
   return { ok: "Saved." };
 }
 
+// ---------------------------------------------------------- sub-statuses
+export async function saveSubStatus(_: FormState, form: FormData): Promise<FormState> {
+  const { profile: me } = await requireAdmin();
+  const p = z.object({
+    id: uuidOpt, name: z.string().trim().min(1).max(60), status_id: uuidOpt,
+    sort_order: z.coerce.number().int().min(0).max(10000), is_active: z.string().optional().transform((v) => v === "on"),
+  }).safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const { id, ...v } = p.data;
+  const supabase = await createClient();
+  const q = id
+    ? supabase.from("lb_lead_sub_statuses").update(v).eq("id", id).eq("company_id", me.company_id)
+    : supabase.from("lb_lead_sub_statuses").insert({ ...v, company_id: me.company_id });
+  const { error } = await q;
+  if (error) return { error: error.code === "23505" ? "That sub-status already exists under this status." : errMsg(error) };
+  await audit(createAdminClient(), me, id ? "sub_status.update" : "sub_status.create", "sub_status", id ?? null, v);
+  revalidatePath("/admin/statuses");
+  return { ok: "Saved." };
+}
+
+export async function deleteSubStatus(id: string): Promise<FormState> {
+  const { profile: me } = await requireAdmin();
+  const { error } = await (await createClient()).from("lb_lead_sub_statuses").delete().eq("id", id).eq("company_id", me.company_id);
+  if (error) return { error: errMsg(error) };
+  await audit(createAdminClient(), me, "sub_status.delete", "sub_status", id);
+  revalidatePath("/admin/statuses");
+  return { ok: "Deleted." };
+}
+
 // ---------------------------------------------------------- company settings
 export async function saveCompanySettings(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();

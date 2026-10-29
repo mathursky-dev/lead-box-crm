@@ -24,10 +24,14 @@ const wrap = async (fn: () => Promise<unknown>, ok: string, paths: string[] = []
 export async function changeStatusWithAction(_: FormState, form: FormData): Promise<FormState> {
   const id = s(form.get("id"));
   const won = s(form.get("won_value"));
-  return wrap(() => rpc("lb_change_status_with_action", {
-    p_lead: id, p_status: s(form.get("status_id")), p_reason: s(form.get("reason")) || null, p_won_value: won ? Number(won) : null,
-    p_action_type: s(form.get("action_type")) || "call", p_action_note: s(form.get("action_note")) || null, p_due: fromLocalInput(s(form.get("action_due"))),
-  }), "Status and next action saved.", [`/leads/${id}`]);
+  return wrap(async () => {
+    await rpc("lb_change_status_with_action", {
+      p_lead: id, p_status: s(form.get("status_id")), p_reason: s(form.get("reason")) || null, p_won_value: won ? Number(won) : null,
+      p_action_type: s(form.get("action_type")) || "call", p_action_note: s(form.get("action_note")) || null, p_due: fromLocalInput(s(form.get("action_due"))),
+    });
+    // The sub-status field only renders when the chosen status has sub-statuses; a status change clears a non-fitting one in the DB.
+    if (form.get("sub_status_present")) await rpc("lb_set_sub_status", { p_lead: id, p_sub_status: s(form.get("sub_status_id")) || null });
+  }, "Status and next action saved.", [`/leads/${id}`]);
 }
 
 export async function setPayment(_: FormState, form: FormData): Promise<FormState> {

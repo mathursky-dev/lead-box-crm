@@ -164,7 +164,7 @@ export function Trend({ labels, series, mode = "area", height = 240 }: { labels:
   const [idx, setIdx] = useState<number | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const vis = series.filter((s) => !hidden.has(s.key));
-  const W = 720, H = height, L = 34, R = 10, T = 10, B = 34;
+  const W = 720, H = height, L = 34, R = 24, T = 10, B = 38;
   const n = labels.length;
   const stackTotals = labels.map((_, i) => vis.reduce((sum, s) => sum + s.values[i], 0));
   const max = niceMax(Math.max(1, ...(mode === "bar" ? stackTotals : vis.flatMap((s) => s.values))));
@@ -191,11 +191,11 @@ export function Trend({ labels, series, mode = "area", height = 240 }: { labels:
           {ticks.map((t) => (
             <g key={t}>
               <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} stroke="#e2e8f0" strokeDasharray={t ? "3 3" : undefined} />
-              <text x={L - 6} y={y(t) + 3} textAnchor="end" className="fill-slate-400 text-[10px]">{t}</text>
+              <text x={L - 6} y={y(t) + 3} textAnchor="end" className="fill-slate-400 text-[11px]">{t}</text>
             </g>
           ))}
           {labels.map((l, i) => (i % every === 0 || i === n - 1) && (
-            <text key={i} x={px(i)} y={H - B + 14} textAnchor={n > 14 ? "end" : "middle"} transform={n > 14 ? `rotate(-35 ${px(i)} ${H - B + 14})` : undefined} className="fill-slate-500 text-[10px]">{l}</text>
+            <text key={i} x={px(i)} y={H - B + 14} textAnchor={n > 14 ? "end" : "middle"} transform={n > 14 ? `rotate(-35 ${px(i)} ${H - B + 14})` : undefined} className="fill-slate-500 text-[11px]">{l}</text>
           ))}
           {mode === "bar" ? labels.map((_, i) => {
             let acc = 0;

@@ -33,7 +33,7 @@ const GUIDES: Guide[] = [
   { cat: "Sales", icon: "calendar", href: "/followups", title: "Follow-ups", sub: "Times shown in IST. Reminders arrive as in-app notifications 15 minutes before due." },
   { cat: "Sales", icon: "user", href: "/customers", title: "Customer 360", sub: "Every customer you can access. Open one to see chats, leads, notes, follow-ups and the full timeline." },
   { cat: "Sales", icon: "list", href: "/admin/statuses", title: "Lead statuses", sub: "Sales statuses (separate from chat Open/Pending/Resolved). Each maps to a stable reporting category so reports survive renames." },
-  { cat: "Sales", icon: "refresh", href: "/admin/allocation", title: "Allocation rules", sub: "New unassigned leads are matched to the first active rule (lowest priority number) whose conditions all match, then given round-robin to its eligible users: active, opted into auto-allocation, and under their open-lead limit." },
+  { cat: "Sales", icon: "refresh", href: "/admin/allocation", title: "Lead allocation", sub: "Per source (WhatsApp, Facebook, Website, Others), pick users with a ratio and a max leads per day. New leads of that source go to them in turns by ratio; users at their daily max, switched off or away are skipped." },
   // Inbox
   wa("/whatsapp/live-chat", "Inbox"), wa("/whatsapp/contacts", "Inbox"), wa("/whatsapp/send", "Inbox"), wa("/whatsapp/templates", "Inbox"),
   { cat: "Inbox", icon: "template", href: "/admin/templates", title: "Message templates", sub: "Submit new templates to Meta here, or create them in WhatsApp Manager and sync. Only APPROVED templates can be sent; MARKETING templates are blocked for opted-out customers." },

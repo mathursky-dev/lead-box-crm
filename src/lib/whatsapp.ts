@@ -24,10 +24,10 @@ export async function graph<T = Record<string, unknown>>(token: string, path: st
     const definitelyNotSent = code === "ENOTFOUND" || code === "ECONNREFUSED" || code === "EAI_AGAIN";
     return { ok: false, status: 0, message: `Network error${code ? ` (${code})` : ""}`, ambiguous: !definitelyNotSent };
   }
-  const json = (await res.json().catch(() => ({}))) as { error?: { code?: number; message?: string; error_data?: { details?: string } } } & T;
+  const json = (await res.json().catch(() => ({}))) as { error?: { code?: number; message?: string; error_user_msg?: string; error_data?: { details?: string } } } & T;
   if (res.ok && !json.error) return { ok: true, status: res.status, data: json };
   const err = json.error;
-  return { ok: false, status: res.status, code: err?.code, message: [err?.message, err?.error_data?.details].filter(Boolean).join(" — ") || `HTTP ${res.status}` };
+  return { ok: false, status: res.status, code: err?.code, message: [err?.message, err?.error_user_msg, err?.error_data?.details].filter(Boolean).join(" — ") || `HTTP ${res.status}` };
 }
 
 /** Meta error codes that are safe to retry (request not processed). */
@@ -61,6 +61,23 @@ export async function markNumberError(numberId: string, message: string | null) 
 
 export const phoneInfo = (token: string, phoneNumberId: string) =>
   graph<{ display_phone_number: string; verified_name: string; quality_rating?: string }>(token, `${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`);
+
+/**
+ * The WhatsApp Business Account that owns this phone number. Checks `hint` first, then every
+ * WABA the token was granted (debug_token). A wrong WABA ID makes Meta answer "Invalid parameter".
+ */
+export async function ownerWaba(token: string, phoneNumberId: string, hint?: string | null) {
+  const owns = async (waba: string) => {
+    const r = await graph<{ data: { id: string }[] }>(token, `${waba}/phone_numbers?fields=id&limit=100`);
+    return r.ok && r.data.data.some((p) => p.id === phoneNumberId);
+  };
+  if (hint && (await owns(hint))) return hint;
+  const dbg = await graph<{ data: { granular_scopes?: { scope: string; target_ids?: string[] }[] } }>(token, `debug_token?input_token=${encodeURIComponent(token)}`);
+  const ids = new Set(dbg.ok ? (dbg.data.data.granular_scopes ?? []).filter((x) => x.scope.startsWith("whatsapp_business")).flatMap((x) => x.target_ids ?? []) : []);
+  ids.delete(hint ?? "");
+  for (const id of ids) if (await owns(id)) return id;
+  return null;
+}
 
 export const subscribeApp = (token: string, wabaId: string) => graph(token, `${wabaId}/subscribed_apps`, { method: "POST" });
 

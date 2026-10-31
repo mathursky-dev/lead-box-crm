@@ -33,6 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { label: "Conversations", icon: "inbox", items: [
       { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
     ] },
+    { label: "Documents", icon: "files", href: "/documents" },
     { label: "WhatsApp", icon: "chat", items: [
       { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
       { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns" }, { href: "/whatsapp/commerce", label: "Commerce" },
@@ -73,6 +74,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(can(profile, "leads.create"), "/leads/new", "New lead"),
     ...it(can(profile, "leads.import"), "/import", "Import leads (CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
+    { href: "/documents", label: "Upload document" },
     ...it(nurture && can(profile, "campaigns.manage"), "/nurture/campaigns", "New campaign"),
     ...it(nurture && can(profile, "journeys.manage"), "/nurture/journeys/new", "New journey"),
     ...it(admin, "/whatsapp/chatbots", "New chatbot"),

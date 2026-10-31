@@ -8,6 +8,7 @@ import { aiSummary, aiSuggestReply } from "@/lib/actions/ai";
 import { complaintAction, customerPause } from "@/lib/actions/automation";
 import { fmtClock, fmtDateTime, fmtDay } from "@/lib/dates";
 import { Modal } from "@/components/ui";
+import { searchDocuments, sendDocumentToChat, type Doc } from "@/lib/actions/documents";
 
 type Conv = {
   id: string; customer_id: string; customer_name: string | null; wa_profile_name: string | null; phone_e164: string; wa_opted_out_at: string | null;
@@ -184,6 +185,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   const [sending, setSending] = useState(false);
   const [transfer, setTransfer] = useState(false);
   const [tpl, setTpl] = useState(false);
+  const [docs, setDocs] = useState(false);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
   const [picker, setPicker] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -342,7 +344,8 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
               </div>
             )}
             <div className={`flex items-end gap-2 rounded-lg border p-1 ${noteMode ? "border-amber-300 bg-amber-50" : "border-slate-300"}`}>
-              {!noteMode && <button className="px-2 py-1 text-lg text-slate-500" title="Attach" onClick={() => fileRef.current?.click()} disabled={sending}>📎</button>}
+              {!noteMode && <button className="px-2 py-1 text-lg text-slate-500" title="Attach a file from this device" onClick={() => fileRef.current?.click()} disabled={sending}>📎</button>}
+              {!noteMode && <button className="px-1 py-1 text-lg text-slate-500" title="Select from Documents" aria-label="Select from Documents" onClick={() => setDocs(true)} disabled={sending}>📁</button>}
               <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
               <textarea className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none" rows={1} value={text}
                 placeholder={noteMode ? "Internal note (not sent to customer)" : "Type a message — “/” for quick replies"}
@@ -360,9 +363,68 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
       </footer>
 
       <TransferModal open={transfer} onClose={() => setTransfer(false)} conv={conv} users={users} meId={me.id} onDone={onChanged} />
+      <DocPicker open={docs} onClose={() => setDocs(false)} caption={text} onPick={async (d) => {
+        setSending(true); setErr(undefined); setUploading(`Sending ${d.file_name}…`);
+        try {
+          const r = await sendDocumentToChat(conv.id, crypto.randomUUID(), d.id, text, replyTo?.id);
+          if (r.error && !r.ok) { setErr(r.error); return false; }
+          if (r.error) setErr(r.error);
+          setText(""); setReplyTo(null); load(); onChanged();
+          return true;
+        } finally { setSending(false); setUploading(null); }
+      }} />
       <TemplateModal open={tpl} onClose={() => setTpl(false)} conv={conv} templates={templates.filter((t) => t.waba_id === number?.waba_id)}
         onSent={() => { load(); onChanged(); }} />
     </section>
+  );
+}
+
+const kb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const docIcon = (m: string) => (m.startsWith("image/") ? "🖼️" : m.startsWith("video/") ? "🎬" : m.startsWith("audio/") ? "🎵" : m === "application/pdf" ? "📕" : "📄");
+
+/** "Select from Documents": send a file saved in the company's Documents library without uploading it again. */
+function DocPicker({ open, onClose, caption, onPick }: { open: boolean; onClose: () => void; caption: string; onPick: (d: Doc) => Promise<boolean> }) {
+  const [q, setQ] = useState("");
+  const [list, setList] = useState<Doc[] | null>(null);
+  const [err, setErr] = useState<string>();
+  const [busy, setBusy] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    const t = setTimeout(async () => {
+      const r = await searchDocuments(q);
+      if (!live) return;
+      setErr(r.error); setList(r.docs ?? []);
+    }, q ? 300 : 0);
+    return () => { live = false; clearTimeout(t); };
+  }, [open, q]);
+  useEffect(() => { if (!open) { setQ(""); setBusy(null); } }, [open]);
+  return (
+    <Modal open={open} onClose={onClose} title="Select from Documents">
+      <div className="space-y-3">
+        <input className="input" autoFocus placeholder="Search by description or file name" value={q} onChange={(e) => setQ(e.target.value)} />
+        {caption.trim() && <p className="text-xs text-slate-500">Your typed message will be sent as the caption.</p>}
+        {err && <p className="text-sm text-red-600">{err}</p>}
+        <div className="max-h-[50vh] divide-y overflow-auto rounded border">
+          {list === null && <p className="p-3 text-sm text-slate-500">Loading…</p>}
+          {list?.length === 0 && (
+            <p className="p-3 text-sm text-slate-500">{q ? "No documents match." : <>No documents yet. Add them in <Link href="/documents" className="text-brand-700 underline">Documents</Link>.</>}</p>
+          )}
+          {list?.map((d) => (
+            <button key={d.id} disabled={!!busy} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
+              onClick={async () => { setBusy(d.id); const ok = await onPick(d); setBusy(null); if (ok) onClose(); }}>
+              <span className="text-xl">{docIcon(d.mime)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-navy-900">{d.description || d.file_name}</span>
+                <span className="block truncate text-xs text-slate-500">{d.file_name} · {kb(Number(d.size))} · {fmtDay(d.created_at)}</span>
+              </span>
+              <span className="text-xs font-medium text-brand-700">{busy === d.id ? "Sending…" : "Send"}</span>
+            </button>
+          ))}
+        </div>
+        <div className="text-right"><Link href="/documents" className="text-xs text-brand-700 underline">Manage documents</Link></div>
+      </div>
+    </Modal>
   );
 }
 

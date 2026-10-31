@@ -11,8 +11,21 @@ import { rateLimit } from "./auth";
 
 type Result = { error?: string; ok?: boolean; data?: unknown };
 
-const MAX_BYTES = 16 * 1024 * 1024; // WhatsApp limit for video/audio; images 5MB, documents 100MB (we cap at 16MB)
-const KIND: [RegExp, string][] = [[/^image\/(jpeg|png)$/, "image"], [/^video\/(mp4|3gpp)$/, "video"], [/^audio\//, "audio"]];
+const MB = 1024 * 1024;
+// Largest attachment an agent can send. WhatsApp accepts documents up to 100 MB; the storage
+// project's global file-size limit can be lower (Supabase Free = 50 MB), so it is an env setting.
+const MAX_MB = Math.min(100, Math.max(1, Number(process.env.MEDIA_MAX_MB) || 50));
+
+/**
+ * WhatsApp type for an attachment. Meta caps images at 5 MB and video/audio at 16 MB; anything
+ * bigger (or an unsupported format) still goes through as a document, which allows up to 100 MB.
+ */
+function mediaKind(mime: string, size: number): "image" | "video" | "audio" | "document" {
+  if (/^image\/(jpeg|png)$/.test(mime) && size <= 5 * MB) return "image";
+  if (/^video\/(mp4|3gpp)$/.test(mime) && size <= 16 * MB) return "video";
+  if (/^audio\/(aac|amr|mpeg|mp4|ogg)$/.test(mime) && size <= 16 * MB) return "audio";
+  return "document";
+}
 
 function kick() {
   after(() => drainOutbox(15000).catch((e) => console.error("drain failed:", e?.message)));
@@ -39,26 +52,48 @@ export async function sendTemplate(convId: string, clientId: string, name: strin
   return enqueue(convId, clientId, { type: "template", template_name: name, template_language: language, template_params: params.map((p) => p.slice(0, 1000)) });
 }
 
-export async function sendFile(form: FormData): Promise<Result> {
-  const { profile } = await requireProfile();
+/**
+ * Step 1 of sending a file: check the chat and size, then hand the browser a one-time signed
+ * upload URL so the file goes straight to storage (server functions cap request bodies at ~4.5 MB).
+ */
+export async function startUpload(convId: string, name: string, size: number): Promise<{ error?: string; path?: string; token?: string; maxMb?: number }> {
+  await requireProfile();
+  if (!z.uuid().safeParse(convId).success || !Number.isFinite(size)) return { error: "Invalid upload" };
+  if (size <= 0) return { error: "File is empty" };
+  if (size > MAX_MB * MB) return { error: `File is too big. The limit is ${MAX_MB} MB.`, maxMb: MAX_MB };
+  if (!hasServiceRole()) return { error: "Uploads need the server to be configured (service role key)." };
+  // Visibility check with the user's own RLS before signing with the service role.
+  const { data: conv } = await (await createClient()).from("lb_conversations").select("id,company_id").eq("id", convId).maybeSingle();
+  if (!conv) return { error: "Conversation not found" };
+  const safeName = String(name).replace(/[^\w.\- ]/g, "_").slice(-80) || "file";
+  const path = `${conv.company_id}/${conv.id}/${randomUUID()}-${safeName}`;
+  const { data, error } = await createAdminClient().storage.from("lb-media").createSignedUploadUrl(path);
+  if (error || !data) return { error: `Upload failed: ${error?.message ?? "no upload URL"}` };
+  return { path: data.path, token: data.token };
+}
+
+/** Step 2: the file is in storage; check it really belongs to this chat, then queue the WhatsApp send. */
+export async function sendUploaded(form: FormData): Promise<Result> {
+  await requireProfile();
   const convId = z.uuid().safeParse(form.get("conversation_id"));
   const clientId = z.uuid().safeParse(form.get("client_id"));
-  const file = form.get("file");
-  if (!convId.success || !clientId.success || !(file instanceof File)) return { error: "Invalid upload" };
-  if (file.size === 0 || file.size > MAX_BYTES) return { error: "File must be between 1 byte and 16 MB" };
-  if (!hasServiceRole()) return { error: "Uploads need the server to be configured (service role key)." };
-  // Visibility check with the user's own RLS before writing with the service role.
+  const path = String(form.get("path") ?? "");
+  if (!convId.success || !clientId.success || !path) return { error: "Invalid upload" };
   const { data: conv } = await (await createClient()).from("lb_conversations").select("id,company_id").eq("id", convId.data).maybeSingle();
   if (!conv) return { error: "Conversation not found" };
-  const type = KIND.find(([re]) => re.test(file.type))?.[1] ?? "document";
-  if (type === "image" && file.size > 5 * 1024 * 1024) return { error: "Images must be 5 MB or smaller" };
-  const safeName = file.name.replace(/[^\w.\- ]/g, "_").slice(-80) || "file";
-  const path = `${conv.company_id}/${conv.id}/${randomUUID()}-${safeName}`;
-  const up = await createAdminClient().storage.from("lb-media").upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type || "application/octet-stream" });
-  if (up.error) return { error: `Upload failed: ${up.error.message}` };
-  void profile;
+  if (!path.startsWith(`${conv.company_id}/${conv.id}/`) || path.includes("..")) return { error: "Invalid upload" };
+  const { data: info, error } = await createAdminClient().storage.from("lb-media").info(path);
+  if (error || !info) return { error: "Upload not found. Please attach the file again." };
+  const size = Number(info.size ?? info.metadata?.size ?? 0);
+  const mime = String(info.contentType ?? info.metadata?.mimetype ?? form.get("mime") ?? "") || "application/octet-stream";
+  if (size > MAX_MB * MB) {
+    await createAdminClient().storage.from("lb-media").remove([path]);
+    return { error: `File is too big. The limit is ${MAX_MB} MB.` };
+  }
+  const type = mediaKind(mime, size);
+  const filename = path.split("/").pop()!.replace(/^[0-9a-f-]{36}-/, "");
   return enqueue(convId.data, clientId.data, {
-    type, media_path: path, media_mime: file.type, media_filename: safeName, body: String(form.get("caption") ?? "").trim() || null,
+    type, media_path: path, media_mime: mime, media_filename: filename, body: String(form.get("caption") ?? "").trim() || null,
     reply_to: z.uuid().safeParse(form.get("reply_to")).data ?? null,
   });
 }

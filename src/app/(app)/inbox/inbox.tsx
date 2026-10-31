@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getBrowserClient } from "@/lib/supabase/client";
-import { sendText, sendFile, sendTemplate, retryMessage, conversationAction, sendReaction } from "@/lib/actions/inbox";
+import { sendText, startUpload, sendUploaded, sendTemplate, retryMessage, conversationAction, sendReaction } from "@/lib/actions/inbox";
 import { changeStatus, addFollowup } from "@/lib/actions/leads";
 import { aiSummary, aiSuggestReply } from "@/lib/actions/ai";
 import { complaintAction, customerPause } from "@/lib/actions/automation";
@@ -187,6 +187,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
   const [picker, setPicker] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const clientId = useRef<string>(crypto.randomUUID()); // stable per draft => retries are idempotent
   // AI drafts arrive from the details pane; the agent reviews/edits before sending.
@@ -230,11 +231,26 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
 
   const upload = async (f: File) => {
     setSending(true); setErr(undefined);
-    const fd = new FormData();
-    fd.set("conversation_id", conv.id); fd.set("client_id", crypto.randomUUID()); fd.set("file", f); fd.set("caption", text); if (replyTo) fd.set("reply_to", replyTo.id);
-    const r = await sendFile(fd);
-    setSending(false);
-    if (r.error) setErr(r.error); else { setText(""); setReplyTo(null); load(); onChanged(); }
+    const mb = (f.size / 1048576).toFixed(1);
+    setUploading(`Uploading ${f.name} (${mb} MB)…`);
+    try {
+      // The file goes straight from the browser to storage; only its path is sent to the server.
+      const s = await startUpload(conv.id, f.name, f.size);
+      if (s.error || !s.path || !s.token) { setErr(s.error ?? "Upload failed"); return; }
+      const up = await sb.storage.from("lb-media").uploadToSignedUrl(s.path, s.token, f, { contentType: f.type || "application/octet-stream" });
+      if (up.error) { setErr(/size|large|413/i.test(up.error.message) ? `File is too big for storage (${mb} MB).` : `Upload failed: ${up.error.message}`); return; }
+      setUploading(`Sending ${f.name}…`);
+      const fd = new FormData();
+      fd.set("conversation_id", conv.id); fd.set("client_id", crypto.randomUUID()); fd.set("path", s.path); fd.set("mime", f.type); fd.set("caption", text); if (replyTo) fd.set("reply_to", replyTo.id);
+      const r = await sendUploaded(fd);
+      if (r.error && !r.ok) { setErr(r.error); return; }
+      if (r.error) setErr(r.error);
+      setText(""); setReplyTo(null); load(); onChanged();
+    } catch (e) {
+      setErr(`Upload failed: ${e instanceof Error ? e.message : "network error"}`);
+    } finally {
+      setSending(false); setUploading(null);
+    }
   };
 
   return (
@@ -301,6 +317,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
       </div>
 
       <footer className="border-t p-2">
+        {uploading && <div role="status" className="mb-2 flex items-center gap-2 rounded bg-sky-50 px-2 py-1 text-xs text-sky-800"><span className="h-3 w-3 animate-spin rounded-full border-2 border-sky-300 border-t-sky-700" />{uploading} Big files can take a minute, keep this tab open.</div>}
         {err && <div role="alert" className="mb-2 rounded bg-red-50 px-2 py-1 text-xs text-red-700">{err}</div>}
         {!number?.is_active && <div className="mb-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">This business number is disabled; sending is blocked.</div>}
         {!me.canSend && !noteMode ? (

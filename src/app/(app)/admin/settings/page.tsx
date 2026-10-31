@@ -21,7 +21,7 @@ export default async function SettingsPage() {
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="auto_create_leads" defaultChecked={c?.auto_create_leads} className="mt-1" />
             <span><b>Auto-create leads</b> on the first inbound WhatsApp message from a new contact. Repeat messages always attach to the existing customer/lead.</span></label>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="auto_allocate" defaultChecked={c?.auto_allocate} className="mt-1" />
-            <span><b>Auto-allocate</b> new leads by round-robin using the allocation rules.</span></label>
+            <span><b>Auto-allocate</b> new leads to users by source, ratio and max per day (Allocation tab).</span></label>
           <Submit>Save settings</Submit>
         </ActionForm>
       </div>

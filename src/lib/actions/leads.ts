@@ -206,3 +206,17 @@ export async function restoreLeads(ids: string[]): Promise<{ error?: string; n?:
   revalidatePath("/leads");
   return { n: data as number };
 }
+
+/** Save the lead's Custom Fields (Settings → Custom Fields). Validated in lb_set_lead_custom. */
+export async function saveLeadCustom(_: FormState, form: FormData): Promise<FormState> {
+  await requireProfile();
+  const id = s(form.get("id"));
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: "Invalid lead" };
+  const keys = form.getAll("cf_keys").map(String).filter((k) => /^[a-z][a-z0-9_]{0,39}$/.test(k));
+  const values: Record<string, string | boolean> = {};
+  for (const k of keys) values[k] = form.get(`cf_type_${k}`) === "checkbox" ? form.get(`cf_${k}`) === "on" : s(form.get(`cf_${k}`));
+  const { error } = await (await createClient()).rpc("lb_set_lead_custom", { p_lead: id, p_values: values });
+  if (error) return { error: errMsg(error) };
+  revalidatePath(`/leads/${id}`);
+  return { ok: "Saved." };
+}

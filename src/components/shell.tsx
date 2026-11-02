@@ -13,7 +13,7 @@ import { Logo } from "./logo";
 import { HelpDrawer } from "./help-drawer";
 import { fmtNum } from "@/lib/wa";
 
-export type NavItem = { href: string; label: string };
+export type NavItem = { href: string; label: string; keywords?: string };
 export type NavGroup = { label: string; icon: string; href?: string; items?: NavItem[] };
 type User = { id: string; name: string; role: string; company: string; availability: string };
 /** Super Admin only: companies they can open from the top bar. */
@@ -26,11 +26,14 @@ const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.targe
 
 export function Shell({ nav, quick, user, wallet, switcher = null, children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; switcher?: CompanySwitch | null; children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState(false);
   const [help, setHelp] = useState(false);
+  const [menuQ, setMenuQ] = useState("");
   const groups = nav.filter((g) => g.href || g.items?.length);
+  const shownGroups = filterNav(groups, menuQ);
   const all = leaves(groups);
   const fullBleed = path.startsWith("/inbox");
   // Most specific match wins, so /whatsapp/chatbots does not also light up /whatsapp.
@@ -59,8 +62,22 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
           <Logo className="h-8" />
           <button className="grid h-8 w-8 place-items-center rounded-lg text-navy-900 hover:bg-slate-100 md:hidden" aria-label="Close menu" onClick={() => setOpen(false)}><Icon name="x" className="h-5 w-5" /></button>
         </div>
+        <div className="shrink-0 px-3 pt-3">
+          <label className="relative block">
+            <span className="sr-only">Search menu</span>
+            <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <input value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Search menu…" autoComplete="off"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setMenuQ("");
+                if (e.key === "Enter") { const first = leaves(shownGroups)[0]; if (first) { router.push(first.href); setMenuQ(""); setOpen(false); } }
+              }}
+              className="h-9 w-full rounded-lg border border-white/10 bg-white/5 pl-8 pr-7 text-sm text-white placeholder:text-slate-500 focus:border-brand-500 focus:outline-none" />
+            {menuQ && <button type="button" onClick={() => setMenuQ("")} aria-label="Clear menu search" className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded text-slate-400 hover:text-white"><Icon name="x" className="h-3.5 w-3.5" /></button>}
+          </label>
+        </div>
         <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-3" aria-label="Main">
-          {groups.map((g) => <NavGroupLink key={g.label} group={g} activeHref={activeHref} onNavigate={() => setOpen(false)} />)}
+          {shownGroups.map((g) => <NavGroupLink key={g.label} group={g} activeHref={activeHref} forceOpen={menuQ.trim() !== ""} onNavigate={() => { setOpen(false); setMenuQ(""); }} />)}
+          {shownGroups.length === 0 && <p className="px-3 py-2 text-xs text-slate-500">No menu item matches “{menuQ}”.</p>}
         </nav>
         <div className="shrink-0 border-t border-white/10 p-3">
           <div className="flex items-center gap-2.5">
@@ -112,9 +129,22 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
   );
 }
 
-function NavGroupLink({ group: g, activeHref, onNavigate }: { group: NavGroup; activeHref?: string; onNavigate: () => void }) {
+/** Menu search: a group whose name matches keeps all its items; otherwise only matching items stay. */
+function filterNav(groups: NavGroup[], q: string): NavGroup[] {
+  const t = q.trim().toLowerCase();
+  if (!t) return groups;
+  return groups.flatMap((g) => {
+    if (g.label.toLowerCase().includes(t)) return [g];
+    if (g.href) return [];
+    const items = (g.items ?? []).filter((i) => `${i.label} ${i.keywords ?? ""}`.toLowerCase().includes(t));
+    return items.length ? [{ ...g, items }] : [];
+  });
+}
+
+function NavGroupLink({ group: g, activeHref, onNavigate, forceOpen = false }: { group: NavGroup; activeHref?: string; onNavigate: () => void; forceOpen?: boolean }) {
   const hasActive = Boolean(g.items?.some((i) => i.href === activeHref));
-  const [open, setOpen] = useState(hasActive);
+  const [manualOpen, setOpen] = useState(hasActive);
+  const open = forceOpen || manualOpen;
   useEffect(() => { if (hasActive) setOpen(true); }, [hasActive]);
   const row = (active: boolean) => `relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-white/10 font-semibold text-white" : "hover:bg-white/5 hover:text-white"}`;
   if (g.href) {

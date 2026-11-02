@@ -80,7 +80,7 @@ export function LeadTable({ rows, canAssign, canDelete = false, canBroadcast = f
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  const [note, setNote] = useState<{ text: string; bad?: boolean } | null>(null);
   const canSelect = deletedView ? canDelete : canAssign || canDelete || canBroadcast || edit.canStatus || edit.canEdit;
 
   // The page toolbar's "Customize Table" button opens the modal owned here.
@@ -89,7 +89,7 @@ export function LeadTable({ rows, canAssign, canDelete = false, canBroadcast = f
     window.addEventListener("leads:customize", show);
     return () => window.removeEventListener("leads:customize", show);
   }, []);
-  useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 4000); return () => clearTimeout(t); }, [note]);
+  useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), note.bad ? 8000 : 4000); return () => clearTimeout(t); }, [note]);
 
   const bulk = async (kind: "delete" | "restore") => {
     const ids = [...sel];
@@ -97,8 +97,8 @@ export function LeadTable({ rows, canAssign, canDelete = false, canBroadcast = f
     setBusy(true);
     const res = await (kind === "delete" ? deleteLeads(ids) : restoreLeads(ids));
     setBusy(false);
-    if (res.error) { setNote(res.error); return; }
-    setNote(`${res.n ?? 0} lead${res.n === 1 ? "" : "s"} ${kind === "delete" ? "deleted" : "restored"}`);
+    if (res.error) { setNote({ text: res.error, bad: true }); return; }
+    setNote({ text: `${res.n ?? 0} lead${res.n === 1 ? "" : "s"} ${kind === "delete" ? "deleted" : "restored"}` });
     setSel(new Set());
     router.refresh();
   };
@@ -140,7 +140,7 @@ export function LeadTable({ rows, canAssign, canDelete = false, canBroadcast = f
       ) : (
         <BulkBar ids={[...sel]} users={users} statuses={edit.statuses} subStatuses={edit.subStatuses} tags={tags} busy={busy}
           perms={{ assign: canAssign, status: edit.canStatus, edit: edit.canEdit, del: canDelete, broadcast: canBroadcast, requireNext: edit.requireNext }}
-          onClear={() => setSel(new Set())} onDelete={() => bulk("delete")} />
+          onClear={() => setSel(new Set())} onDelete={() => bulk("delete")} onNote={(text, bad) => setNote({ text, bad })} />
       ))}
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="text-xs text-slate-500">
@@ -177,7 +177,7 @@ export function LeadTable({ rows, canAssign, canDelete = false, canBroadcast = f
           </tbody>
         </table>
       </div>
-      {note && <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-navy-900 px-4 py-2 text-sm text-white shadow-lg">{note}</div>}
+      {note && <div role="status" className={`fixed bottom-4 left-1/2 z-50 max-w-lg -translate-x-1/2 rounded-lg px-4 py-2 text-sm text-white shadow-lg ${note.bad ? "bg-red-700" : "bg-navy-900"}`}>{note.text}</div>}
       {open && <CustomizeTable labels={LABELS} defaults={DEFAULT} first="Lead" save={saveLeadTableLayout} initial={layout} onClose={() => setOpen(false)} onSaved={(l) => { setLayout(l); setOpen(false); }} />}
     </InlineEditProvider>
   );

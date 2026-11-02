@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/kit";
 import { ActionForm, Field, Modal, Submit } from "@/components/ui";
@@ -14,27 +14,26 @@ const CLOSED = new Set(["won", "lost", "invalid"]);
 export type BulkPerms = { assign: boolean; status: boolean; edit: boolean; del: boolean; broadcast: boolean; requireNext: boolean };
 
 /** Action bar shown when leads are ticked: assign, status, sub-status, tags, priority, WhatsApp broadcast, delete. */
-export function BulkBar({ ids, perms, users, statuses, subStatuses, tags, busy, onClear, onDelete }: {
+export function BulkBar({ ids, perms, users, statuses, subStatuses, tags, busy, onClear, onDelete, onNote }: {
   ids: string[]; perms: BulkPerms; users: { id: string; name: string }[]; statuses: StatusOpt[]; subStatuses: SubStatusOpt[];
   tags: { id: string; name: string }[]; busy: boolean; onClear: () => void; onDelete: () => void;
+  /** Result message; shown by the table so it survives the bar closing when the selection clears. */
+  onNote: (text: string, bad?: boolean) => void;
 }) {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
   const [wa, setWa] = useState(false);
-  const [note, setNote] = useState<{ text: string; bad?: boolean } | null>(null);
   const [working, setWorking] = useState(false);
   const n = ids.length;
   const toggle = (p: Panel) => setPanel((x) => (x === p ? null : p));
-
-  useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 6000); return () => clearTimeout(t); }, [note]);
 
   const run = async (a: BulkAction) => {
     setWorking(true);
     const r = await bulkUpdateLeads(ids, a);
     setWorking(false);
-    if (r.error) { setNote({ text: r.error, bad: true }); return; }
+    if (r.error) { onNote(r.error, true); return; }
     const why = Object.entries(r.errors ?? {}).map(([k, v]) => `${k} (${v})`).join("; ");
-    setNote({ text: `${r.ok} lead${r.ok === 1 ? "" : "s"} updated${r.failed ? `, ${r.failed} not changed: ${why}` : ""}.`, bad: !!r.failed });
+    onNote(`${r.ok} lead${r.ok === 1 ? "" : "s"} updated${r.failed ? `, ${r.failed} not changed: ${why}` : ""}.`, !!r.failed);
     setPanel(null);
     if (!r.failed) onClear();
     router.refresh();
@@ -73,7 +72,7 @@ export function BulkBar({ ids, perms, users, statuses, subStatuses, tags, busy, 
       {panel && (
         <div className="mt-3 border-t border-brand-100 pt-3">
           {panel === "assign" && (
-            <ActionForm action={assignLeads} onOk={() => { setPanel(null); onClear(); }} className="flex flex-wrap items-end gap-2">
+            <ActionForm action={assignLeads} onOk={() => { setPanel(null); onClear(); onNote(`${n} lead${n === 1 ? "" : "s"} assigned.`); }} className="flex flex-wrap items-end gap-2">
               {ids.map((id) => <input key={id} type="hidden" name="lead_ids" value={id} />)}
               <Field label="Assign to">
                 <select className="input min-w-48" name="owner_id" required defaultValue="">
@@ -99,8 +98,6 @@ export function BulkBar({ ids, perms, users, statuses, subStatuses, tags, busy, 
           )}
         </div>
       )}
-
-      {note && <div role="status" className={`fixed bottom-4 left-1/2 z-50 max-w-lg -translate-x-1/2 rounded-lg px-4 py-2 text-sm text-white shadow-lg ${note.bad ? "bg-red-700" : "bg-navy-900"}`}>{note.text}</div>}
 
       <Modal open={wa} onClose={() => setWa(false)} title={`WhatsApp broadcast to ${n} lead${n === 1 ? "" : "s"}`} wide>
         {wa && <BroadcastForm audience={{ lead_ids: ids }} onDone={() => setWa(false)} />}

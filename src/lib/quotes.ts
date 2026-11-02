@@ -3,13 +3,16 @@
 
 export type QuoteKind = "quotation" | "invoice";
 export type QuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "paid" | "cancelled";
-export type QuoteItem = { name: string; description: string; qty: number; rate: number; tax_pct: number };
+export type QuoteItem = { name: string; description: string; qty: number; rate: number; tax_pct: number; hsn?: string; unit?: string };
 
 export type Quote = {
   id: string; company_id: string; lead_id: string; kind: QuoteKind; doc_no: string; status: QuoteStatus;
   issue_date: string; valid_until: string | null; items: QuoteItem[]; subtotal: number; discount: number;
   tax_total: number; total: number; amount_paid: number; notes: string; terms: string; from_quote_id: string | null;
   public_token: string; sent_at: string | null; paid_at: string | null; created_at: string;
+  buyer_gstin?: string | null; buyer_legal_name?: string | null; buyer_address?: string | null; buyer_pincode?: string | null;
+  place_of_supply?: string | null; reverse_charge?: boolean; irn?: string | null; irn_ack_no?: string | null; irn_ack_date?: string | null;
+  irn_signed_qr?: string | null; irn_cancelled_at?: string | null; signed_at?: string | null; signed_name?: string | null;
 };
 
 export type PayLink = {
@@ -52,6 +55,8 @@ export function cleanItems(raw: unknown): QuoteItem[] {
       qty: r2(clampNum(o.qty, 0, 1_000_000)),
       rate: r2(clampNum(o.rate, 0, 1_000_000_000)),
       tax_pct: r2(clampNum(o.tax_pct, 0, 100)),
+      ...(String(o.hsn ?? "").replace(/\D/g, "") ? { hsn: String(o.hsn).replace(/\D/g, "").slice(0, 8) } : {}),
+      ...(/^[A-Z]{3}$/.test(String(o.unit ?? "")) ? { unit: String(o.unit) } : {}),
     };
   }).filter((i) => i.name);
 }

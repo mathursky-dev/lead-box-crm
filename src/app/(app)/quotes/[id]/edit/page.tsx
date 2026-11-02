@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { normQuote, quoteSettings } from "@/lib/quotes-server";
+import { hsnMemory, normQuote, quoteSettings, sellerOf } from "@/lib/quotes-server";
 import { QuoteEditor } from "../../editor";
 
 export const metadata = { title: "Edit quotation" };
@@ -20,12 +20,15 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
     sb.from("lb_products").select("name").eq("company_id", profile.company_id).eq("is_active", true).order("name"),
     quoteSettings(profile.company_id),
   ]);
+  const memory = await hsnMemory(profile.company_id);
   if (!lead) notFound();
   const c = lead.customer as unknown as { name: string | null; phone_e164: string };
   return (
     <QuoteEditor
-      init={{ id: q.id, lead_id: q.lead_id, kind: q.kind, doc_no: q.doc_no, issue_date: q.issue_date, valid_until: q.valid_until, items: q.items, discount: q.discount, notes: q.notes, terms: q.terms }}
+      init={{ id: q.id, lead_id: q.lead_id, kind: q.kind, doc_no: q.doc_no, issue_date: q.issue_date, valid_until: q.valid_until, items: q.items, discount: q.discount, notes: q.notes, terms: q.terms,
+        buyer_gstin: q.buyer_gstin ?? "", buyer_legal_name: q.buyer_legal_name ?? "", buyer_address: q.buyer_address ?? "", buyer_pincode: q.buyer_pincode ?? "",
+        place_of_supply: q.place_of_supply ?? "", reverse_charge: Boolean(q.reverse_charge) }}
       lead={{ id: lead.id, no: lead.lead_no, name: c.name ?? "", phone: c.phone_e164 }}
-      products={(products ?? []).map((p) => p.name)} defaultTax={st.default_tax_pct} />
+      products={(products ?? []).map((p) => p.name)} defaultTax={st.default_tax_pct} sellerState={sellerOf(st).state} hsnMemory={memory} />
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { logout } from "@/lib/actions/auth";
 import { setAvailability } from "@/lib/actions/automation";
+import { switchCompany } from "@/lib/actions/company-switch";
 import { fmtDateTime } from "@/lib/dates";
 import { Mascot } from "./mascot";
 import { Icon } from "./kit";
@@ -15,13 +16,15 @@ import { fmtNum } from "@/lib/wa";
 export type NavItem = { href: string; label: string };
 export type NavGroup = { label: string; icon: string; href?: string; items?: NavItem[] };
 type User = { id: string; name: string; role: string; company: string; availability: string };
+/** Super Admin only: companies they can open from the top bar. */
+export type CompanySwitch = { current: string; home: string; companies: { id: string; name: string; active: boolean }[] };
 type Notif = { id: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string };
 
 const COLLAPSE_KEY = "lb_nav_collapsed";
 const leaves = (nav: NavGroup[]) => nav.flatMap((g) => (g.href ? [{ href: g.href, label: g.label, group: "" }] : (g.items ?? []).map((i) => ({ ...i, group: g.label }))));
 const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
 
-export function Shell({ nav, quick, user, wallet, children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; children: React.ReactNode }) {
+export function Shell({ nav, quick, user, wallet, switcher = null, children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; switcher?: CompanySwitch | null; children: React.ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -83,6 +86,7 @@ export function Shell({ nav, quick, user, wallet, children }: { nav: NavGroup[];
             <kbd className="rounded border border-slate-200 bg-white px-1.5 font-mono text-[10px] text-slate-500 max-md:hidden">Ctrl K</kbd>
           </button>
           {quick.length > 0 && <QuickCreate items={quick} />}
+          {switcher && <CompanySwitcher data={switcher} />}
           <span className="ml-auto flex items-center gap-1.5 md:gap-2">
             <button onClick={() => setHelp(true)} aria-label="Help & Guides (?)" title="Help & Guides (?)"
               className="flex h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700 hover:bg-violet-100 max-md:w-9 max-md:justify-center md:px-3">
@@ -177,6 +181,78 @@ function QuickCreate({ items }: { items: NavItem[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function CompanySwitcher({ data }: { data: CompanySwitch }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [err, setErr] = useState("");
+  const [pending, start] = useTransition();
+  const close = useCallback(() => { setOpen(false); setQ(""); }, []);
+  const ref = useOutside(open, close);
+  const current = data.companies.find((c) => c.id === data.current);
+  const away = data.current !== data.home;
+  const list = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    // Own company first, then A-Z.
+    return data.companies.filter((c) => !t || c.name.toLowerCase().includes(t))
+      .sort((a, b) => Number(b.id === data.home) - Number(a.id === data.home) || a.name.localeCompare(b.name));
+  }, [q, data]);
+  const pick = (id: string) => {
+    if (id === data.current) return close();
+    setErr("");
+    start(async () => {
+      const r = await switchCompany(id === data.home ? null : id);
+      if (r?.error) setErr(r.error); else close();
+    });
+  };
+  return (
+    <div ref={ref} className="relative min-w-0 shrink">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Switch company (now: ${current?.name ?? "—"})`} title="Switch company"
+        className={`flex h-9 min-w-0 items-center gap-1.5 rounded-lg border text-sm font-semibold max-md:w-9 max-md:shrink-0 max-md:justify-center md:max-w-[15rem] md:px-2.5 ${away ? "border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100" : "border-slate-200 bg-white text-navy-900 hover:bg-slate-50"}`}>
+        <Icon name="building" className="h-4 w-4 shrink-0" />
+        <span className="truncate max-md:hidden">{pending ? "Switching…" : current?.name ?? "Company"}</span>
+        <Icon name="chevronDown" className="h-4 w-4 shrink-0 opacity-60 max-md:hidden" />
+      </button>
+      {open && (
+        <div className="z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg max-md:fixed max-md:inset-x-2 max-md:top-14 md:absolute md:left-0 md:mt-2 md:w-80">
+          <div className="border-b border-slate-100 p-2">
+            <div className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Switch company · Super Admin</div>
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${data.companies.length} companies…`}
+              className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand-500 focus:bg-white" />
+          </div>
+          {err && <div className="border-b border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">{err}</div>}
+          <div className="max-h-80 overflow-y-auto py-1">
+            {list.map((c) => (
+              <button key={c.id} disabled={pending} onClick={() => pick(c.id)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50 disabled:opacity-60 ${c.id === data.current ? "font-semibold text-navy-900" : "text-slate-700"}`}>
+                <span className="grid h-4 w-4 shrink-0 place-items-center">{c.id === data.current && <Icon name="check" className="h-4 w-4 text-brand-600" />}</span>
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                {c.id === data.home && <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">YOURS</span>}
+                {!c.active && <span className="shrink-0 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">INACTIVE</span>}
+              </button>
+            ))}
+            {list.length === 0 && <div className="px-3 py-4 text-center text-sm text-slate-400">No company matches “{q}”.</div>}
+          </div>
+          {away && (
+            <button disabled={pending} onClick={() => pick(data.home)} className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60">
+              <Icon name="chevronLeft" className="h-4 w-4" />Back to my company
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "Back to my company" link for the Super Admin banner. */
+export function BackHome({ className }: { className?: string }) {
+  const [pending, start] = useTransition();
+  return (
+    <button className={className} disabled={pending} onClick={() => start(async () => { await switchCompany(null); })}>
+      {pending ? "Switching…" : "Back to my company"}
+    </button>
   );
 }
 

@@ -1,6 +1,6 @@
 import { requireProfile, isAdmin, can, ROLE_LABEL } from "@/lib/auth";
 import { cookies } from "next/headers";
-import { Shell, type NavGroup } from "@/components/shell";
+import { Shell, BackHome, type NavGroup, type CompanySwitch } from "@/components/shell";
 import { DayBrief, type Brief } from "@/components/day-brief";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -16,7 +16,7 @@ function istGreeting() {
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { profile, company, billing, features } = await requireProfile();
+  const { profile, company, billing, features, homeCompanyId } = await requireProfile();
   const demo = await isDemoCompany(profile.company_id);
   const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const admin = isAdmin(profile);
@@ -88,13 +88,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Admins always see the chip (it is where they add balance); others only once there is a wallet.
   const walletBalance = wallet ? Number(wallet.balance) : admin ? 0 : null;
 
+  // Super Admin company switcher (top bar): every company, A-Z.
+  const superAdmin = profile.role === "super_admin";
+  const away = superAdmin && profile.company_id !== homeCompanyId;
+  let switcher: CompanySwitch | null = null;
+  if (superAdmin) {
+    const { data: cos } = await sb.from("lb_companies").select("id,name,is_active").order("name");
+    switcher = { current: profile.company_id, home: homeCompanyId, companies: (cos ?? []).map((c) => ({ id: c.id as string, name: c.name as string, active: c.is_active !== false })) };
+  }
+
   let brief: Brief | null = null;
   if ((await cookies()).get("lb_brief")) {
     const { data } = await sb.rpc("lb_day_brief");
     brief = data as Brief | null;
   }
   return (
-    <Shell nav={nav} quick={quick} wallet={walletBalance} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+    <Shell nav={nav} quick={quick} wallet={walletBalance} switcher={switcher} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+      {away && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 sm:px-4 sm:text-sm">
+          <span><span className="font-semibold">Super Admin view</span> · You are working inside <span className="font-semibold">{company?.name}</span>. Everything you see and change here is this company&apos;s data.</span>
+          <BackHome className="font-semibold underline" />
+        </div>
+      )}
       {demo && (
         <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-900 sm:px-4 sm:text-sm">
           <span className="font-semibold">Demo account</span> · Sample data. Feel free to try anything: it all resets every night at 3 AM, and WhatsApp messages are only simulated.

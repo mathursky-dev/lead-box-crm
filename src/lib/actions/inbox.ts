@@ -107,3 +107,16 @@ export async function conversationAction(convId: string, action: string, payload
   if (error) return { error: errMsg(error) };
   return { ok: true, data };
 }
+
+/** Team note inside a chat (never sent to the customer). Mentioned teammates get a bell + push notification. */
+export async function addChatNote(convId: string, body: string, mentions: string[] = []): Promise<Result> {
+  await requireProfile();
+  const text = String(body ?? "").trim();
+  if (!z.uuid().safeParse(convId).success) return { error: "Invalid chat" };
+  if (!text) return { error: "Note is empty" };
+  if (text.length > 5000) return { error: "Note is too long (max 5000 characters)" };
+  const ids = [...new Set((Array.isArray(mentions) ? mentions : []).filter((m) => z.uuid().safeParse(m).success))].slice(0, 20);
+  const { data, error } = await (await createClient()).rpc("lb_add_chat_note", { p_conv: convId, p_body: text, p_mentions: ids });
+  if (error) return { error: errMsg(error) };
+  return { ok: true, data };
+}

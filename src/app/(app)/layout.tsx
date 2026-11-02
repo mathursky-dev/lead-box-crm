@@ -5,6 +5,7 @@ import { DayBrief, type Brief } from "@/components/day-brief";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
+import { isDemoCompany } from "@/lib/demo";
 
 function istGreeting() {
   const now = new Date();
@@ -16,6 +17,7 @@ function istGreeting() {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, company, billing, features } = await requireProfile();
+  const demo = await isDemoCompany(profile.company_id);
   const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const admin = isAdmin(profile);
   const campaigns = can(profile, "campaigns.manage") || can(profile, "campaigns.approve");
@@ -93,6 +95,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
   return (
     <Shell nav={nav} quick={quick} wallet={walletBalance} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+      {demo && (
+        <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-900 sm:px-4 sm:text-sm">
+          <span className="font-semibold">Demo account</span> · Sample data. Feel free to try anything: it all resets every night at 3 AM, and WhatsApp messages are only simulated.
+        </div>
+      )}
       {onTrial && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
           Free trial ends {fmtDateTime(billing.trial_ends_at)}. <Link href="/billing" className="font-medium underline">Upgrade to keep access</Link>

@@ -6,6 +6,7 @@ import { requireProfile, isAdmin } from "@/lib/auth";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { enqueue, mediaKind, MAX_MB } from "@/lib/inbox-send";
+import { ensureDemoFiles } from "@/lib/demo";
 
 // Company document library. Files sit in the private "lb-docs" bucket at {company_id}/{uuid}-{name}.
 // Super admins can read every company's rows through RLS, so every query here filters by the
@@ -106,6 +107,7 @@ export async function documentLinks(ids: string[], download: boolean): Promise<{
   const list = ids.filter((i) => z.uuid().safeParse(i).success).slice(0, 50);
   const { data } = await createAdminClient().from("lb_documents").select("id,path,file_name,mime").in("id", list).eq("company_id", profile.company_id);
   if (!data?.length) return { error: "Document not found" };
+  await ensureDemoFiles(profile.company_id);
   const links = [];
   for (const d of data) {
     const { data: s, error } = await createAdminClient().storage.from(BUCKET).createSignedUrl(d.path, 600, download ? { download: d.file_name } : undefined);
@@ -136,6 +138,7 @@ export async function sendDocumentToChat(convId: string, clientId: string, docId
   if (conv.company_id !== profile.company_id) return { error: "This document library belongs to another company." };
   const { data: doc } = await createAdminClient().from("lb_documents").select("path,file_name,mime,size").eq("id", docId).eq("company_id", conv.company_id).maybeSingle();
   if (!doc) return { error: "Document not found" };
+  await ensureDemoFiles(conv.company_id);
   // Copy into the chat's media folder so the message keeps working if the document is later edited or deleted.
   const dest = `${conv.company_id}/${conv.id}/${randomUUID()}-${cleanName(doc.file_name)}`;
   const { error } = await createAdminClient().storage.from(BUCKET).copy(doc.path, dest, { destinationBucket: "lb-media" });

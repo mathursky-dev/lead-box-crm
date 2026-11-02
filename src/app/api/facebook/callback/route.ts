@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth";
+import { demoBlocked } from "@/lib/demo";
 import { createAdminClient } from "@/lib/supabase/server";
 import { encryptSecret } from "@/lib/util";
 import { fbApp } from "@/lib/facebook";
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
     res.cookies.delete({ name: "lb_fb_state", path: "/api/facebook" });
     return res;
   };
+  const demo = await demoBlocked(profile.company_id);
+  if (demo) return back(demo);
   if (p.get("error")) return back(p.get("error_description") ?? p.get("error")!);
   const state = req.cookies.get("lb_fb_state")?.value;
   if (!state || state !== p.get("state")) return back("Login expired or was tampered with. Please try again.");

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
+import { demoBlocked } from "@/lib/demo";
 import { fbApp, FB_SCOPES } from "@/lib/facebook";
 import { GRAPH_VERSION } from "@/lib/whatsapp";
 
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const { profile } = await requireAdmin();
   const origin = req.nextUrl.origin;
+  const demo = await demoBlocked(profile.company_id);
+  if (demo) return NextResponse.redirect(`${origin}/admin/fb-login?error=${encodeURIComponent(demo)}`);
   const app = await fbApp(profile.company_id).catch(() => null);
   if (!app) return NextResponse.redirect(`${origin}/admin/fb-login?error=${encodeURIComponent("Save the Meta App ID and App Secret in Admin → Integrations first.")}`);
   const state = randomBytes(16).toString("hex");

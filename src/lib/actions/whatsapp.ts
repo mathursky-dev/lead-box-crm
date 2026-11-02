@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { encryptSecret } from "@/lib/util";
 import { phoneInfo, subscribeApp, listTemplates, numberCredentials, markNumberError, graph } from "@/lib/whatsapp";
+import { demoBlocked } from "@/lib/demo";
 
 type FormState = { error?: string; ok?: string } | undefined;
 const uuidOpt = z.union([z.uuid(), z.literal("")]).optional().transform((v) => v || null);
@@ -26,6 +27,7 @@ const schema = z.object({
 /** Create/update a business number. The token is verified against Graph, then encrypted at rest. */
 export async function saveNumber(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   if (!hasServiceRole()) return { error: "Server is not configured (SUPABASE_SERVICE_ROLE_KEY)." };
   const p = schema.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message };
@@ -76,7 +78,8 @@ export async function saveNumber(_: FormState, form: FormData): Promise<FormStat
 }
 
 export async function testNumber(numberId: string): Promise<FormState> {
-  await requireAdmin();
+  const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
   if (c.provider === "qr") return { error: "QR-scan numbers are checked from Admin → Integrations." };
@@ -92,6 +95,7 @@ export async function testNumber(numberId: string): Promise<FormState> {
 
 export async function subscribeWebhook(numberId: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
   if (c.provider === "qr") return { error: "QR-scan numbers don't use Meta webhooks." };
@@ -103,6 +107,7 @@ export async function subscribeWebhook(numberId: string): Promise<FormState> {
 
 export async function syncTemplates(numberId: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const c = await numberCredentials(numberId);
   if (!c) return { error: "No credentials stored for this number." };
   if (c.provider === "qr") return { error: "Templates need the official API; QR-scan numbers send normal messages only." };
@@ -146,6 +151,7 @@ const tplSchema = z.object({
 /** Submit a new template to Meta for review (ported from wacrm). It appears as PENDING until Meta approves it. */
 export async function createTemplate(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const p = tplSchema.safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0].message };
   const v = p.data;

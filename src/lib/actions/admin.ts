@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireAdmin, type Profile, PERMISSIONS } from "@/lib/auth";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
+import { demoBlocked } from "@/lib/demo";
 
 type FormState = { error?: string; ok?: string } | undefined;
 type Db = ReturnType<typeof createAdminClient>;
@@ -68,6 +69,7 @@ export async function createUser(_: FormState, form: FormData): Promise<FormStat
   if (v.role === "super_admin" && me.role !== "super_admin") return { error: "Only a Super Admin can create Super Admins." };
   if (!v.email && !v.username) return { error: "Enter an email, a User ID, or both." };
   if (v.mode === "invite" && !v.email) return { error: "Email invitations need an email address." };
+  if (v.mode === "invite") { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const manual = form.get("password_mode") !== "generate";
   if (v.mode === "password" && manual && (v.password ?? "").length < PASSWORD_MIN) return { error: `Password must be at least ${PASSWORD_MIN} characters.` };
   if (v.mode === "password" && manual && v.password !== form.get("password_confirm")) return { error: "Passwords do not match." };
@@ -116,6 +118,7 @@ export async function createUser(_: FormState, form: FormData): Promise<FormStat
 /** Admin sets a user's password directly (no email needed). */
 export async function setUserPassword(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const id = z.uuid().safeParse(form.get("id"));
   const pw = String(form.get("password") ?? "");
   if (!id.success) return { error: "Invalid user" };
@@ -137,6 +140,7 @@ export async function setUserPassword(_: FormState, form: FormData): Promise<For
 
 export async function updateUser(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const id = z.uuid().safeParse(form.get("id"));
   const p = userSchema.omit({ email: true, username: true, mode: true, password: true }).safeParse(Object.fromEntries(form));
   if (!id.success || !p.success) return { error: p.error?.issues[0]?.message ?? "Invalid input" };
@@ -173,6 +177,7 @@ export async function updateUser(_: FormState, form: FormData): Promise<FormStat
 /** Deactivation blocks login (auth ban) but keeps ownership and history intact. */
 export async function setUserActive(userId: string, active: boolean): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   if (userId === me.id) return { error: "You cannot deactivate yourself." };
   try {
     const db = createAdminClient();
@@ -193,6 +198,7 @@ export async function setUserActive(userId: string, active: boolean): Promise<Fo
 
 export async function sendPasswordReset(userId: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const supabase = await createClient();
   const { data: target } = await supabase.from("lb_profiles").select("email").eq("id", userId).single();
   if (!target) return { error: "User not found" };

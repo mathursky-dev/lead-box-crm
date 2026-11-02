@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient, hasServiceRole } from "./supabase/server";
 import { graph, isRetryable, numberCredentials, markNumberError } from "./whatsapp";
+import { isDemoCompany } from "./demo";
 
 type Msg = {
   id: string; conversation_id: string; type: string; body: string | null; media_path: string | null; media_filename: string | null;
@@ -25,7 +26,13 @@ export async function drainOutbox(budgetMs = 20000) {
     if (!batch?.length) break;
     // Flow blocks queue several messages at once; send them in the order they were queued.
     for (const m of (batch as Msg[]).sort((a, b) => a.next_attempt_at.localeCompare(b.next_attempt_at))) {
-      const { data: conv } = await db.from("lb_conversations").select("number_id, customer:lb_customers(phone_e164)").eq("id", m.conversation_id).single();
+      const { data: conv } = await db.from("lb_conversations").select("company_id, number_id, customer:lb_customers(phone_e164)").eq("id", m.conversation_id).single();
+      // Demo companies never reach WhatsApp (lb_claim_outbox already skips them; this is a second lock).
+      if (await isDemoCompany(conv?.company_id as string)) {
+        await db.rpc("lb_mark_send_result", { p_msg: m.id, p_wamid: `demo.${m.id}`, p_code: null, p_error: null, p_retryable: false });
+        sent++;
+        continue;
+      }
       const numberId = conv?.number_id as string;
       if (!creds.has(numberId)) creds.set(numberId, await numberCredentials(numberId).catch(() => null));
       const c = creds.get(numberId);

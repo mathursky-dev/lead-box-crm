@@ -5,6 +5,7 @@ import { requireProfile, isAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { TOPUP_MAX, TOPUP_MIN, UTR_RE } from "@/lib/upi";
+import { demoBlocked } from "@/lib/demo";
 
 type FormState = { error?: string; ok?: string } | undefined;
 
@@ -17,6 +18,7 @@ const topupSchema = z.object({
 export async function requestTopup(_: FormState, form: FormData): Promise<FormState> {
   try {
     const { profile } = await requireProfile();
+    { const demo = await demoBlocked(profile.company_id); if (demo) return { error: demo }; }
     if (!isAdmin(profile)) return { error: "Only an admin can add balance." };
     const p = topupSchema.safeParse(Object.fromEntries(form));
     if (!p.success) return { error: p.error.issues[0]?.message ?? "Check the form." };

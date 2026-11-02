@@ -9,6 +9,7 @@ import { BulkBar } from "./bulk-bar";
 import { saveLeadTableLayout, type LeadTableLayout } from "@/lib/actions/prefs";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { PhoneMenu } from "./phone-menu";
+import { AiScoreBadge } from "@/components/ai-score";
 import { InlineEditProvider, StatusEdit, SubStatusEdit, ProductEdit, FollowupEdit, RemarkEdit, type EditRefs } from "./inline-edit";
 
 type Row = {
@@ -16,6 +17,7 @@ type Row = {
   priority: string; owner_id?: string | null; owner_name: string | null; owner_seen_at?: string | null; email?: string | null; assigned_at?: string | null;
   converted_at?: string | null; remark?: string | null; remark_at?: string | null; product_name: string | null; source_name: string | null;
   expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null; deleted_at?: string | null;
+  ai_score?: string | null; ai_score_points?: number | null; ai_score_reason?: string | null;
 };
 
 
@@ -31,6 +33,7 @@ const COLS: Col[] = [
   { key: "mobile", label: "Mobile number", on: false, td: "text-xs", cell: (r) => <span className="flex items-center whitespace-nowrap">{r.phone_e164}<PhoneMenu leadId={r.id} phone={r.phone_e164} /></span> },
   { key: "email", label: "Email", on: false, td: "text-xs", cell: (r) => r.email || dash },
   { key: "status", label: "Status", on: true, cell: (r, o) => <StatusEdit r={r} subBelow={o.subInStatus} /> },
+  { key: "ai_score", label: "AI score", on: true, cell: (r) => r.ai_score ? <AiScoreBadge score={r.ai_score} points={r.ai_score_points} reason={r.ai_score_reason} /> : dash },
   { key: "sub_status", label: "Sub-status", on: true, td: "text-xs", cell: (r) => <SubStatusEdit r={r} /> },
   { key: "remark", label: "Remark", on: true, td: "text-xs", cell: (r) => <RemarkEdit r={r} /> },
   { key: "seen", label: "Seen / Unseen", on: true, td: "text-xs", cell: (r) => !r.owner_id ? dash : unseen(r)

@@ -47,7 +47,7 @@ export async function saveAutomationSettings(_: R | undefined, form: FormData): 
   const words = (k: string) => s(form.get(k)).split(",").map((w) => w.trim().toLowerCase()).filter(Boolean);
   const complaint = words("complaint_keywords"), buying = words("buying_keywords");
   if ([...complaint, ...buying].some((w) => !/^[\p{L}\p{N} ]{2,40}$/u.test(w))) return { error: "Keywords may only contain letters, numbers and spaces." };
-  const v = { ai_enabled: form.get("ai_enabled") === "on", complaint_keywords: complaint, buying_keywords: buying, digest_hour: Number(s(form.get("digest_hour")) || 9) };
+  const v = { ai_enabled: form.get("ai_enabled") === "on", ai_auto_score: form.get("ai_auto_score") === "on", complaint_keywords: complaint, buying_keywords: buying, digest_hour: Number(s(form.get("digest_hour")) || 9) };
   const { error } = await (await createClient()).from("lb_companies").update(v).eq("id", me.company_id);
   if (error) return { error: error.message };
   await createAdminClient().from("lb_audit_log").insert({ company_id: me.company_id, actor_id: me.id, action: "company.automation_settings", entity: "company", entity_id: me.company_id, data: v });

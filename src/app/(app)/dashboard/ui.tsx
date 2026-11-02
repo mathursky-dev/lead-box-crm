@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/kit";
 
-// Server-side layout pieces for /analytics.
+// Server-side layout pieces for the Dashboard (/dashboard).
 
 /** Card with a left accent bar on the title, optional toolbar and a one-line headline under it. */
 export function Box({ title, actions, headline, children, className = "" }: { title: string; actions?: React.ReactNode; headline?: React.ReactNode; children: React.ReactNode; className?: string }) {

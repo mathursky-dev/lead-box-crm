@@ -35,10 +35,10 @@ function bodyOf(m: WaMessage): string | null {
 }
 
 /** Process one stored webhook delivery. Idempotent: replays are no-ops. */
-export async function processWebhookEvent(eventId: string) {
+export async function processWebhookEvent(eventId: string): Promise<string[]> {
   const db = createAdminClient();
   const { data: ev } = await db.from("lb_webhook_events").select("id,payload,processed_at,attempts").eq("id", eventId).single();
-  if (!ev || ev.processed_at) return;
+  if (!ev || ev.processed_at) return [];
   try {
     const mediaJobs: { messageId: string; conversationId: string; companyId: string; numberId: string; mediaId: string; filename?: string }[] = [];
     const botJobs: Parameters<typeof runAutoReplies>[0][] = [];
@@ -99,6 +99,8 @@ export async function processWebhookEvent(eventId: string) {
     await db.from("lb_webhook_events").update({ processed_at: new Date().toISOString(), error: null, attempts: ev.attempts + 1 }).eq("id", ev.id);
     for (const j of mediaJobs) await storeInboundMedia(j);
     for (const j of botJobs) await runAutoReplies(j);
+    // Conversations the customer just wrote in (the routes refresh their AI lead score after replying).
+    return [...new Set(botJobs.map((j) => j.conversationId))];
   } catch (e) {
     await db.from("lb_webhook_events").update({ attempts: ev.attempts + 1, error: (e as Error).message.slice(0, 500) }).eq("id", ev.id);
     throw e;

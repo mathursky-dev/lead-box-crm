@@ -3,12 +3,13 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/kit";
-import { ActionForm, Field, Submit } from "@/components/ui";
 import { CustomizeTable, mergeLayout } from "@/components/customize-table";
-import { assignLeads, deleteLeads, restoreLeads } from "@/lib/actions/leads";
+import { deleteLeads, restoreLeads } from "@/lib/actions/leads";
+import { BulkBar } from "./bulk-bar";
 import { saveLeadTableLayout, type LeadTableLayout } from "@/lib/actions/prefs";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { PhoneMenu } from "./phone-menu";
+import { AiScoreBadge } from "@/components/ai-score";
 import { InlineEditProvider, StatusEdit, SubStatusEdit, ProductEdit, FollowupEdit, RemarkEdit, type EditRefs } from "./inline-edit";
 
 type Row = {
@@ -16,6 +17,7 @@ type Row = {
   priority: string; owner_id?: string | null; owner_name: string | null; owner_seen_at?: string | null; email?: string | null; assigned_at?: string | null;
   converted_at?: string | null; remark?: string | null; remark_at?: string | null; product_name: string | null; source_name: string | null;
   expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null; deleted_at?: string | null;
+  ai_score?: string | null; ai_score_points?: number | null; ai_score_reason?: string | null;
 };
 
 
@@ -31,6 +33,7 @@ const COLS: Col[] = [
   { key: "mobile", label: "Mobile number", on: false, td: "text-xs", cell: (r) => <span className="flex items-center whitespace-nowrap">{r.phone_e164}<PhoneMenu leadId={r.id} phone={r.phone_e164} /></span> },
   { key: "email", label: "Email", on: false, td: "text-xs", cell: (r) => r.email || dash },
   { key: "status", label: "Status", on: true, cell: (r, o) => <StatusEdit r={r} subBelow={o.subInStatus} /> },
+  { key: "ai_score", label: "AI score", on: true, cell: (r) => r.ai_score ? <AiScoreBadge score={r.ai_score} points={r.ai_score_points} reason={r.ai_score_reason} /> : dash },
   { key: "sub_status", label: "Sub-status", on: true, td: "text-xs", cell: (r) => <SubStatusEdit r={r} /> },
   { key: "remark", label: "Remark", on: true, td: "text-xs", cell: (r) => <RemarkEdit r={r} /> },
   { key: "seen", label: "Seen / Unseen", on: true, td: "text-xs", cell: (r) => !r.owner_id ? dash : unseen(r)
@@ -65,8 +68,9 @@ function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
   );
 }
 
-export function LeadTable({ rows, canAssign, canDelete = false, deletedView = false, users, saved, sortable, edit }: {
-  rows: Row[]; canAssign: boolean; canDelete?: boolean; deletedView?: boolean; users: { id: string; name: string }[]; saved: LeadTableLayout | null; sortable: boolean; edit: EditRefs;
+export function LeadTable({ rows, canAssign, canDelete = false, canBroadcast = false, deletedView = false, users, tags = [], saved, sortable, edit }: {
+  rows: Row[]; canAssign: boolean; canDelete?: boolean; canBroadcast?: boolean; deletedView?: boolean; users: { id: string; name: string }[]; tags?: { id: string; name: string }[];
+  saved: LeadTableLayout | null; sortable: boolean; edit: EditRefs;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -77,7 +81,7 @@ export function LeadTable({ rows, canAssign, canDelete = false, deletedView = fa
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const canSelect = deletedView ? canDelete : canAssign || canDelete;
+  const canSelect = deletedView ? canDelete : canAssign || canDelete || canBroadcast || edit.canStatus || edit.canEdit;
 
   // The page toolbar's "Customize Table" button opens the modal owned here.
   useEffect(() => {
@@ -127,38 +131,17 @@ export function LeadTable({ rows, canAssign, canDelete = false, deletedView = fa
 
   return (
     <InlineEditProvider refs={edit}>
-      {canSelect && sel.size > 0 && (
-        <div className="card mb-3 flex flex-wrap items-end gap-3 border-brand-100 bg-brand-50 p-3">
-          {deletedView ? (
-            <>
-              <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
-              <button type="button" className="btn-primary" disabled={busy} onClick={() => bulk("restore")}><Icon name="refresh" className="h-3.5 w-3.5" />{busy ? "Restoring…" : "Restore"}</button>
-              <button type="button" className="btn-ghost" onClick={() => setSel(new Set())}>Clear</button>
-            </>
-          ) : canAssign ? (
-            <ActionForm action={assignLeads} onOk={() => setSel(new Set())} className="flex flex-wrap items-end gap-2">
-              {[...sel].map((id) => <input key={id} type="hidden" name="lead_ids" value={id} />)}
-              <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
-              <Field label="Assign to">
-                <select className="input min-w-48" name="owner_id" required defaultValue="">
-                  <option value="" disabled>Choose…</option>
-                  <option value="__auto__">Round-robin (allocation rules)</option>
-                  {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Reason (required when reassigning)"><input className="input min-w-64" name="reason" /></Field>
-              <Submit>Assign</Submit>
-              <button type="button" className="btn-ghost" onClick={() => setSel(new Set())}>Clear</button>
-            </ActionForm>
-          ) : <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>}
-          {!deletedView && canDelete && (
-            <button type="button" disabled={busy} onClick={() => bulk("delete")}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
-              <Icon name="trash" className="h-3.5 w-3.5" />{busy ? "Deleting…" : "Delete"}
-            </button>
-          )}
+      {canSelect && sel.size > 0 && (deletedView ? (
+        <div className="card mb-3 flex flex-wrap items-center gap-3 border-brand-100 bg-brand-50 p-3">
+          <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
+          <button type="button" className="btn-primary" disabled={busy} onClick={() => bulk("restore")}><Icon name="refresh" className="h-3.5 w-3.5" />{busy ? "Restoring…" : "Restore"}</button>
+          <button type="button" className="btn-ghost" onClick={() => setSel(new Set())}>Clear</button>
         </div>
-      )}
+      ) : (
+        <BulkBar ids={[...sel]} users={users} statuses={edit.statuses} subStatuses={edit.subStatuses} tags={tags} busy={busy}
+          perms={{ assign: canAssign, status: edit.canStatus, edit: edit.canEdit, del: canDelete, broadcast: canBroadcast, requireNext: edit.requireNext }}
+          onClear={() => setSel(new Set())} onDelete={() => bulk("delete")} />
+      ))}
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="text-xs text-slate-500">
           {unseenCount > 0 && <><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500 align-middle" />{unseenCount} unseen on this page</>}

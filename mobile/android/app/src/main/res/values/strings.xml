@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lead Box</string>
+    <string name="title_activity_main">Lead Box</string>
+    <string name="package_name">in.leadboxs.wacrm</string>
+    <string name="custom_url_scheme">in.leadboxs.wacrm</string>
+</resources>

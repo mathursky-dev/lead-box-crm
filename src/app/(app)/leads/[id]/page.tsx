@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { orderStatus, paymentStatus, rupees } from "@/lib/store";
 import { notFound } from "next/navigation";
-import { requireProfile, isManager, can } from "@/lib/auth";
+import { requireProfile, isManager, isAdmin, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { StatusBadge, PRIORITY_STYLE } from "@/components/static";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { statusOf } from "@/lib/tasks";
+import { fmtDuration } from "@/lib/calls";
 import { Timeline, type Ev } from "@/components/timeline";
+import { CallsList } from "@/components/calls-list";
+import { CallButton } from "@/components/call-button";
+import { CALL_SELECT, toCallRow } from "@/lib/calls-server";
 import { CustomFieldsPanel } from "./custom-fields";
+import { AiScoreBadge, AiScoreCard } from "@/components/ai-score";
+import { aiConfigured } from "@/lib/ai";
 import type { CustomField } from "@/lib/settings-shared";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
@@ -18,7 +24,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const { id } = await params;
   const { created } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const { profile } = await requireProfile();
+  const { profile, features } = await requireProfile();
   const sb = await createClient();
   const { data: lead } = await sb.from("lb_leads").select("*, customer:lb_customers(*), status:lb_lead_statuses(name,category), owner:lb_profiles!lb_leads_owner_id_fkey(full_name,is_active)").eq("id", id).maybeSingle();
   if (!lead) notFound();
@@ -26,6 +32,9 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   let seenAt: string | null = lead.owner_seen_at ?? null;
   if (lead.owner_id === profile.id && !seenAt && !(await sb.rpc("lb_mark_lead_seen", { p_lead: id })).error) seenAt = new Date().toISOString();
   const refs = await loadRefs();
+  const { data: co } = await sb.from("lb_companies").select("ai_enabled").eq("id", lead.company_id).maybeSingle();
+  const canAi = features.includes("ai") && can(profile, "ai.use") && Boolean(co?.ai_enabled) && aiConfigured();
+  const ai = lead as { ai_score?: string | null; ai_score_points?: number | null; ai_score_reason?: string | null; ai_next_step?: string | null; ai_scored_at?: string | null };
   const [{ data: events }, { data: followups }, { data: tags }, { data: convs }, { data: siblings }, { data: enr }, { data: journeys }, { data: cfs }] = await Promise.all([
     sb.from("lb_lead_events").select("id,type,is_work,reason,data,created_at,to_category,actor_id,from_user_id,to_user_id,from_status_id,to_status_id").eq("lead_id", id).order("created_at", { ascending: false }).limit(200),
     sb.from("lb_followups").select("id,due_at,note,status,assigned_to,completed_at,action_type").eq("lead_id", id).order("due_at", { ascending: false }),
@@ -62,6 +71,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             <StatusBadge name={st.name} category={st.category} />
             {subSt && <span className="badge bg-slate-100 text-slate-700">{subSt.name}</span>}
             <span className={`badge capitalize ${PRIORITY_STYLE[lead.priority]}`}>{lead.priority}</span>
+            <AiScoreBadge score={ai.ai_score} points={ai.ai_score_points} reason={ai.ai_score_reason} />
             {lead.is_repeat && <span className="badge bg-sky-50 text-sky-700">Repeat opportunity</span>}
           </div>
           <div className="mt-1 text-sm">
@@ -79,7 +89,10 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <div>Expected <b>{money(lead.expected_value)}</b></div>
           {lead.won_value != null && <div className="text-brand-700">Won <b>{money(lead.won_value)}</b></div>}
           {lead.lost_reason && <div className="max-w-xs text-xs text-red-700">Reason: {lead.lost_reason}</div>}
-          <Link className="btn-ghost btn-sm mt-2" href={`/leads/new?repeat=${lead.id}`}>+ Repeat opportunity</Link>
+          <div className="mt-2 flex justify-end gap-2">
+            <CallButton phone={c.phone_e164} />
+            <Link className="btn-ghost btn-sm" href={`/leads/new?repeat=${lead.id}`}>+ Repeat opportunity</Link>
+          </div>
         </div>
       </div>
 
@@ -88,12 +101,14 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           {can(profile, "leads.status") && <StatusPanel leadId={lead.id} statusId={lead.status_id} subStatusId={subStatusId} subStatuses={refs.subStatuses} statuses={refs.statuses.filter((s) => s.is_active || s.id === lead.status_id)} expected={lead.expected_value}
             nextAction={pending ? { note: pending.note, due_at: pending.due_at, action_type: (pending as { action_type?: string }).action_type ?? "call" } : null} />}
           <ActivityPanel leadId={lead.id} />
+          <LeadCalls leadId={lead.id} meId={profile.id} admin={isAdmin(profile)} />
           <section className="card p-4">
             <h2 className="mb-3 text-sm font-semibold text-navy-900">History</h2>
             <Timeline events={evs} />
           </section>
         </div>
         <div className="space-y-4">
+          <AiScoreCard leadId={lead.id} canAi={canAi} initial={{ score: ai.ai_score ?? null, points: ai.ai_score_points ?? null, reason: ai.ai_score_reason ?? null, next_step: ai.ai_next_step ?? null, scored_at: ai.ai_scored_at ?? null }} />
           <LeadTasks leadId={lead.id} />
           <LeadOrders leadId={lead.id} />
           {can(profile, "leads.assign") && (
@@ -179,6 +194,24 @@ async function LeadOrders({ leadId }: { leadId: string }) {
           );
         })}
       </ul>
+    </section>
+  );
+}
+
+// Calls saved from the mobile app (and their recordings).
+async function LeadCalls({ leadId, meId, admin }: { leadId: string; meId: string; admin: boolean }) {
+  const sb = await createClient();
+  const { data, error } = await sb.from("lb_calls").select(CALL_SELECT).eq("lead_id", leadId).order("started_at", { ascending: false }).limit(20);
+  if (error) return null; // Call tracking SQL not applied yet.
+  const rows = (data ?? []).map(toCallRow);
+  const talk = rows.reduce((n, r) => n + r.duration_sec, 0);
+  return (
+    <section className="card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-navy-900">Calls</h2>
+        {rows.length > 0 && <span className="text-xs text-slate-500">{rows.length} call{rows.length === 1 ? "" : "s"} · talk time {fmtDuration(talk)}</span>}
+      </div>
+      <CallsList calls={rows} meId={meId} admin={admin} />
     </section>
   );
 }

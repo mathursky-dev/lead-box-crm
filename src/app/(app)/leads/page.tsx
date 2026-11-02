@@ -49,7 +49,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       p: {
         q: sp.q, status_id: sp.status_id, sub_status_id: sp.sub_status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1", seen: sp.seen,
         open_only: sp.open === "1", product_id: sp.product_id, source_id: sp.source_id, team_id: sp.team_id, branch_id: sp.branch_id,
-        number_id: sp.number_id, priority: sp.priority, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, from, sort: sp.sort, dir: sp.dir, limit: LIMIT, offset,
+        number_id: sp.number_id, priority: sp.priority, ai_score: sp.ai_score, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, from, sort: sp.sort, dir: sp.dir, limit: LIMIT, offset,
         untouched, deleted: deleted ? "1" : undefined,
       },
     });
@@ -78,7 +78,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     cardsTotal = res[0].count ?? 0;
     cards = active.map((s, i) => ({ id: s.id, name: s.name, category: s.category, count: res[i + 1].count ?? 0 }));
   }
-  const FILTER_KEYS = ["status_id", "sub_status_id", "owner_id", "product_id", "source_id", "team_id", "number_id", "priority", "tag_id", "followup", "seen", "open", "unassigned", "stale"];
+  const FILTER_KEYS = ["status_id", "sub_status_id", "owner_id", "product_id", "source_id", "team_id", "number_id", "priority", "ai_score", "tag_id", "followup", "seen", "open", "unassigned", "stale"];
   const activeFilters = FILTER_KEYS.filter((k) => sp[k]).length;
 
   const statusName = metric?.startsWith("status:") ? refs.statuses.find((s) => s.id === metric.slice(7))?.name : null;
@@ -116,6 +116,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           {isManager(profile) && <select className="input" name="team_id" defaultValue={sp.team_id ?? ""}><option value="">All teams</option>{refs.teams.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>}
           <select className="input" name="number_id" defaultValue={sp.number_id ?? ""}><option value="">All numbers</option>{refs.numbers.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select>
           <select className="input" name="priority" defaultValue={sp.priority ?? ""}><option value="">Any priority</option><option value="high,urgent">High + urgent</option>{["low", "normal", "high", "urgent"].map((p) => <option key={p}>{p}</option>)}</select>
+          <select className="input" name="ai_score" defaultValue={sp.ai_score ?? ""}><option value="">Any AI score</option><option value="hot">🔥 Hot</option><option value="hot,warm">Hot + warm</option><option value="warm">🌤️ Warm</option><option value="cold">❄️ Cold</option><option value="none">Not scored yet</option></select>
           <select className="input" name="tag_id" defaultValue={sp.tag_id ?? ""}><option value="">Any tag</option>{refs.tags.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           <select className="input" name="followup" defaultValue={sp.followup ?? ""}><option value="">Any follow-up</option><option value="today">Due today</option><option value="overdue">Overdue</option></select>
           <select className="input" name="seen" defaultValue={sp.seen ?? ""}><option value="">Seen + unseen</option><option value="unseen">Unseen by owner</option><option value="seen">Seen by owner</option></select>
@@ -139,6 +140,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             statuses: refs.statuses, subStatuses: refs.subStatuses, products: refs.products,
             canStatus: !deleted && can(profile, "leads.status"), canEdit: !deleted && can(profile, "leads.edit"), requireNext: company?.require_next_action ?? true,
           }} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")} canDelete={admin && !metric} deletedView={deleted}
+          canBroadcast={!deleted && can(profile, "campaigns.manage")} tags={refs.tags}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
       )}
       <ChatPopupHost />

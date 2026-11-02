@@ -124,7 +124,7 @@ export async function saveCampaign(_: FormState, form: FormData): Promise<FormSt
   redirect(`/nurture/campaigns/${id}`);
 }
 export async function campaignAction(id: string, action: "submit" | "approve" | "reject" | "cancel"): Promise<FormState> {
-  return wrap(() => rpc("lb_campaign_action", { p_campaign: id, p_action: action }), "Done.", ["/nurture/campaigns", `/nurture/campaigns/${id}`]);
+  return wrap(() => rpc("lb_campaign_action", { p_campaign: id, p_action: action }), "Done.", ["/nurture/campaigns", `/nurture/campaigns/${id}`, "/whatsapp/campaigns", `/whatsapp/campaigns/${id}`]);
 }
 
 // ---------------------------------------------------------- consent & suppression

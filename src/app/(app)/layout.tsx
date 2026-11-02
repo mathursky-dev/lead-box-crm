@@ -85,6 +85,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/care/appointments", label: "Appointments", keywords: "booking calendar slot meeting visit" },
       { href: "/care/feedback", label: "Feedback & NPS", keywords: "rating review survey" },
       { href: "/care/referrals", label: "Referrals", keywords: "refer friend reward" },
+      { href: "/care/tickets", label: "Service tickets", keywords: "complaint support ticket sla service request after sales" },
+      { href: "/care/renewals", label: "Renewals / AMC", keywords: "amc renewal subscription warranty service due reminder" },
+      { href: "/care/loyalty", label: "Loyalty points", keywords: "points reward redeem discount loyalty" },
+      { href: "/care/wishes", label: "Birthday wishes", keywords: "birthday anniversary wish greeting" },
       ...it(admin, "/care/settings", "Care settings"),
     ] },
     { section: "Insights", label: "Reports", icon: "chart", items: [

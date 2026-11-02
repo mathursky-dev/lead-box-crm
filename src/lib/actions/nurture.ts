@@ -6,6 +6,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { errMsg, normalizePhone } from "@/lib/util";
 import { fromLocalInput } from "@/lib/dates";
 import Papa from "papaparse";
+import { isSmartKey } from "@/lib/segments";
 import { dripIssues, dripToJourney, type DripDraft } from "@/lib/drip";
 
 type FormState = { error?: string; ok?: string } | undefined;
@@ -68,6 +69,7 @@ export async function saveSegment(_: FormState, form: FormData): Promise<FormSta
     number_id: s(form.get("number_id")), priority: list("priority").join(","), inactive_days: s(form.get("inactive_days")),
     created_within_days: s(form.get("created_within_days")), purchased: s(form.get("purchased")) || "any", replied_days: s(form.get("replied_days")),
     include_closed: form.get("include_closed") === "on",
+    smart: list("smart").filter(isSmartKey),
   };
   return wrap(() => rpc("lb_save_segment", { p: { id: s(form.get("id")), name: s(form.get("name")), rules } }), "Segment saved.", ["/nurture/segments"]);
 }

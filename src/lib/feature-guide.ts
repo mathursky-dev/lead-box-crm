@@ -289,6 +289,16 @@ export const FEATURES: Feature[] = [
     ],
     tips: ["Opted-out customers are skipped automatically.", "You can also select leads in [Leads](/leads) and use the bulk bar to send a template."],
     keywords: "broadcast bulk whatsapp mass message send to all leads blast" },
+  { id: "customer-segments", cat: "WhatsApp & inbox", icon: "layers", href: "/whatsapp/segments", title: "Customer segments (VIP, repeat, inactive)",
+    what: "Automatic customer groups built from won deals, paid invoices and store orders: VIP, repeat buyers, new buyers, one-time buyers, at risk, inactive, never bought and birthday this month.",
+    steps: [
+      "Open [Segments](/whatsapp/segments) in WhatsApp.",
+      "Each card shows how many customers are in the group and how many can get WhatsApp (opted in).",
+      "Click See customers for the list, or Broadcast to send an approved template to the whole group.",
+      "Change what counts as VIP, at risk or inactive with Segment rules.",
+    ],
+    tips: ["Groups update by themselves, nothing to refresh.", "You can also pick a customer group in [Broadcast](/whatsapp/broadcast) and in saved segments under Nurture → Segments."],
+    keywords: "segment vip repeat buyer inactive customer group audience at risk birthday loyal top customers" },
   { id: "contacts", cat: "WhatsApp & inbox", icon: "contacts", href: "/whatsapp/contacts", title: "WhatsApp contacts",
     what: "Everyone you can message: add one, import a CSV, tag them and see opt-in.",
     steps: [

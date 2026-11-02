@@ -5,11 +5,12 @@ import { requireProfile, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { fromLocalInput } from "@/lib/dates";
+import { SMART_KEYS, type SmartKey } from "@/lib/segments";
 
 // ---------------------------------------------------------------- broadcast
 export type BroadcastRules = {
   status_ids?: string[]; sub_status_ids?: string[]; tag_ids?: string[]; source_ids?: string[]; product_ids?: string[]; owner_ids?: string[];
-  include_closed?: boolean; created_within_days?: string; inactive_days?: string;
+  include_closed?: boolean; created_within_days?: string; inactive_days?: string; smart?: SmartKey[];
 };
 export type Audience = { lead_ids: string[] } | { rules: BroadcastRules };
 export type Preview = { total: number; eligible: number; opted_out: number; no_consent: number; suppressed: number; sample: { name: string | null; phone_e164: string }[] };
@@ -21,6 +22,7 @@ const RulesSchema = z.object({
   status_ids: Uuids.optional(), sub_status_ids: Uuids.optional(), tag_ids: Uuids.optional(), source_ids: Uuids.optional(),
   product_ids: Uuids.optional(), owner_ids: Uuids.optional(), include_closed: z.boolean().optional(),
   created_within_days: z.string().regex(/^\d{0,4}$/).optional(), inactive_days: z.string().regex(/^\d{0,4}$/).optional(),
+  smart: z.array(z.enum(SMART_KEYS as [SmartKey, ...SmartKey[]])).max(SMART_KEYS.length).optional(),
 });
 const AudienceSchema = z.union([z.object({ lead_ids: Uuids.min(1) }), z.object({ rules: RulesSchema })]);
 

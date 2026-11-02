@@ -2,6 +2,7 @@
 import { ActionForm, Field, ModalButton, Submit } from "@/components/ui";
 import { saveSegment } from "@/lib/actions/nurture";
 import type { Refs } from "@/lib/data";
+import { SMART, SMART_KEYS } from "@/lib/segments";
 
 type Seg = { id: string; name: string; rules: Record<string, unknown> };
 const CATS = ["new", "assigned", "contacted", "interested", "follow_up", "scheduled", "won", "lost", "invalid"];
@@ -20,6 +21,7 @@ export function SegmentForm({ refs, segment }: { refs: Refs; segment?: Seg }) {
         <ActionForm action={saveSegment} onOk={close}>
           {segment && <input type="hidden" name="id" value={segment.id} />}
           <Field label="Name"><input className="input" name="name" defaultValue={segment?.name} required /></Field>
+          {multi("smart", "Automatic customer group (any of)", SMART_KEYS.map((k) => ({ id: k, name: SMART[k].label })))}
           {multi("categories", "Lead status category (any of)", CATS.map((c) => ({ id: c, name: c.replace("_", " ") })))}
           {multi("product_ids", "Product interest (any of)", refs.products)}
           {multi("source_ids", "Source (any of)", refs.sources)}

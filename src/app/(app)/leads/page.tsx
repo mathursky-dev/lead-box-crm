@@ -139,6 +139,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             statuses: refs.statuses, subStatuses: refs.subStatuses, products: refs.products,
             canStatus: !deleted && can(profile, "leads.status"), canEdit: !deleted && can(profile, "leads.edit"), requireNext: company?.require_next_action ?? true,
           }} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")} canDelete={admin && !metric} deletedView={deleted}
+          canBroadcast={!deleted && can(profile, "campaigns.manage")} tags={refs.tags}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
       )}
       <ChatPopupHost />

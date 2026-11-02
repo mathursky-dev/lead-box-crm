@@ -16,8 +16,10 @@ export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
   const p = req.nextUrl.searchParams;
   const back = (error?: string) => {
-    const res = NextResponse.redirect(`${origin}/admin/fb-login${error ? `?error=${encodeURIComponent(error)}` : ""}`);
+    const page = req.cookies.get("lb_fb_next")?.value === "social" ? "/admin/social" : "/admin/fb-login";
+    const res = NextResponse.redirect(`${origin}${page}${error ? `?error=${encodeURIComponent(error)}` : ""}`);
     res.cookies.delete({ name: "lb_fb_state", path: "/api/facebook" });
+    res.cookies.delete({ name: "lb_fb_next", path: "/api/facebook" });
     return res;
   };
   const demo = await demoBlocked(profile.company_id);

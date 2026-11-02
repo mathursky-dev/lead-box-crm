@@ -8,7 +8,7 @@ export default async function CareLayout({ children }: { children: React.ReactNo
     { href: "/care/appointments", label: "Appointments", icon: "calendar" },
     { href: "/care/feedback", label: "Feedback & NPS", icon: "heart" },
     { href: "/care/referrals", label: "Referrals", icon: "gift" },
-    ...(isAdmin(profile) ? [{ href: "/care/settings", label: "Settings", icon: "gear" }] : []),
+    ...(isAdmin(profile) ? [{ href: "/care/meetings", label: "Meeting links", icon: "link" }, { href: "/care/settings", label: "Settings", icon: "gear" }] : []),
   ];
   return (
     <div>

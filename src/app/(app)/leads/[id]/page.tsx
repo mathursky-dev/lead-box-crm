@@ -2,7 +2,7 @@ import Link from "next/link";
 import { orderStatus, paymentStatus, rupees } from "@/lib/store";
 import { notFound, redirect } from "next/navigation";
 import { requireProfile, isManager, isAdmin, can } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { StatusBadge, PRIORITY_STYLE } from "@/components/static";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
@@ -11,6 +11,8 @@ import { fmtDuration } from "@/lib/calls";
 import { Timeline, type Ev } from "@/components/timeline";
 import { CallsList } from "@/components/calls-list";
 import { CallButton } from "@/components/call-button";
+import { IvrCallButton } from "@/components/ivr-call-button";
+import { ivrSettings } from "@/lib/ivr";
 import { CALL_SELECT, toCallRow } from "@/lib/calls-server";
 import { CustomFieldsPanel } from "./custom-fields";
 import { AiScoreBadge, AiScoreCard } from "@/components/ai-score";
@@ -42,6 +44,8 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   let seenAt: string | null = lead.owner_seen_at ?? null;
   if (lead.owner_id === profile.id && !seenAt && !(await sb.rpc("lb_mark_lead_seen", { p_lead: id })).error) seenAt = new Date().toISOString();
   const refs = await loadRefs();
+  // Cloud calling (IVR) button only when the company turned it on (null before the IVR SQL is applied).
+  const ivrOn = hasServiceRole() ? Boolean((await ivrSettings(createAdminClient(), lead.company_id).catch(() => null))?.enabled) : false;
   const { data: co } = await sb.from("lb_companies").select("ai_enabled").eq("id", lead.company_id).maybeSingle();
   const canAi = features.includes("ai") && can(profile, "ai.use") && Boolean(co?.ai_enabled) && aiConfigured();
   const ai = lead as { ai_score?: string | null; ai_score_points?: number | null; ai_score_reason?: string | null; ai_next_step?: string | null; ai_scored_at?: string | null };
@@ -107,6 +111,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           {lead.lost_reason && <div className="max-w-xs text-xs text-red-700">Reason: {lead.lost_reason}</div>}
           <div className="mt-2 flex justify-end gap-2">
             <CallButton phone={c.phone_e164} />
+            {ivrOn && <IvrCallButton leadId={lead.id} />}
             <Link className="btn-ghost btn-sm" href={`/leads/new?repeat=${lead.id}`}>+ Repeat opportunity</Link>
             {isAdmin(profile) && <Link className="btn-ghost btn-sm" href={`/admin/audit?id=${lead.id}`} title="Who changed what on this lead">Change history</Link>}
           </div>

@@ -195,7 +195,7 @@ export async function sendQuoteOnWhatsApp(id: string, caption?: string): Promise
 }
 
 // ----------------------------------------------------- payment links
-export async function createPaymentLink(input: { lead_id: string; quote_id?: string | null; amount: number; description: string; send: boolean }): Promise<Result & { url?: string; sent?: boolean; warn?: string }> {
+export async function createPaymentLink(input: { lead_id: string; quote_id?: string | null; order_id?: string | null; amount: number; description: string; send: boolean }): Promise<Result & { url?: string; sent?: boolean; warn?: string }> {
   { const blocked = await pageBlocked("quotes", "edit"); if (blocked) return { error: blocked }; }
   const v = await visibleLead(input.lead_id);
   if ("error" in v) return { error: v.error };
@@ -211,11 +211,19 @@ export async function createPaymentLink(input: { lead_id: string; quote_id?: str
     if (!q || q.lead_id !== v.lead.id) return { error: "Quotation not found" };
     quoteId = q.id;
   }
+  let orderId: string | null = null;
+  if (input.order_id) {
+    const { data: o } = await db.from("lb_orders").select("id,lead_id").eq("id", input.order_id).eq("company_id", v.profile.company_id).maybeSingle();
+    if (!o || o.lead_id !== v.lead.id) return { error: "Order not found" };
+    orderId = o.id;
+  }
   const description = String(input.description ?? "").trim().slice(0, 200) || `Payment for LB-${v.lead.lead_no}`;
   const { data: row, error } = await db.from("lb_payment_links").insert({
     company_id: v.profile.company_id, lead_id: v.lead.id, quote_id: quoteId, amount, description, created_by: v.profile.id,
   }).select("id").single();
   if (error) return { error: errMsg(error) };
+  // Store order paid by this link => order marked paid (trigger from the chat-payments SQL).
+  if (orderId) await db.from("lb_payment_links").update({ order_id: orderId }).eq("id", row.id);
   const { data: cust } = await db.from("lb_customers").select("name,phone_e164,email").eq("id", v.lead.customer_id).maybeSingle();
   const base = (process.env.APP_URL || "").replace(/\/$/, "");
   let link: RzpLink;

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { sendText, startUpload, sendUploaded, sendTemplate, retryMessage, conversationAction, sendReaction } from "@/lib/actions/inbox";
 import { changeStatus, addFollowup } from "@/lib/actions/leads";
-import { aiSummary, aiSuggestReply, aiSuggestReplies } from "@/lib/actions/ai";
+import { aiSummary, aiSuggestReply, aiSuggestReplies, aiReplyUsed } from "@/lib/actions/ai";
 import { transcribeVoice, resumeAiBot } from "@/lib/actions/ai-bot";
+import { CatalogButton } from "./catalog";
 import { AiScoreChip } from "@/components/ai-score";
 import { complaintAction, customerPause } from "@/lib/actions/automation";
 import { fmtClock, fmtDateTime, fmtDay } from "@/lib/dates";
@@ -263,12 +264,15 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   // AI ready replies (3 options) shown above the composer; the agent picks one, edits and sends.
   const [sugs, setSugs] = useState<{ label: string; text: string }[] | null>(null);
   const [sugBusy, setSugBusy] = useState(false);
-  useEffect(() => { setSugs(null); setSugBusy(false); }, [conv.id]);
-  const loadSugs = async () => {
-    setSugBusy(true); setErr(undefined);
-    const r = await aiSuggestReplies(conv.id);
+  const [sugSending, setSugSending] = useState<number | null>(null);
+  const autoFor = useRef<string | null>(null);
+  useEffect(() => { setSugs(null); setSugBusy(false); autoFor.current = null; }, [conv.id]);
+  const loadSugs = async (auto = false) => {
+    setSugBusy(true); if (!auto) setErr(undefined);
+    const r = await aiSuggestReplies(conv.id, auto);
     setSugBusy(false);
-    if (r.error) setErr(r.error); else setSugs(r.replies ?? []);
+    if (r.skipped) return;
+    if (r.error) { if (!auto) setErr(r.error); } else setSugs(r.replies ?? []);
   };
   // AI drafts arrive from the details pane; the agent reviews/edits before sending.
   useEffect(() => {
@@ -313,6 +317,26 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
 
   const isOpenWindow = windowOpen(conv);
   const number = numbers.find((n) => n.id === conv.number_id);
+  // The customer just wrote: AI drafts 3 replies on its own (Admin → Settings → "AI drafts replies automatically").
+  const lastMsg = msgs[msgs.length - 1];
+  useEffect(() => {
+    if (!me.canAi || !me.canSend || !isOpenWindow || state !== "ready" || !lastMsg || lastMsg.direction !== "in") return;
+    if (autoFor.current === lastMsg.id) return;
+    autoFor.current = lastMsg.id;
+    setSugs(null);
+    loadSugs(true);
+  }, [lastMsg?.id, state]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sendSug = async (i: number) => {
+    const x = sugs?.[i];
+    if (!x || sugSending !== null) return;
+    setSugSending(i); setErr(undefined);
+    const r = await sendText(conv.id, crypto.randomUUID(), x.text, replyTo?.id);
+    setSugSending(null);
+    if (r.error && !r.ok) { setErr(r.error); return; }
+    if (r.error) setErr(r.error);
+    aiReplyUsed(conv.id, x.label || `reply ${i + 1}`);
+    setSugs(null); setReplyTo(null); load(); onChanged();
+  };
   const qr = text.startsWith("/") ? quick.filter((x) => x.shortcut.startsWith(text.slice(1).toLowerCase())) : [];
 
   const submit = async () => {
@@ -452,17 +476,21 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
             {sugs && !noteMode && (
               <div className="mb-1 rounded-lg border border-violet-200 bg-violet-50/60 p-1.5">
                 <div className="mb-1 flex items-center justify-between px-1 text-[11px] font-medium text-violet-800">
-                  <span>✨ AI ready replies. Click one to put it in the box, then check and send.</span>
-                  <span className="flex gap-2"><button className="underline" disabled={sugBusy} onClick={loadSugs}>{sugBusy ? "…" : "More"}</button><button onClick={() => setSugs(null)} aria-label="Close AI replies">✕</button></span>
+                  <span>✨ AI ready replies. Tap <b>Send</b> to send as it is, or <b>Edit</b> to change it first.</span>
+                  <span className="flex gap-2"><button className="underline" disabled={sugBusy} onClick={() => loadSugs()}>{sugBusy ? "…" : "More"}</button><button onClick={() => setSugs(null)} aria-label="Close AI replies">✕</button></span>
                 </div>
                 {sugs.length === 0 && <div className="px-1 text-xs text-slate-500">No suggestion this time.</div>}
                 <div className="flex flex-col gap-1 sm:flex-row">
                   {sugs.map((x, i) => (
-                    <button key={i} className="flex-1 rounded-md border border-violet-100 bg-white px-2 py-1.5 text-left text-xs text-slate-800 shadow-sm hover:border-violet-400"
-                      onClick={() => { setText(x.text); setSugs(null); }}>
+                    <div key={i} className="flex flex-1 flex-col rounded-md border border-violet-100 bg-white px-2 py-1.5 text-left text-xs text-slate-800 shadow-sm hover:border-violet-400">
                       {x.label && <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-violet-700">{x.label}</span>}
-                      <span className="line-clamp-4 whitespace-pre-wrap">{x.text}</span>
-                    </button>
+                      <button type="button" className="line-clamp-4 flex-1 whitespace-pre-wrap text-left" title="Put in the box to edit" onClick={() => { setText(x.text); setSugs(null); areaRef.current?.focus(); }}>{x.text}</button>
+                      <span className="mt-1 flex justify-end gap-1">
+                        <button type="button" className="rounded px-2 py-0.5 text-[11px] text-violet-700 hover:bg-violet-50" onClick={() => { setText(x.text); setSugs(null); areaRef.current?.focus(); }}>✎ Edit</button>
+                        <button type="button" className="rounded bg-violet-600 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-violet-700 disabled:opacity-60" disabled={sugSending !== null || !number?.is_active}
+                          onClick={() => sendSug(i)}>{sugSending === i ? "Sending…" : "Send ➤"}</button>
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -476,6 +504,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
             <div className={`flex items-end gap-2 rounded-lg border p-1 ${noteMode ? "border-amber-300 bg-amber-50" : "border-slate-300"}`}>
               {!noteMode && <button className="px-2 py-1 text-lg text-slate-500" title="Attach a file from this device" onClick={() => fileRef.current?.click()} disabled={sending}>📎</button>}
               {!noteMode && <button className="px-1 py-1 text-lg text-slate-500" title="Select from Documents" aria-label="Select from Documents" onClick={() => setDocs(true)} disabled={sending}>📁</button>}
+              {!noteMode && <CatalogButton convId={conv.id} disabled={sending || !number?.is_active} onDone={() => { load(); onChanged(); }} onError={setErr} />}
               {!noteMode && conv.lead_id && <PayLinkButton leadId={conv.lead_id} canSend className="px-1 py-1 text-lg text-slate-500" label={<span title="Send Razorpay payment link" aria-label="Send payment link">💳</span>} onDone={() => { load(); onChanged(); }} />}
               <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
               {noteMode && <button type="button" className="px-2 py-1 font-bold text-amber-700" title="Mention a teammate" aria-label="Mention a teammate" onClick={mention.insertAt}>@</button>}
@@ -487,7 +516,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
             </div>
             <div className="mt-1 flex gap-3 text-[11px] text-slate-500">
               <label className="flex items-center gap-1"><input type="checkbox" checked={noteMode} onChange={(e) => setNoteMode(e.target.checked)} /> Team note (@mention)</label>
-              {me.canAi && !noteMode && <button className="font-medium text-violet-700 hover:underline" disabled={sugBusy} onClick={loadSugs}>{sugBusy ? "✨ Thinking…" : "✨ AI replies"}</button>}
+              {me.canAi && !noteMode && <button className="font-medium text-violet-700 hover:underline" disabled={sugBusy} onClick={() => loadSugs()}>{sugBusy ? "✨ Thinking…" : "✨ AI replies"}</button>}
               {isOpenWindow && <span>Window open until {fmtDateTime(new Date(new Date(conv.last_inbound_at!).getTime() + 86400000).toISOString())}</span>}
               {!isOpenWindow && <button className="text-brand-700" onClick={() => setTpl(true)}>Send template</button>}
             </div>

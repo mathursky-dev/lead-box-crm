@@ -7,6 +7,7 @@ import { pageBlocked, requireAdmin, requireProfile, type Profile } from "@/lib/a
 import { createAdminClient, createClient, hasServiceRole } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { STORE_BUCKET, STORE_KEYWORDS, storeUrl } from "@/lib/store";
+import { UPI_ID_RE } from "@/lib/upi";
 
 // WhatsApp mini-store admin actions. Writes use the service role pinned to the admin's active company
 // (profile.company_id follows the Super Admin company switcher). Order updates go through lb_set_order (RLS + permission checks).
@@ -47,6 +48,18 @@ export async function saveStore(_: FormState, form: FormData): Promise<FormState
   }).safeParse(Object.fromEntries(form));
   if (!p.success) return { error: p.error.issues[0]?.message ?? "Invalid input" };
   const { auto_reply, ...v } = p.data;
+  // Chat payments (only when the form has these fields, i.e. the 20261102140000 SQL is applied).
+  let pay: Record<string, string | null> | null = null;
+  if (form.get("pay_fields") === "1") {
+    const q = z.object({
+      upi_id: z.string().trim().max(100).refine((x) => !x || UPI_ID_RE.test(x), "UPI ID looks wrong, e.g. shopname@okhdfcbank"),
+      upi_name: z.string().trim().max(60),
+      wa_catalog_id: z.string().trim().refine((x) => !x || /^[0-9]{5,30}$/.test(x), "Meta catalog ID is a number from Commerce Manager"),
+      wa_pay_config: z.string().trim().max(60),
+    }).safeParse({ upi_id: form.get("upi_id") ?? "", upi_name: form.get("upi_name") ?? "", wa_catalog_id: form.get("wa_catalog_id") ?? "", wa_pay_config: form.get("wa_pay_config") ?? "" });
+    if (!q.success) return { error: q.error.issues[0]?.message ?? "Invalid payment settings" };
+    pay = { upi_id: q.data.upi_id || null, upi_name: q.data.upi_name || null, wa_catalog_id: q.data.wa_catalog_id || null, wa_pay_config: q.data.wa_pay_config || null };
+  }
   const db = createAdminClient();
   if (v.source_id && !(await db.from("lb_sources").select("id").eq("id", v.source_id).eq("company_id", me.company_id).maybeSingle()).data)
     return { error: "Invalid source" };
@@ -56,6 +69,11 @@ export async function saveStore(_: FormState, form: FormData): Promise<FormState
   };
   const { error } = await db.from("lb_stores").upsert({ ...row, company_id: me.company_id }, { onConflict: "company_id" });
   if (error) return { error: error.code === "23505" ? "That link code is taken, generate another." : /lb_stores|schema cache/.test(error.message) ? "Store is not set up yet: run the Store SQL once in Supabase." : errMsg(error) };
+
+  if (pay) {
+    const r = await db.from("lb_stores").update(pay).eq("company_id", me.company_id);
+    if (r.error) return { error: `Store saved, payment settings not: ${errMsg(r.error)}` };
+  }
 
   // Handy extras: "/store" quick reply in the inbox, and an optional keyword auto-reply with the link.
   const link = storeUrl(await origin(), v.code);

@@ -16,6 +16,8 @@ export default async function StoreSettings() {
     sb.from("lb_wa_bots").select("is_active").eq("company_id", profile.company_id).eq("name", "Store link (auto)").maybeSingle(),
     sb.from("lb_wa_numbers").select("display_phone").eq("company_id", profile.company_id).eq("is_active", true).not("display_phone", "is", null).limit(1).maybeSingle(),
   ]);
+  // Chat payment fields (20261102140000 SQL); missing columns = section shows a "run SQL" note.
+  const pay = await sb.from("lb_stores").select("upi_id,upi_name,wa_catalog_id,wa_pay_config").eq("company_id", profile.company_id).maybeSingle();
   if (error) return <ErrorBox message={/lb_stores|schema cache/i.test(error.message) ? "The store is not set up yet: the database update for the WhatsApp store has to be run once (Supabase SQL)." : error.message} />;
   return (
     <StoreSettingsForm
@@ -23,6 +25,7 @@ export default async function StoreSettings() {
       defaults={{ code: await newStoreCode(), name: (company as { name?: string } | null)?.name ?? "", wa: String(num?.display_phone ?? "").replace(/\D/g, "") }}
       sources={refs.sources.filter((s) => s.is_active !== false)}
       autoReply={Boolean(bot?.is_active)}
+      pay={pay.error ? null : (pay.data ?? { upi_id: null, upi_name: null, wa_catalog_id: null, wa_pay_config: null })}
     />
   );
 }

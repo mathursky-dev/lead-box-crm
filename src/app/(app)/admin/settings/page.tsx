@@ -46,6 +46,8 @@ export default async function SettingsPage() {
         <ActionForm action={saveAutomationSettings}>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="ai_enabled" defaultChecked={c?.ai_enabled} className="mt-1" />
             <span><b>Enable AI summaries & suggested replies.</b> Conversation text is sent to Anthropic&apos;s API. Replies are drafts only and use approved knowledge articles. {aiConfigured() ? "" : <span className="text-amber-700">Server key ANTHROPIC_API_KEY is not set yet.</span>}</span></label>
+          <label className="mt-2 flex items-start gap-2 text-sm"><input type="checkbox" name="ai_auto_suggest" defaultChecked={(c as { ai_auto_suggest?: boolean } | null)?.ai_auto_suggest !== false} className="mt-1" />
+            <span><b>AI drafts replies automatically.</b> When a customer writes, the inbox shows 3 ready replies; the agent sends one with a click or edits it. One AI call per customer message, shared by all agents.</span></label>
           <label className="mt-2 flex items-start gap-2 text-sm"><input type="checkbox" name="ai_auto_score" defaultChecked={c?.ai_auto_score !== false} className="mt-1" />
             <span><b>Auto AI lead score (Hot / Warm / Cold).</b> When a customer writes on WhatsApp, AI re-reads the chat and updates the lead&apos;s score (at most once per 10 minutes per lead, 300 per day). Agents can always re-score by hand.</span></label>
           <input type="hidden" name="has_voice" value="1" />

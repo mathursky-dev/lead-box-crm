@@ -11,6 +11,7 @@ export const PAGES: { key: string; label: string; paths: string[]; edit?: string
   { key: "followups", label: "Follow-ups", paths: ["/followups"] },
   { key: "calls", label: "Calls", paths: ["/calls"] },
   { key: "leaderboard", label: "Leaderboard", paths: ["/leaderboard"] },
+  { key: "targets", label: "Targets & login hours", paths: ["/targets", "/login-hours"] },
   { key: "customers", label: "Customers 360", paths: ["/customers"] },
   { key: "tasks", label: "Tasks", paths: ["/tasks"], edit: "Create / update tasks", delete: "Delete tasks" },
   { key: "field", label: "Field Force", paths: ["/field"] },

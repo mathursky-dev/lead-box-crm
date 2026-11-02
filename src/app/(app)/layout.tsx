@@ -6,6 +6,7 @@ import { Shell, BackHome, type NavGroup, type CompanySwitch } from "@/components
 import { DayBrief, type Brief } from "@/components/day-brief";
 import { CallSync } from "@/components/call-sync";
 import { OfflineSync } from "@/components/offline-sync";
+import { PresencePing } from "@/components/presence-ping";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
@@ -101,6 +102,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(reports, "/report-builder", "Report Builder", "custom report excel export pivot chart"),
       ...it(reports, "/win-loss", "Win / Loss", "lost reason won deal analysis"),
       { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
+      { href: "/targets", label: "Targets", keywords: "monthly target goal progress quota calls visits follow-ups agent" },
+      { href: "/login-hours", label: "Login hours", keywords: "login logout time attendance present online active hours agent" },
       ...it(admin, "/profit-loss", "Profit & Loss", "p&l pnl ad spend revenue roi"),
       ...it(admin, "/gst", "GST reports", "gstr-1 gstr1 e-invoice irn hsn tax return accountant"),
     ] },
@@ -226,6 +229,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ))}
       <CallSync userId={profile.id} />
       <OfflineSync userId={profile.id} />
+      <PresencePing />
       {brief && <DayBrief userId={profile.id} name={profile.full_name} brief={brief} {...istGreeting()} />}
     </Shell>
   );

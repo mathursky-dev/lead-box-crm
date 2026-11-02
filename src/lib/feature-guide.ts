@@ -223,6 +223,14 @@ export const FEATURES: Feature[] = [
       "Compare won leads, revenue, conversion, follow-ups done on time and median first reply time.",
     ],
     keywords: "leaderboard ranking target performance agents best" },
+  { id: "targets", cat: "Leads & sales", icon: "target", href: "/targets", title: "Monthly targets and progress",
+    what: "Each agent's monthly target for won leads, revenue, calls, follow-ups and field visits, with progress bars and how much is needed per day.",
+    steps: [
+      "Open [Targets](/targets). Agents see their own card, team leaders their team, admins everyone.",
+      "Admins and team leaders click **Set targets** and fill the boxes (\"Same for all\" copies one value to everyone).",
+      "The thin line on each bar shows where the agent should be today; red means behind.",
+    ],
+    keywords: "target goal quota monthly progress calls visits follow-ups agent performance" },
 
   // ───────── WhatsApp & inbox ─────────
   { id: "inbox", cat: "WhatsApp & inbox", icon: "inbox", href: "/inbox", title: "Inbox: chat with customers",
@@ -573,6 +581,7 @@ export const FEATURES: Feature[] = [
       "Click **Connect Facebook** (or **Pull Meta spend now**) to bring Meta ad spend.",
       "Add Google/offline ad cost and sales not in the CRM under **Ad cost & sale entries**.",
       "Read **Source-wise profit** to see which source makes money.",
+      "Approved expense claims from the Field app are subtracted automatically under **Team expenses**.",
     ],
     keywords: "profit loss p&l roi ad spend cost revenue" },
 
@@ -591,6 +600,10 @@ export const FEATURES: Feature[] = [
     what: "Check-in and check-out times with location, one line per person per day.",
     steps: ["Open [Attendance](/field/attendance), pick dates and person, click **Apply**.", "Click the map link to see where they checked in/out."],
     keywords: "attendance present hours report" },
+  { id: "login-hours", cat: "Team & field", icon: "clock", href: "/login-hours", title: "Login hours",
+    what: "Daily CRM login and logout time for every agent, time active on the CRM, who is online now, and Field app GPS check-in.",
+    steps: ["Open [Login hours](/login-hours). **Day** shows each person's login, last active, logout and active time.", "Switch to **Month** for days present, average login/logout time and a day-by-day strip."],
+    keywords: "login logout time online active hours present absent attendance" },
   { id: "expenses", cat: "Team & field", icon: "rupee", href: "/field/expenses", title: "Expense approval",
     what: "Expense claims from the field app with receipts, for approval and payment.",
     steps: ["Open [Expenses](/field/expenses).", "Check the receipt and click **Approve** (or **Approve all shown**), then **Mark paid** after paying."],

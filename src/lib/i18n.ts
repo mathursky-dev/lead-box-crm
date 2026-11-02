@@ -11,7 +11,7 @@ const HI: Record<string, string> = {
   // ---------------------------------------------------------------- menu
   Dashboard: "डैशबोर्ड", "Lead Reports": "लीड रिपोर्ट", "Profit & Loss": "लाभ और हानि", "Win / Loss": "जीत / हार",
   "Report Builder": "रिपोर्ट बिल्डर", Sales: "सेल्स", Leads: "लीड्स", "Follow-ups": "फ़ॉलो-अप", Calls: "कॉल",
-  Leaderboard: "लीडरबोर्ड", "Customers 360": "ग्राहक 360", Import: "इम्पोर्ट", Tasks: "टास्क", Conversations: "बातचीत",
+  Leaderboard: "लीडरबोर्ड", Targets: "टारगेट", "Login hours": "लॉगिन समय", "Customers 360": "ग्राहक 360", Import: "इम्पोर्ट", Tasks: "टास्क", Conversations: "बातचीत",
   Inbox: "इनबॉक्स", "Live chat": "लाइव चैट", Contacts: "संपर्क", Documents: "दस्तावेज़", Store: "स्टोर", Orders: "ऑर्डर",
   "Store products": "स्टोर प्रोडक्ट", "Store settings": "स्टोर सेटिंग्स", "Quotes & Invoices": "कोटेशन और इनवॉइस",
   WhatsApp: "व्हाट्सऐप", Overview: "ओवरव्यू", Connections: "कनेक्शन", Templates: "टेम्पलेट", Send: "भेजें",

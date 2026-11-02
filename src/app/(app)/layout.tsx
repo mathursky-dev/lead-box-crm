@@ -32,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...(admin ? [{ label: "Profit & Loss", icon: "rupee", href: "/profit-loss" }] : []),
     { label: "Sales", icon: "target", items: [
       { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" }, { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
+      { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"), ...it(can(profile, "leads.import"), "/import", "Import"),
     ] },
     { label: "Tasks", icon: "check", href: "/tasks" },
@@ -67,7 +68,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users" }, { href: "/admin/roles", label: "Roles & permissions" },
         { href: "/admin/org", label: "Organisation" }, { href: "/admin/numbers", label: "WhatsApp numbers" }, { href: "/admin/templates", label: "Templates" },
         { href: "/admin/allocation", label: "Allocation" }, { href: "/settings", label: "Lead settings", keywords: "status source tags department custom fields forms" }, { href: "/admin/catalog", label: "Products · Quick replies" },
-        { href: "/admin/settings", label: "Settings" }, { href: "/admin/audit", label: "Audit log" },
+        { href: "/admin/alerts", label: "Follow-up alerts", keywords: "reminder missed push whatsapp notification" }, { href: "/admin/settings", label: "Settings" }, { href: "/admin/audit", label: "Audit log" },
       ] },
       { label: "Integrations", icon: "link", items: [
         { href: "/admin/integrations", label: "WhatsApp Cloud API" }, ...it(features.includes("fb_leads"), "/admin/fb-login", "Facebook Lead Ads"),

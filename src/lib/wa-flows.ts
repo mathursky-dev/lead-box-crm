@@ -98,7 +98,10 @@ async function applyStep(db: Db, ev: Inbound, conv: Conv, flowId: string, flowNa
       if (e.kind === "send") await queue(db, ev, e, i++);
       else if (e.kind === "tag") await tag(db, ev.companyId, conv.id, e.tag, e.op);
       else if (e.kind === "field") await db.from("lb_customers").update({ [e.field]: e.value.slice(0, 200), updated_at: new Date().toISOString() }).eq("id", conv.customer_id);
-      else if (e.kind === "assign") {
+      else if (e.kind === "lead") {
+        const { error } = await db.rpc("lb_flow_update_lead", { p_conversation: conv.id, p_status: e.status_id, p_priority: e.priority, p_note: e.note || null });
+        if (error) throw new Error(`update lead: ${error.message}`);
+      } else if (e.kind === "assign") {
         handoff = true;
         await db.from("lb_conversations").update({ status: "open", updated_at: new Date().toISOString(), ...(e.user_id ? { assignee_id: e.user_id } : {}) }).eq("id", conv.id);
       } else if (e.kind === "webhook") {

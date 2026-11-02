@@ -39,6 +39,7 @@ function preview(n: FlowNode) {
     case "condition": return d.op === "has_tag" ? `Has tag “${d.value ?? ""}”` : `{{${d.variable}}} ${d.op === "not_empty" ? "is filled" : `${d.op} ${d.value ?? ""}`}`;
     case "tag": return `${d.tag_op === "remove" ? "Remove" : "Add"} tag “${d.tag || "…"}”`;
     case "field": return `Contact ${d.field} ← {{${d.variable}}}`;
+    case "lead": return [d.status_name && `Status → ${d.status_name}`, d.priority && `Priority ${d.priority}`, d.lead_note && "Add note"].filter(Boolean).join(" · ") || "Set status / priority / note";
     case "assign": return d.text || "Hand off to the team";
     case "webhook": return d.webhook_url || "Set a URL";
     case "end": return "Flow finishes";

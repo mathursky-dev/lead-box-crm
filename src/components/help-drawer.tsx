@@ -48,6 +48,7 @@ const GUIDES: Guide[] = [
   wa("/whatsapp/commerce", "Marketing"),
   // Automation
   wa("/whatsapp/chatbots", "Automation"), wa("/whatsapp/flows", "Automation"),
+  { cat: "Automation", icon: "clock", href: "/nurture/drip", title: "Drip campaigns", sub: "Day-wise WhatsApp templates (Day 0, Day 1, Day 3…) that start when a lead is created or moves to a status, and stop when the status changes." },
   { cat: "Automation", icon: "flow", href: "/nurture/journeys", title: "Nurturing journeys", sub: "Automated sequences of approved-template messages, agent tasks, waits and branches. One running journey per lead; lower priority number wins conflicts. Drafts never run: preview and publish to create a version. Eligibility, consent, caps and quiet hours are rechecked before every send." },
   { cat: "Automation", icon: "pulse", href: "/nurture/logs", title: "Execution log", sub: "Every journey step, deferral, retry and stop, newest first. Deferred = held by consent, cap, quiet hours or a pause; it runs later automatically." },
   { cat: "Automation", icon: "book", href: "/nurture/knowledge", title: "AI knowledge", sub: "Suggested replies may only use APPROVED entries (prices, policies, product facts). Editing an entry returns it to draft until re-approved." },

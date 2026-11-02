@@ -6,6 +6,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { errMsg, normalizePhone } from "@/lib/util";
 import { fromLocalInput } from "@/lib/dates";
 import Papa from "papaparse";
+import { dripIssues, dripToJourney, type DripDraft } from "@/lib/drip";
 
 type FormState = { error?: string; ok?: string } | undefined;
 const s = (v: FormDataEntryValue | null) => (v == null ? "" : String(v).trim());
@@ -157,4 +158,17 @@ export async function saveNurtureSettings(_: FormState, form: FormData): Promise
   await createAdminClient().from("lb_audit_log").insert({ company_id: me.company_id, actor_id: me.id, action: "company.nurture_settings", entity: "company", entity_id: me.company_id, data: v });
   revalidatePath("/admin/settings");
   return { ok: "Nurturing policy saved." };
+}
+
+// ---------------------------------------------------------- drip campaigns
+/** Save a drip (stored as a journey) and, when asked, publish it so it starts for new leads. */
+export async function saveDrip(draft: DripDraft, publish: boolean): Promise<{ error?: string; id?: string; ok?: string }> {
+  const issues = dripIssues(draft);
+  if (issues.length) return { error: issues[0] };
+  try {
+    const id = await rpc("lb_save_journey", { p: dripToJourney(draft) });
+    if (publish) await rpc("lb_publish_journey", { p_journey: id });
+    revalidatePath("/nurture/drip"); revalidatePath("/nurture/journeys");
+    return { id, ok: publish ? "Drip saved and switched on. Leads that match from now on get these messages." : "Draft saved. Switch it on when ready." };
+  } catch (e) { return { error: (e as Error).message }; }
 }

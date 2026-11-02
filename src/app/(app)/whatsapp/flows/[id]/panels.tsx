@@ -11,6 +11,7 @@ export type Lookups = {
   tags: string[];
   templates: { name: string; language: string; body: string }[];
   agents: { id: string; full_name: string }[];
+  statuses: { id: string; name: string }[];
 };
 
 const VAR_HINT = "Use {{name}}, {{phone}} or any saved answer like {{city}}.";
@@ -171,6 +172,19 @@ export function NodeSettings({ node, graph, set, lookups, onDelete, onDuplicate 
           <select className="input text-sm" value={d.variable ?? ""} onChange={(e) => set({ variable: e.target.value })}>{vars.map((v) => <option key={v} value={v}>{`{{${v}}}`}</option>)}</select>
         </F>
       </>}
+      {node.type === "lead" && <>
+        <F label="Set lead status" hint="Status journeys / drip campaigns for that status start automatically.">
+          <select className="input text-sm" value={d.status_id ?? ""} onChange={(e) => set({ status_id: e.target.value, status_name: lookups.statuses.find((x) => x.id === e.target.value)?.name ?? "" })}>
+            <option value="">Don&apos;t change</option>{lookups.statuses.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </F>
+        <F label="Priority">
+          <select className="input text-sm" value={d.priority ?? ""} onChange={(e) => set({ priority: e.target.value as NodeData["priority"] })}>
+            <option value="">Don&apos;t change</option><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option>
+          </select>
+        </F>
+        {txt("lead_note", "Note on the lead (optional)", { rows: 2, hint: VAR_HINT })}
+      </>}
       {node.type === "assign" && <>
         <F label="Assign chat to" hint="The bot stops here and the chat waits in Live chat.">
           <select className="input text-sm" value={d.user_id ?? ""} onChange={(e) => set({ user_id: e.target.value })}>
@@ -210,6 +224,7 @@ export function Simulator({ graph, trigger, onNode, onClose }: { graph: FlowGrap
       if (e.kind === "send") add.push({ me: false, text: e.body, effect: e });
       if (e.kind === "tag") { t = e.op === "add" ? [...new Set([...t, e.tag])] : t.filter((x) => x !== e.tag); add.push({ me: false, text: "", note: `${e.op === "add" ? "Tag added" : "Tag removed"}: ${e.tag}` }); }
       if (e.kind === "field") add.push({ me: false, text: "", note: `Contact ${e.field} = ${e.value}` });
+      if (e.kind === "lead") add.push({ me: false, text: "", note: `Lead updated${e.status_name ? ` · status ${e.status_name}` : ""}${e.priority ? ` · priority ${e.priority}` : ""}${e.note ? ` · note “${e.note}”` : ""}` });
       if (e.kind === "assign") add.push({ me: false, text: "", note: "Handed off to an agent · bot stops" });
       if (e.kind === "webhook") add.push({ me: false, text: "", note: `Webhook POST → ${e.url}` });
     }

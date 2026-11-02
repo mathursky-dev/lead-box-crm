@@ -5,7 +5,7 @@ import { botMatches } from "./wa";
 export type NodeType =
   | "start" | "message" | "media" | "template" | "location" | "contact" | "product"
   | "buttons" | "list" | "question"
-  | "condition" | "tag" | "field" | "assign" | "webhook" | "end";
+  | "condition" | "tag" | "field" | "lead" | "assign" | "webhook" | "end";
 
 export type Choice = { id: string; title: string; description?: string };
 export type NodeData = {
@@ -22,6 +22,8 @@ export type NodeData = {
   field?: "name" | "email" | "location";
   user_id?: string; note?: string;
   webhook_url?: string;
+  /** Update lead (qualification): status, priority and a note built from the answers. */
+  status_id?: string; status_name?: string; priority?: "" | "low" | "normal" | "high" | "urgent"; lead_note?: string;
 };
 export type FlowNode = { id: string; type: NodeType; x: number; y: number; data: NodeData };
 export type FlowEdge = { id: string; from: string; port: string; to: string };
@@ -48,6 +50,8 @@ export const BLOCKS: Record<Exclude<NodeType, "start">, Def> = {
   condition: { label: "Condition", sub: "Branch on an answer or tag", group: "Logic", icon: "filter", color: "#d97706", data: () => ({ variable: "last_reply", op: "contains", value: "" }) },
   tag: { label: "Tag chat", sub: "Add or remove a chat tag", group: "Actions", icon: "tag", color: "#db2777", data: () => ({ tag: "", tag_op: "add" }) },
   field: { label: "Update contact", sub: "Save a variable to the contact", group: "Actions", icon: "contacts", color: "#0f766e", data: () => ({ field: "name", variable: "name" }) },
+  lead: { label: "Update lead", sub: "Qualify: set status, priority, note", group: "Actions", icon: "target", color: "#16a34a",
+    data: () => ({ status_id: "", priority: "", lead_note: "Chatbot: city {{city}}, budget {{budget}}" }) },
   assign: { label: "Hand off to agent", sub: "Assign the chat and stop the bot", group: "Actions", icon: "agent", color: "#475569", data: () => ({ user_id: "", text: "Connecting you to our team 🙏" }) },
   webhook: { label: "Webhook", sub: "POST the answers to a URL", group: "Actions", icon: "link", color: "#334155", data: () => ({ webhook_url: "" }) },
   end: { label: "End", sub: "Finish the flow", group: "Actions", icon: "check", color: "#dc2626", data: () => ({}) },
@@ -131,6 +135,7 @@ export function validateGraph(g: FlowGraph): Issue[] {
     }
     if (n.type === "question" && !/^[a-z_][a-z0-9_]{0,30}$/.test(d.variable ?? "")) err("save the answer to a variable like city or budget.");
     if (n.type === "tag" && !d.tag?.trim()) err("choose a tag.");
+    if (n.type === "lead" && !d.status_id && !d.priority && !d.lead_note?.trim()) err("choose a status, a priority or a note.");
     if (n.type === "webhook" && !/^https:\/\//.test(d.webhook_url ?? "")) err("webhook URL must start with https://.");
     if (n.type === "condition" && d.op !== "has_tag" && !d.variable) err("choose a variable.");
     for (const p of portsOf(n)) if (p.id !== "other" && !next(n.id, p.id) && n.type !== "end") {
@@ -188,6 +193,7 @@ export type Effect =
   | { kind: "send"; node: string; type: "template"; body: string; template_name: string; template_language: string; params: string[] }
   | { kind: "tag"; node: string; tag: string; op: "add" | "remove" }
   | { kind: "field"; node: string; field: "name" | "email" | "location"; value: string }
+  | { kind: "lead"; node: string; status_id: string | null; status_name?: string; priority: string | null; note: string }
   | { kind: "assign"; node: string; user_id: string | null; note?: string }
   | { kind: "webhook"; node: string; url: string; vars: Record<string, string> };
 export type Step = { effects: Effect[]; node: string | null; vars: Record<string, string>; retries: number; status: "waiting" | "done"; path: string[]; invalid?: boolean };
@@ -313,6 +319,10 @@ export function advance(g: FlowGraph, from: string, ctx: Ctx, input?: Input, ret
     if (n.type === "condition") { cur = next(n.id, check(d, ctx, vars) ? "yes" : "no"); continue; }
     if (n.type === "tag") { if (d.tag) effects.push({ kind: "tag", node: n.id, tag: d.tag, op: d.tag_op ?? "add" }); cur = next(n.id, "next"); continue; }
     if (n.type === "field") { const v = vars[d.variable ?? ""]; if (v && d.field) effects.push({ kind: "field", node: n.id, field: d.field, value: v }); cur = next(n.id, "next"); continue; }
+    if (n.type === "lead") {
+      effects.push({ kind: "lead", node: n.id, status_id: d.status_id || null, status_name: d.status_name, priority: d.priority || null, note: fill(d.lead_note, vars).trim().slice(0, 1000) });
+      cur = next(n.id, "next"); continue;
+    }
     if (n.type === "webhook") { if (d.webhook_url) effects.push({ kind: "webhook", node: n.id, url: d.webhook_url, vars: { ...vars } }); cur = next(n.id, "next"); continue; }
     const send = sendOf(n, vars);
     if (send) effects.push(send);

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { requireProfile, isManager, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
-import { PageHeader, Pager, Empty, ErrorBox } from "@/components/static";
+import { ListFooter } from "./list-footer";
+import { PAGE_SIZES } from "./page-sizes";
+import { PageHeader, Empty, ErrorBox } from "@/components/static";
 import { METRICS, toRpcFilters, pickFilters } from "@/lib/metrics";
 import { PRESETS, rangeFrom } from "@/lib/dates";
 import { LeadTable } from "./lead-table";
@@ -12,7 +14,6 @@ import type { LeadTableLayout, LeadCardsPref } from "@/lib/actions/prefs";
 import { Icon } from "@/components/kit";
 
 export const metadata = { title: "Leads" };
-const LIMIT = 50;
 
 type SP = Record<string, string | undefined>;
 
@@ -21,6 +22,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const { profile } = await requireProfile();
   const refs = await loadRefs();
   const sb = await createClient();
+  const LIMIT = PAGE_SIZES.includes(Number(sp.per)) ? Number(sp.per) : 50;
   const offset = Math.max(0, Number(sp.offset) || 0);
   const from = rangeFrom(sp.range);
 
@@ -111,6 +113,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           {/* Sorting is done from the column headers; keep it when filters change. */}
           {sp.sort && <input type="hidden" name="sort" value={sp.sort} />}
           {sp.dir && <input type="hidden" name="dir" value={sp.dir} />}
+          {sp.per && <input type="hidden" name="per" value={sp.per} />}
           <div className="col-span-2 flex flex-wrap items-center gap-3 text-sm sm:col-span-1">
             <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="open" value="1" defaultChecked={sp.open === "1"} /> Open</label>
             {isManager(profile) && <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="unassigned" value="1" defaultChecked={sp.unassigned === "1"} /> Unassigned</label>}
@@ -129,7 +132,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
           }} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
       )}
-      <Pager total={total} limit={LIMIT} offset={offset} params={sp} basePath="/leads" />
+      {!error && <ListFooter total={total} per={LIMIT} offset={offset} qs={new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString()} />}
     </>
   );
 }

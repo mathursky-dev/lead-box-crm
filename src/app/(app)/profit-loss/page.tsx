@@ -63,13 +63,16 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
     else syncError = meta.state?.error ?? null;
   }
 
-  const [plR, entR, srcR] = await Promise.all([
+  const [plR, entR, srcR, buyR] = await Promise.all([
     sb.rpc("lb_profit_loss", { p_from: from, p_to: to }),
     sb.from("lb_pl_entries").select("id,kind,entry_date,amount,channel,source_id,note,origin,ext_name,currency")
       .eq("company_id", profile.company_id).gte("entry_date", from).lte("entry_date", to)
       .order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(500),
     sb.from("lb_sources").select("id,name").eq("company_id", profile.company_id).eq("is_active", true).order("name"),
+    // Stock bought from vendors (purchase-orders SQL): value of goods received in the period. Missing SQL = no purchases line.
+    sb.rpc("lb_purchase_cost", { p_from: from, p_to: to }),
   ]);
+  const buy = buyR.error ? null : (buyR.data as { total: number; receipts: number; vendors: { vendor_id: string; name: string; amount: number }[] } | null);
   const sources = (srcR.data ?? []) as { id: string; name: string }[];
   const srcName = new Map(sources.map((s) => [s.id, s.name]));
   const entries = (entR.data ?? []) as Entry[];
@@ -82,7 +85,9 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
   // Approved / paid expense claims from the Field app count as a cost (by expense date).
   const expenses = n(pl?.expenses);
   const grossProfit = sales - adCost;
-  const profit = grossProfit - expenses;
+  // Goods received on purchase orders (Store → Purchase orders) count as a cost on the date received.
+  const purchases = n(buy?.total);
+  const profit = grossProfit - expenses - purchases;
   const roas = adCost > 0 ? sales / adCost : null;
   const foreign = [...new Set(entries.filter((e) => e.origin === "meta" && e.currency && e.currency !== "INR").map((e) => e.currency))];
   const period = `${fmtDay(from + "T12:00:00Z")} – ${fmtDay(to + "T12:00:00Z")}`;
@@ -100,7 +105,7 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      <PageHeader title="Profit & Loss" icon="rupee" sub={<>Sales minus ad cost and team expenses · {period} (IST)</>} />
+      <PageHeader title="Profit & Loss" icon="rupee" sub={<>Sales minus ad cost, team expenses and stock purchases · {period} (IST)</>} />
 
       <form action="/profit-loss" className="card mb-4 grid grid-cols-2 gap-1.5 p-2 sm:flex sm:flex-wrap sm:items-center">
         <select className="input h-8 py-1! text-xs! sm:w-auto" name="preset" defaultValue={preset} aria-label="Period">
@@ -119,10 +124,10 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Sales value" value={money(sales)} sub={salesSub} title="Payments received (Razorpay links on quotations/invoices) + won value of leads won without a payment + manual sales" icon="trophy" tone="green" />
-        <Kpi label="Total cost" value={money(adCost + expenses)} sub={`Ads ${money(adCost)} · Team expenses ${money(expenses)}`}
-          title={`Ad cost: Meta ${money(pl?.ad_meta ?? 0)} + manual ${money(pl?.ad_manual ?? 0)}. Team expenses: approved expense claims from the Field app.`} icon="megaphone" tone="amber" />
+        <Kpi label="Total cost" value={money(adCost + expenses + purchases)} sub={`Ads ${money(adCost)} · Team expenses ${money(expenses)}${purchases > 0 ? ` · Stock purchases ${money(purchases)}` : ""}`}
+          title={`Ad cost: Meta ${money(pl?.ad_meta ?? 0)} + manual ${money(pl?.ad_manual ?? 0)}. Team expenses: approved expense claims from the Field app. Stock purchases: goods received on purchase orders.`} icon="megaphone" tone="amber" />
         <Kpi label={profit >= 0 ? "Profit" : "Loss"} value={<span className={profit >= 0 ? "text-brand-700" : "text-red-600"}>{money(Math.abs(profit))}</span>}
-          sub={sales > 0 ? `Margin ${Math.round((profit / sales) * 100)}% of sales` : "Sales − ad cost − expenses"} icon="rupee" tone={profit >= 0 ? "green" : "red"} />
+          sub={sales > 0 ? `Margin ${Math.round((profit / sales) * 100)}% of sales` : purchases > 0 ? "Sales − ad cost − expenses − purchases" : "Sales − ad cost − expenses"} icon="rupee" tone={profit >= 0 ? "green" : "red"} />
         <Kpi label="Return on ad spend" value={roas == null ? "—" : `${roas.toFixed(2)}x`} sub={roas == null ? "No ad cost in this period" : `₹${roas.toFixed(2)} sales for every ₹1 spent`} icon="percent" tone="blue" />
       </div>
 
@@ -156,6 +161,19 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
         </Panel>
       </div>
 
+      {buy && purchases > 0 && (
+        <Panel title="Stock purchases" icon="cart" tone="violet" className="mt-4"
+          sub={<>Goods received from vendors on purchase orders in this period ({buy.receipts} receipt{buy.receipts === 1 ? "" : "s"}). Counted in Profit above.</>}
+          actions={<Link href="/store/purchases" className="btn-ghost btn-sm">Purchase orders</Link>}>
+          <ul className="divide-y text-sm">
+            {buy.vendors.map((v) => (
+              <li key={v.vendor_id} className="flex justify-between py-1.5"><Link href={`/store/purchases?vendor=${v.vendor_id}`} className="text-navy-900 hover:text-brand-700">{v.name}</Link><span className="font-medium">{money(v.amount)}</span></li>
+            ))}
+            <li className="flex justify-between py-1.5 font-semibold"><span>Total</span><span>{money(purchases)}</span></li>
+          </ul>
+        </Panel>
+      )}
+
       <Panel title="Source-wise profit" icon="layers" className="mt-4" sub="Sales = payments received on quotations/invoices + won value of leads won without a payment + manual sales. Meta spend counts under the Facebook source.">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] text-sm">
@@ -175,8 +193,9 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
                 <td className="td">Total</td><td className="td text-right">{n(pl?.won_count)}</td><td className="td text-right">{n(pl?.paid_count)}</td><td className="td text-right">{money(sales)}</td><td className="td text-right">{money(adCost)}</td>
                 <td className={`td text-right ${grossProfit >= 0 ? "text-brand-700" : "text-red-600"}`}>{grossProfit < 0 ? "−" : ""}{money(Math.abs(grossProfit))}</td><td className="td text-right">{roas == null ? "—" : `${roas.toFixed(2)}x`}</td>
               </tr>
-              {expenses > 0 && <>
-                <tr className="font-normal"><td className="td" colSpan={5}>Team expenses (approved claims, not linked to a source)</td><td className="td text-right text-red-600">−{money(expenses)}</td><td className="td" /></tr>
+              {(expenses > 0 || purchases > 0) && <>
+                {expenses > 0 && <tr className="font-normal"><td className="td" colSpan={5}>Team expenses (approved claims, not linked to a source)</td><td className="td text-right text-red-600">−{money(expenses)}</td><td className="td" /></tr>}
+                {purchases > 0 && <tr className="font-normal"><td className="td" colSpan={5}>Stock purchases (goods received from vendors)</td><td className="td text-right text-red-600">−{money(purchases)}</td><td className="td" /></tr>}
                 <tr><td className="td" colSpan={5}>Net profit / loss</td><td className={`td text-right ${profit >= 0 ? "text-brand-700" : "text-red-600"}`}>{profit < 0 ? "−" : ""}{money(Math.abs(profit))}</td><td className="td" /></tr>
               </>}
               </tfoot>

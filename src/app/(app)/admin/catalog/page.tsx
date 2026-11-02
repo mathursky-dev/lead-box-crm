@@ -13,7 +13,7 @@ export default async function CatalogPage() {
   return (
     <>
       <PageHeader icon="tag" tone="green" title="Products & quick replies"
-        sub={<>Sources, tags, statuses, departments, custom fields and forms are in <Link href="/settings" className="font-medium text-brand-700 underline">Lead settings</Link>.</>} />
+        sub={<>Sources, tags, statuses, departments, custom fields and forms are in <Link href="/settings/statuses" className="font-medium text-brand-700 underline">Lead settings</Link>.</>} />
       <div className="grid gap-4 lg:grid-cols-2">
         <OrgList table="lb_products" title="Products / Services" items={r.products} />
       </div>

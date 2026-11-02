@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
 import { isDemoCompany } from "@/lib/demo";
+import { settingsGroups } from "@/lib/settings-nav";
 
 function istGreeting() {
   const now = new Date();
@@ -25,73 +26,75 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const campaigns = can(profile, "campaigns.manage") || can(profile, "campaigns.approve");
   // Plan features: modules outside the company's plan are hidden (their pages show an upgrade notice).
   const nurture = can(profile, "nurture.view") && features.includes("nurture");
-  // Sidebar groups. Every page keeps the same permission check it had before; a group with no visible items is dropped.
-  const it = (ok: boolean, href: string, label: string) => (ok ? [{ href, label }] : []);
+  // Sidebar: a few collapsible groups under section headings (Work / Grow / Insights / Admin).
+  // Every page keeps the same permission check it had before; a group with no visible items is dropped.
+  const it = (ok: boolean, href: string, label: string, keywords?: string) => (ok ? [{ href, label, ...(keywords ? { keywords } : {}) }] : []);
+  const reports = can(profile, "reports.view");
   const nav: NavGroup[] = [
-    { label: "Dashboard", icon: "grid", href: "/dashboard" },
-    { label: "Lead Reports", icon: "chart", href: "/lead-reports" },
-    ...(admin ? [{ label: "Profit & Loss", icon: "rupee", href: "/profit-loss" }] : []),
-    { label: "Sales", icon: "target", items: [
-      { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" }, { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
-      { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
-      ...it(can(profile, "customers.view"), "/customers", "Customers 360"), ...it(can(profile, "leads.import"), "/import", "Import"),
+    { section: "Work", label: "Dashboard", icon: "grid", href: "/dashboard" },
+    { section: "Work", label: "Sales", icon: "target", items: [
+      { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" },
+      { href: "/tasks", label: "Tasks", keywords: "todo to-do reminder" },
+      { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
+      ...it(can(profile, "customers.view"), "/customers", "Customers 360"),
+      { href: "/quotes", label: "Quotes & Invoices", keywords: "quotation invoice estimate bill gst payment link" },
+      { href: "/documents", label: "Documents", keywords: "files brochure pdf library" },
+      ...it(can(profile, "leads.import"), "/import", "Import", "excel csv upload bulk"),
+      ...it(admin, "/leads/duplicates", "Duplicate leads", "merge same number dedupe"),
     ] },
-    { label: "Tasks", icon: "check", href: "/tasks" },
-    { label: "Field Force", icon: "pin", items: [
+    { section: "Work", label: "Conversations", icon: "inbox", items: [
+      { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
+    ] },
+    { section: "Work", label: "WhatsApp", icon: "chat", items: [
+      { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
+      { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns", keywords: "broadcast bulk" }, { href: "/whatsapp/commerce", label: "Commerce" },
+      { href: "/whatsapp/reports", label: "Reports" }, { href: "/whatsapp/settings", label: "Settings" },
+    ] },
+    { section: "Work", label: "Field Force", icon: "pin", items: [
       { href: "/field", label: "Field app", keywords: "check in check out attendance visit expense offline gps location" },
       { href: "/field/attendance", label: "Attendance", keywords: "check in present hours gps" },
       { href: "/field/visits", label: "Field visits", keywords: "visit report location meeting" },
       { href: "/field/expenses", label: "Expenses", keywords: "claim travel fuel reimbursement approval" },
     ] },
-    { label: "Conversations", icon: "inbox", items: [
-      { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
-    ] },
-    { label: "Documents", icon: "files", href: "/documents" },
-    { label: "Store", icon: "cart", items: [
-      { href: "/store", label: "Orders", keywords: "shop catalog mini-store order" },
-      ...it(admin, "/store/products", "Store products"), ...it(admin, "/store/settings", "Store settings"),
-    ] },
-    { label: "Quotes & Invoices", icon: "rupee", href: "/quotes" },
-    { label: "Customer care", icon: "heart", items: [
-      { href: "/care/appointments", label: "Appointments", keywords: "booking calendar slot meeting visit" },
-      { href: "/care/feedback", label: "Feedback & NPS", keywords: "rating review survey" },
-      { href: "/care/referrals", label: "Referrals", keywords: "refer friend reward" },
-      ...it(admin, "/care/settings", "Care settings"),
-    ] },
-    { label: "WhatsApp", icon: "chat", items: [
-      { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
-      { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns" }, { href: "/whatsapp/commerce", label: "Commerce" },
-      { href: "/whatsapp/reports", label: "Reports" }, { href: "/whatsapp/settings", label: "Settings" },
-    ] },
-    ...(nurture ? [{ label: "Marketing", icon: "megaphone", items: [
+    ...(nurture ? [{ section: "Grow", label: "Marketing", icon: "megaphone", items: [
       { href: "/nurture", label: "Action queues" }, ...it(campaigns, "/nurture/campaigns", "Campaigns"),
       ...it(can(profile, "campaigns.manage"), "/nurture/segments", "Segments"), ...it(campaigns, "/nurture/offers", "Offers"),
       ...it(can(profile, "consent.manage"), "/nurture/consent", "Consent & suppression"), { href: "/nurture/performance", label: "Performance" },
       ...it(profile.role !== "agent", "/nurture/digest", "Digest"),
     ] }] : []),
-    { label: "Automation & AI", icon: "bot", items: [
+    { section: "Grow", label: "Automation & AI", icon: "bot", items: [
       { href: "/whatsapp/chatbots", label: "Chatbots" }, { href: "/whatsapp/flows", label: "Flows" },
       ...it(admin, "/whatsapp/flows/new", "Flow builder"),
-      ...it(nurture, "/nurture/journeys", "Journeys"),
+      ...it(nurture, "/nurture/journeys", "Journeys", "drip sequence"),
       ...it(nurture && can(profile, "journeys.manage"), "/nurture/logs", "Execution log"),
       ...it(nurture && can(profile, "knowledge.manage"), "/nurture/knowledge", "AI knowledge"),
     ] },
-    ...(can(profile, "reports.view") ? [{ label: "360 Reports", icon: "chart", href: "/reports" }] : []),
-    ...(admin ? [
-      { label: "Manage", icon: "gear", items: [
-        { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users" }, { href: "/admin/roles", label: "Roles & permissions" },
-        { href: "/admin/org", label: "Organisation" }, { href: "/admin/numbers", label: "WhatsApp numbers" }, { href: "/admin/templates", label: "Templates" },
-        { href: "/admin/allocation", label: "Allocation" }, { href: "/leads/duplicates", label: "Duplicate leads", keywords: "merge same number dedupe" }, { href: "/settings", label: "Lead settings", keywords: "status source tags department custom fields forms quotes invoice razorpay payment" }, { href: "/admin/catalog", label: "Products · Quick replies" },
-        { href: "/admin/alerts", label: "Follow-up alerts", keywords: "reminder missed push whatsapp notification" }, { href: "/admin/settings", label: "Settings" }, { href: "/admin/audit", label: "Audit log" },
-      ] },
-      { label: "Integrations", icon: "link", items: [
-        { href: "/admin/integrations", label: "WhatsApp Cloud API" }, ...it(features.includes("fb_leads"), "/admin/fb-login", "Facebook Lead Ads"),
-        { href: "/admin/lead-sources", label: "Lead sources", keywords: "google ads indiamart justdial website chat widget zapier pabbly webhook sync" },
-        { href: "/admin/api", label: "API & webhooks", keywords: "api key rest developer zapier webhook integration software" },
-      ] },
-    ] : []),
+    { section: "Grow", label: "Store", icon: "cart", items: [
+      { href: "/store", label: "Orders", keywords: "shop catalog mini-store order" },
+      ...it(admin, "/store/products", "Store products"), ...it(admin, "/store/settings", "Store settings"),
+    ] },
+    { section: "Grow", label: "Customer care", icon: "heart", items: [
+      { href: "/care/appointments", label: "Appointments", keywords: "booking calendar slot meeting visit" },
+      { href: "/care/feedback", label: "Feedback & NPS", keywords: "rating review survey" },
+      { href: "/care/referrals", label: "Referrals", keywords: "refer friend reward" },
+      ...it(admin, "/care/settings", "Care settings"),
+    ] },
+    { section: "Insights", label: "Reports", icon: "chart", items: [
+      { href: "/lead-reports", label: "Lead Reports" },
+      ...it(reports, "/reports", "360 Reports"),
+      { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
+      ...it(admin, "/profit-loss", "Profit & Loss", "p&l pnl ad spend revenue roi"),
+    ] },
+    ...(admin ? [{ section: "Admin", label: "Settings", icon: "gear", items: [
+      { href: "/settings", label: "All settings", keywords: "admin manage configuration setup" },
+      { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users", keywords: "team agent staff" },
+      { href: "/settings/statuses", label: "Lead settings", keywords: "status source tags department custom fields forms" },
+      { href: "/admin/lead-sources", label: "Integrations", keywords: "google ads indiamart justdial website chat widget zapier pabbly webhook sync api" },
+      // Every other settings page stays reachable from menu search and Ctrl+K, without crowding the menu.
+      ...settingsGroups(features).flatMap((g) => g.links).map((l) => ({ href: l.href, label: l.label, keywords: `${l.desc} ${l.keywords ?? ""}`, hidden: true })),
+    ] }] : []),
     // SaaS owner console (companies, plans, billing) — platform Super Admin only.
-    ...(profile.role === "super_admin" ? [{ label: "Platform", icon: "building", items: [
+    ...(profile.role === "super_admin" ? [{ section: "Admin", label: "Platform", icon: "building", items: [
       { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" }, { href: "/platform/wallet", label: "Wallet payments" },
     ] }] : []),
   ];

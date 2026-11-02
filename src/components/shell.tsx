@@ -14,8 +14,10 @@ import { HelpDrawer } from "./help-drawer";
 import { fmtNum } from "@/lib/wa";
 import { clearOfflineData } from "@/lib/offline/queue";
 
-export type NavItem = { href: string; label: string; keywords?: string };
-export type NavGroup = { label: string; icon: string; href?: string; items?: NavItem[] };
+/** hidden: found by menu search / Ctrl+K (and shown while it is the open page), not listed in the menu. */
+export type NavItem = { href: string; label: string; keywords?: string; hidden?: boolean };
+/** section: small heading shown above the first group of each section. */
+export type NavGroup = { label: string; icon: string; href?: string; items?: NavItem[]; section?: string };
 type User = { id: string; name: string; role: string; company: string; availability: string };
 /** Super Admin only: companies they can open from the top bar. */
 export type CompanySwitch = { current: string; home: string; companies: { id: string; name: string; active: boolean }[] };
@@ -33,13 +35,18 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
   const [search, setSearch] = useState(false);
   const [help, setHelp] = useState(false);
   const [menuQ, setMenuQ] = useState("");
-  const groups = nav.filter((g) => g.href || g.items?.length);
+  const groups = useMemo(() => uniqueNav(nav), [nav]);
   const shownGroups = filterNav(groups, menuQ);
   const all = leaves(groups);
   const fullBleed = path.startsWith("/inbox");
   // Most specific match wins, so /whatsapp/chatbots does not also light up /whatsapp.
   const activeHref = all.filter((n) => path === n.href || path.startsWith(n.href + "/")).sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const initial = user.name.trim().charAt(0).toUpperCase() || "?";
+  // Accordion: one group open at a time (the one holding the open page), so the menu stays short.
+  const activeGroup = groups.find((g) => g.items?.some((i) => i.href === activeHref))?.label ?? null;
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup);
+  useEffect(() => { if (activeGroup) setOpenGroup(activeGroup); }, [activeGroup]);
+  const searching = menuQ.trim() !== "";
 
   useEffect(() => { try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1"); } catch {} }, []);
   useEffect(() => {
@@ -77,7 +84,15 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
           </label>
         </div>
         <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-3" aria-label="Main">
-          {shownGroups.map((g) => <NavGroupLink key={g.label} group={g} activeHref={activeHref} forceOpen={menuQ.trim() !== ""} onNavigate={() => { setOpen(false); setMenuQ(""); }} />)}
+          {shownGroups.map((g, i) => (
+            <div key={g.label}>
+              {!searching && g.section && g.section !== shownGroups[i - 1]?.section && (
+                <div className={`px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 ${i ? "pt-4" : "pt-1"}`}>{g.section}</div>
+              )}
+              <NavGroupLink group={g} activeHref={activeHref} searching={searching} open={searching || openGroup === g.label}
+                onToggle={() => setOpenGroup((o) => (o === g.label ? null : g.label))} onNavigate={() => { setOpen(false); setMenuQ(""); }} />
+            </div>
+          ))}
           {shownGroups.length === 0 && <p className="px-3 py-2 text-xs text-slate-500">No menu item matches “{menuQ}”.</p>}
         </nav>
         <div className="shrink-0 border-t border-white/10 p-3">
@@ -130,23 +145,31 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
   );
 }
 
-/** Menu search: a group whose name matches keeps all its items; otherwise only matching items stay. */
+/** Drops empty groups and any page already listed earlier (first listing wins). */
+function uniqueNav(nav: NavGroup[]): NavGroup[] {
+  const seen = new Set<string>();
+  return nav.flatMap((g) => {
+    if (g.href) { if (seen.has(g.href)) return []; seen.add(g.href); return [g]; }
+    const items = (g.items ?? []).filter((i) => !seen.has(i.href) && (seen.add(i.href), true));
+    return items.some((i) => !i.hidden) ? [{ ...g, items }] : [];
+  });
+}
+
+/** Menu search: a group whose name matches keeps all its items; otherwise only matching items stay (hidden ones included). */
 function filterNav(groups: NavGroup[], q: string): NavGroup[] {
   const t = q.trim().toLowerCase();
   if (!t) return groups;
   return groups.flatMap((g) => {
-    if (g.label.toLowerCase().includes(t)) return [g];
+    if (g.label.toLowerCase().includes(t)) return [{ ...g, items: g.items?.filter((i) => !i.hidden) }];
     if (g.href) return [];
     const items = (g.items ?? []).filter((i) => `${i.label} ${i.keywords ?? ""}`.toLowerCase().includes(t));
     return items.length ? [{ ...g, items }] : [];
   });
 }
 
-function NavGroupLink({ group: g, activeHref, onNavigate, forceOpen = false }: { group: NavGroup; activeHref?: string; onNavigate: () => void; forceOpen?: boolean }) {
+function NavGroupLink({ group: g, activeHref, onNavigate, open, onToggle, searching }: { group: NavGroup; activeHref?: string; onNavigate: () => void; open: boolean; onToggle: () => void; searching: boolean }) {
   const hasActive = Boolean(g.items?.some((i) => i.href === activeHref));
-  const [manualOpen, setOpen] = useState(hasActive);
-  const open = forceOpen || manualOpen;
-  useEffect(() => { if (hasActive) setOpen(true); }, [hasActive]);
+  const items = (g.items ?? []).filter((i) => searching || !i.hidden || i.href === activeHref);
   const row = (active: boolean) => `relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${active ? "bg-white/10 font-semibold text-white" : "hover:bg-white/5 hover:text-white"}`;
   if (g.href) {
     const active = g.href === activeHref;
@@ -160,14 +183,14 @@ function NavGroupLink({ group: g, activeHref, onNavigate, forceOpen = false }: {
   }
   return (
     <div>
-      <button className={row(false)} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button className={row(false)} aria-expanded={open} onClick={onToggle}>
         <Icon name={g.icon} className={`h-4 w-4 shrink-0 ${hasActive ? "text-brand-400" : "text-slate-400"}`} />
         <span className={`flex-1 truncate text-left ${hasActive ? "font-semibold text-white" : ""}`}>{g.label}</span>
         <Icon name={open ? "chevronDown" : "chevronRight"} className="h-4 w-4 shrink-0 text-slate-500" />
       </button>
       {open && (
         <div className="mb-1 ml-5 space-y-0.5 border-l border-white/10 pl-2">
-          {g.items!.map((i) => {
+          {items.map((i) => {
             const active = i.href === activeHref;
             return (
               <Link key={i.href} href={i.href} onClick={onNavigate} aria-current={active ? "page" : undefined}

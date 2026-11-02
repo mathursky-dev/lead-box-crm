@@ -68,3 +68,14 @@ export const money = (v?: number | string | null) =>
 
 /** ISO timestamp for N days before now. */
 export const daysAgoIso = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+
+/** Leads page period ("today" | "7" | "30" | "90" | "") → created-from ISO timestamp, or null for all time. */
+export function rangeFrom(range?: string | null): string | null {
+  if (!range) return null;
+  if (range === "today") {
+    const istNow = new Date(Date.now() + IST_MS);
+    return new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_MS).toISOString();
+  }
+  const days = Number(range);
+  return Number.isFinite(days) && days > 0 && days <= 3660 ? new Date(Date.now() - days * 86400000).toISOString() : null;
+}

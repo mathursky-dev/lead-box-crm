@@ -4,9 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { PageHeader, Pager, Empty, ErrorBox } from "@/components/static";
 import { METRICS, toRpcFilters, pickFilters } from "@/lib/metrics";
-import { PRESETS } from "@/lib/dates";
+import { PRESETS, rangeFrom } from "@/lib/dates";
 import { LeadTable } from "./lead-table";
-import type { LeadTableLayout } from "@/lib/actions/prefs";
+import { StatusCards, type Card } from "./status-cards";
+import { FilterBar } from "./filter-bar";
+import type { LeadTableLayout, LeadCardsPref } from "@/lib/actions/prefs";
 import { Icon } from "@/components/kit";
 
 export const metadata = { title: "Leads" };
@@ -20,6 +22,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const refs = await loadRefs();
   const sb = await createClient();
   const offset = Math.max(0, Number(sp.offset) || 0);
+  const from = rangeFrom(sp.range);
 
   // Dashboard drill-down: exactly the rows behind the card.
   const metric = sp.metric;
@@ -40,7 +43,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       p: {
         q: sp.q, status_id: sp.status_id, sub_status_id: sp.sub_status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1", seen: sp.seen,
         open_only: sp.open === "1", product_id: sp.product_id, source_id: sp.source_id, team_id: sp.team_id, branch_id: sp.branch_id,
-        number_id: sp.number_id, priority: sp.priority, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, sort: sp.sort, dir: sp.dir, limit: LIMIT, offset,
+        number_id: sp.number_id, priority: sp.priority, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, from, sort: sp.sort, dir: sp.dir, limit: LIMIT, offset,
       },
     });
     if (e) error = e.message; else { rows = data.rows; total = data.total; }
@@ -48,7 +51,27 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   // Saved "Customize Table" layout for this user (null until they save one, or before the SQL is applied).
   const { data: company } = await sb.from("lb_companies").select("require_next_action").eq("id", profile.company_id).maybeSingle();
-  const { data: pref } = await sb.from("lb_user_prefs").select("value").eq("user_id", profile.id).eq("key", "leads.table").maybeSingle();
+  const { data: prefs } = await sb.from("lb_user_prefs").select("key,value").eq("user_id", profile.id).in("key", ["leads.table", "leads.cards"]);
+  const pref = prefs?.find((x) => x.key === "leads.table");
+  const cardsPref = (prefs?.find((x) => x.key === "leads.cards")?.value as LeadCardsPref | undefined) ?? null;
+
+  // Status cards: one count per active status for the chosen period (RLS limits agents to their own leads).
+  let cards: Card[] = [];
+  let cardsTotal = 0;
+  if (!metric) {
+    const count = (statusId?: string) => {
+      let qy = sb.from("lb_leads").select("id", { count: "exact", head: true }).eq("company_id", profile.company_id);
+      if (statusId) qy = qy.eq("status_id", statusId);
+      if (from) qy = qy.gte("created_at", from);
+      return qy;
+    };
+    const active = refs.statuses.filter((s) => s.is_active || s.id === sp.status_id);
+    const res = await Promise.all([count(), ...active.map((s) => count(s.id))]);
+    cardsTotal = res[0].count ?? 0;
+    cards = active.map((s, i) => ({ id: s.id, name: s.name, category: s.category, count: res[i + 1].count ?? 0 }));
+  }
+  const FILTER_KEYS = ["status_id", "sub_status_id", "owner_id", "product_id", "source_id", "team_id", "number_id", "priority", "tag_id", "followup", "seen", "open", "unassigned", "stale"];
+  const activeFilters = FILTER_KEYS.filter((k) => sp[k]).length;
 
   const statusName = metric?.startsWith("status:") ? refs.statuses.find((s) => s.id === metric.slice(7))?.name : null;
   const mUser = sp.mu ? refs.users.find((u) => u.id === sp.mu)?.full_name : null;
@@ -65,8 +88,11 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </>} />
 
       {!metric && (
-        <form className="card mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:grid-cols-6">
-          <input className="input col-span-2" name="q" defaultValue={sp.q} placeholder="Search name, phone, email, LB-123" />
+        <>
+        <StatusCards cards={cards} total={cardsTotal} activeId={sp.status_id ?? null} range={sp.range ?? ""} pref={cardsPref}
+          baseQs={new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString()} />
+        <FilterBar q={sp.q} active={activeFilters}>
+          {sp.range && <input type="hidden" name="range" value={sp.range} />}
           <select className="input" name="status_id" defaultValue={sp.status_id ?? ""}><option value="">All statuses</option>{refs.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           {refs.subStatuses.length > 0 && (
             <select className="input" name="sub_status_id" defaultValue={sp.sub_status_id ?? ""}><option value="">Any sub-status</option>{refs.subStatuses.map((s) => <option key={s.id} value={s.id}>{s.name}{s.status_id ? ` (${refs.statuses.find((x) => x.id === s.status_id)?.name ?? ""})` : ""}</option>)}</select>
@@ -90,8 +116,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             {isManager(profile) && <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="unassigned" value="1" defaultChecked={sp.unassigned === "1"} /> Unassigned</label>}
             <label className="flex items-center gap-1" title="No activity for 14+ days"><input type="checkbox" className="accent-brand-600" name="stale" value="1" defaultChecked={sp.stale === "1"} /> Stale 14d+</label>
           </div>
-          <div className="col-span-2 flex gap-2 sm:col-span-1"><button className="btn-primary flex-1"><Icon name="filter" className="h-3.5 w-3.5" />Apply</button><Link href="/leads" className="btn-ghost">Clear</Link></div>
-        </form>
+        </FilterBar>
+        </>
       )}
 
       {error ? <ErrorBox message={error} /> : rows.length === 0 ? (

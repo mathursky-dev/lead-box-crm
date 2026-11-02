@@ -161,3 +161,24 @@ export async function quickEditLead(id: string, e: QuickEdit): Promise<{ error?:
   revalidatePath(`/leads/${id}`);
   return {};
 }
+
+// "Chat" from the leads list: open the customer's latest inbox chat, or start
+// one on the lead's own WhatsApp number (else the company's first active number).
+export async function openLeadChat(leadId: string): Promise<{ error?: string; id?: string }> {
+  await requireProfile();
+  const sb = await createClient();
+  const { data: lead } = await sb.from("lb_leads").select("id,company_id,customer_id,number_id").eq("id", leadId).maybeSingle();
+  if (!lead) return { error: "Lead not found." };
+  const { data: conv } = await sb.from("lb_conversations").select("id").eq("customer_id", lead.customer_id)
+    .order("last_message_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  if (conv) return { id: conv.id };
+  let numberId: string | null = lead.number_id;
+  if (!numberId) {
+    const { data: n } = await sb.from("lb_wa_numbers").select("id").eq("company_id", lead.company_id).eq("is_active", true).order("label").limit(1).maybeSingle();
+    numberId = n?.id ?? null;
+  }
+  if (!numberId) return { error: "No WhatsApp number is connected yet." };
+  const { data, error } = await sb.rpc("lb_start_conversation", { p_lead: leadId, p_number: numberId });
+  if (error) return { error: errMsg(error) };
+  return { id: data };
+}

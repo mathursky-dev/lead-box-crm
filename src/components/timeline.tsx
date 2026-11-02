@@ -24,6 +24,8 @@ function describe(e: Ev) {
       if (e.data && "merged_into" in e.data) return <>Merged into <b>LB-{String(e.data.merged_into)}</b></>;
       if (e.data && "sub_status" in e.data) return e.data.sub_status ? <>Sub-status set to <b>{String(e.data.sub_status)}</b></> : "Sub-status cleared";
       if (e.data && "next_followup" in e.data) return <>Follow-up moved to <b>{fmtDateTime(String(e.data.next_followup))}</b>{e.data.from_next_followup ? ` (was ${fmtDateTime(String(e.data.from_next_followup))})` : ""}</>;
+      if (e.data?.doc_event === "sent") return <>{e.data.doc_kind === "invoice" ? "Invoice" : "Quotation"} <b>{String(e.data.doc_no)}</b> sent (₹{Number(e.data.amount).toLocaleString("en-IN")})</>;
+      if (e.data?.doc_event === "paid") return <>Payment received online: <b>₹{Number(e.data.amount).toLocaleString("en-IN")}</b>{e.data.payment_id ? ` (${e.data.payment_id})` : ""}</>;
       return <>Updated {Object.keys(e.data ?? {}).join(", ")}</>;
     default: return e.type;
   }

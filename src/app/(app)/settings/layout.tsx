@@ -4,7 +4,7 @@ import { SectionTabs } from "@/components/section-tabs";
 const TABS = [
   ["/settings/custom-fields", "Custom Fields", "grid"], ["/settings/forms", "Forms", "files"], ["/settings/statuses", "Manage Status", "check"],
   ["/settings/tags", "Tags", "tag"], ["/settings/sources", "Manage Source", "link"], ["/settings/departments", "Departments", "building"],
-  ["/admin/allocation", "Lead Allocations", "refresh"],
+  ["/admin/allocation", "Lead Allocations", "refresh"], ["/settings/quotes", "Quotes & Payments", "rupee"],
 ] as const;
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {

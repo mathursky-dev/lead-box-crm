@@ -10,6 +10,7 @@ import { complaintAction, customerPause } from "@/lib/actions/automation";
 import { fmtClock, fmtDateTime, fmtDay } from "@/lib/dates";
 import { Modal } from "@/components/ui";
 import { searchDocuments, sendDocumentToChat, type Doc } from "@/lib/actions/documents";
+import { PayLinkButton } from "../quotes/actions-ui";
 
 type Conv = {
   id: string; customer_id: string; customer_name: string | null; wa_profile_name: string | null; phone_e164: string; wa_opted_out_at: string | null;
@@ -429,6 +430,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
             <div className={`flex items-end gap-2 rounded-lg border p-1 ${noteMode ? "border-amber-300 bg-amber-50" : "border-slate-300"}`}>
               {!noteMode && <button className="px-2 py-1 text-lg text-slate-500" title="Attach a file from this device" onClick={() => fileRef.current?.click()} disabled={sending}>📎</button>}
               {!noteMode && <button className="px-1 py-1 text-lg text-slate-500" title="Select from Documents" aria-label="Select from Documents" onClick={() => setDocs(true)} disabled={sending}>📁</button>}
+              {!noteMode && conv.lead_id && <PayLinkButton leadId={conv.lead_id} canSend className="px-1 py-1 text-lg text-slate-500" label={<span title="Send Razorpay payment link" aria-label="Send payment link">💳</span>} onDone={() => { load(); onChanged(); }} />}
               <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
               <textarea className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none" rows={1} value={text}
                 placeholder={noteMode ? "Internal note (not sent to customer)" : "Type a message — “/” for quick replies"}

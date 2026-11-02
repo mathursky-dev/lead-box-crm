@@ -44,6 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/store", label: "Orders", keywords: "shop catalog mini-store order" },
       ...it(admin, "/store/products", "Store products"), ...it(admin, "/store/settings", "Store settings"),
     ] },
+    { label: "Quotes & Invoices", icon: "rupee", href: "/quotes" },
     { label: "WhatsApp", icon: "chat", items: [
       { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
       { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns" }, { href: "/whatsapp/commerce", label: "Commerce" },
@@ -67,7 +68,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { label: "Manage", icon: "gear", items: [
         { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users" }, { href: "/admin/roles", label: "Roles & permissions" },
         { href: "/admin/org", label: "Organisation" }, { href: "/admin/numbers", label: "WhatsApp numbers" }, { href: "/admin/templates", label: "Templates" },
-        { href: "/admin/allocation", label: "Allocation" }, { href: "/leads/duplicates", label: "Duplicate leads", keywords: "merge same number dedupe" }, { href: "/settings", label: "Lead settings", keywords: "status source tags department custom fields forms" }, { href: "/admin/catalog", label: "Products · Quick replies" },
+        { href: "/admin/allocation", label: "Allocation" }, { href: "/leads/duplicates", label: "Duplicate leads", keywords: "merge same number dedupe" }, { href: "/settings", label: "Lead settings", keywords: "status source tags department custom fields forms quotes invoice razorpay payment" }, { href: "/admin/catalog", label: "Products · Quick replies" },
         { href: "/admin/alerts", label: "Follow-up alerts", keywords: "reminder missed push whatsapp notification" }, { href: "/admin/settings", label: "Settings" }, { href: "/admin/audit", label: "Audit log" },
       ] },
       { label: "Integrations", icon: "link", items: [

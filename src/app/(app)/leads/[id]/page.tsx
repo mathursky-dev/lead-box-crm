@@ -16,6 +16,9 @@ import { CustomFieldsPanel } from "./custom-fields";
 import { AiScoreBadge, AiScoreCard } from "@/components/ai-score";
 import { aiConfigured } from "@/lib/ai";
 import type { CustomField } from "@/lib/settings-shared";
+import { companyRazorpay } from "@/lib/quotes-server";
+import { KIND_LABEL, QUOTE_STATUS, inr, type PayLink, type QuoteKind, type QuoteStatus } from "@/lib/quotes";
+import { PayLinkButton, PayLinkRow } from "../../quotes/actions-ui";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
 export const metadata = { title: "Lead" };
@@ -122,6 +125,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <AiScoreCard leadId={lead.id} canAi={canAi} initial={{ score: ai.ai_score ?? null, points: ai.ai_score_points ?? null, reason: ai.ai_score_reason ?? null, next_step: ai.ai_next_step ?? null, scored_at: ai.ai_scored_at ?? null }} />
           <LeadTasks leadId={lead.id} />
           <LeadOrders leadId={lead.id} />
+          <LeadQuotes leadId={lead.id} companyId={lead.company_id} canSend={can(profile, "chats.send")} />
           {can(profile, "leads.assign") && (
             <AssignPanel leadId={lead.id} ownerId={lead.owner_id} users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
           )}
@@ -223,6 +227,47 @@ async function LeadCalls({ leadId, meId, admin }: { leadId: string; meId: string
         {rows.length > 0 && <span className="text-xs text-slate-500">{rows.length} call{rows.length === 1 ? "" : "s"} · talk time {fmtDuration(talk)}</span>}
       </div>
       <CallsList calls={rows} meId={meId} admin={admin} />
+// Quotations, invoices and payment links of this lead.
+async function LeadQuotes({ leadId, companyId, canSend }: { leadId: string; companyId: string; canSend: boolean }) {
+  const sb = await createClient();
+  const [{ data: quotes, error }, { data: links }, keys] = await Promise.all([
+    sb.from("lb_quotes").select("id,kind,doc_no,status,total,amount_paid,created_at").eq("lead_id", leadId).eq("company_id", companyId).order("created_at", { ascending: false }).limit(10),
+    sb.from("lb_payment_links").select("*").eq("lead_id", leadId).eq("company_id", companyId).order("created_at", { ascending: false }).limit(10),
+    companyRazorpay(companyId),
+  ]);
+  if (error) return null; // Quotes SQL not applied yet.
+  return (
+    <section className="card p-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-navy-900">Quotes &amp; payments</h2>
+        <div className="flex gap-1">
+          <Link className="btn-ghost btn-sm" href={`/quotes/new?lead=${leadId}`}>+ Quotation</Link>
+          <Link className="btn-ghost btn-sm" href={`/quotes/new?lead=${leadId}&kind=invoice`}>+ Invoice</Link>
+        </div>
+      </div>
+      {!quotes?.length ? <p className="text-xs text-slate-500">No quotation or invoice yet.</p> : (
+        <ul className="divide-y divide-slate-100">
+          {quotes.map((q) => {
+            const st = QUOTE_STATUS[q.status as QuoteStatus];
+            return (
+              <li key={q.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                <Link href={`/quotes/${q.id}`} className="min-w-0 truncate font-medium text-navy-900 hover:text-brand-700">
+                  {q.doc_no} <span className="text-xs font-normal text-slate-500">{KIND_LABEL[q.kind as QuoteKind]}</span>
+                </Link>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs">{inr(Number(q.total))}</span>
+                  <span className={`rounded px-1.5 text-[10px] font-bold uppercase ${st.cls}`}>{st.label}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
+        <span className="text-xs font-semibold text-slate-600">Payment links</span>
+        {keys ? <PayLinkButton leadId={leadId} canSend={canSend} className="btn-ghost btn-sm" /> : <Link className="text-xs text-brand-700 hover:underline" href="/settings/quotes">Set up Razorpay</Link>}
+      </div>
+      {(links?.length ?? 0) > 0 && <ul className="divide-y divide-slate-100">{(links as PayLink[]).map((l) => <PayLinkRow key={l.id} l={{ ...l, amount: Number(l.amount) }} canSend={canSend} />)}</ul>}
     </section>
   );
 }

@@ -38,8 +38,8 @@ function range(preset: string, f?: string, t?: string): { from: string; to: stri
   }
 }
 
-type PL = { ad_meta: number; ad_manual: number; sales_won: number; won_count: number; sales_manual: number;
-  days: { day: string; ad: number; sales: number }[]; sources: { source_id: string | null; name: string; ad: number; sales: number; won: number }[] };
+type PL = { ad_meta: number; ad_manual: number; sales_won: number; won_count: number; sales_paid?: number; paid_count?: number; sales_manual: number;
+  days: { day: string; ad: number; sales: number }[]; sources: { source_id: string | null; name: string; ad: number; sales: number; won: number; paid?: number }[] };
 type Entry = { id: string; kind: "ad_cost" | "sale"; entry_date: string; amount: number; channel: string; source_id: string | null; note: string; origin: string; ext_name: string | null; currency: string | null };
 
 export default async function ProfitLossPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
@@ -75,7 +75,8 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
   const n = (v: unknown) => Number(v ?? 0);
 
   const adCost = n(pl?.ad_meta) + n(pl?.ad_manual);
-  const sales = n(pl?.sales_won) + n(pl?.sales_manual);
+  const sales = n(pl?.sales_paid) + n(pl?.sales_won) + n(pl?.sales_manual);
+  const salesSub = [n(pl?.sales_paid) && `Payments ${money(pl?.sales_paid)}`, `Won leads ${money(pl?.sales_won ?? 0)}`, n(pl?.sales_manual) && `Manual ${money(pl?.sales_manual)}`].filter(Boolean).join(" · ");
   const profit = sales - adCost;
   const roas = adCost > 0 ? sales / adCost : null;
   const foreign = [...new Set(entries.filter((e) => e.origin === "meta" && e.currency && e.currency !== "INR").map((e) => e.currency))];
@@ -110,7 +111,7 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
       {plR.error && <div className="mb-4"><ErrorBox message={plR.error.message.includes("lb_profit_loss") ? "Profit & Loss is not set up in the database yet (run the profit-loss SQL)." : plR.error.message} /></div>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Sales value" value={money(sales)} sub={`${n(pl?.won_count)} won leads · ${money(pl?.sales_won ?? 0)}${n(pl?.sales_manual) ? ` + manual ${money(pl?.sales_manual)}` : ""}`} icon="trophy" tone="green" />
+        <Kpi label="Sales value" value={money(sales)} sub={salesSub} title="Payments received (Razorpay links on quotations/invoices) + won value of leads won without a payment + manual sales" icon="trophy" tone="green" />
         <Kpi label="Total ad cost" value={money(adCost)} sub={`Meta ${money(pl?.ad_meta ?? 0)} · Manual ${money(pl?.ad_manual ?? 0)}`} icon="megaphone" tone="amber" />
         <Kpi label={profit >= 0 ? "Profit" : "Loss"} value={<span className={profit >= 0 ? "text-brand-700" : "text-red-600"}>{money(Math.abs(profit))}</span>}
           sub={sales > 0 ? `Margin ${Math.round((profit / sales) * 100)}% of sales` : "Sales − ad cost"} icon="rupee" tone={profit >= 0 ? "green" : "red"} />
@@ -147,23 +148,23 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
         </Panel>
       </div>
 
-      <Panel title="Source-wise profit" icon="layers" className="mt-4" sub="Meta spend is counted under the Facebook source. Manual entries count under the source you pick.">
+      <Panel title="Source-wise profit" icon="layers" className="mt-4" sub="Sales = payments received on quotations/invoices + won value of leads won without a payment + manual sales. Meta spend counts under the Facebook source.">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="bg-slate-50"><tr><th className="th">Source</th><th className="th text-right">Won leads</th><th className="th text-right">Sales</th><th className="th text-right">Ad cost</th><th className="th text-right">Profit / Loss</th><th className="th text-right">ROAS</th></tr></thead>
+          <table className="w-full min-w-[620px] text-sm">
+            <thead className="bg-slate-50"><tr><th className="th">Source</th><th className="th text-right">Won leads</th><th className="th text-right">Payments</th><th className="th text-right">Sales</th><th className="th text-right">Ad cost</th><th className="th text-right">Profit / Loss</th><th className="th text-right">ROAS</th></tr></thead>
             <tbody className="divide-y">
               {(pl?.sources ?? []).map((s) => { const p = n(s.sales) - n(s.ad); return (
                 <tr key={s.source_id ?? "none"}>
-                  <td className="td font-medium text-navy-900">{s.name}</td><td className="td text-right">{s.won}</td>
+                  <td className="td font-medium text-navy-900">{s.name}</td><td className="td text-right">{s.won}</td><td className="td text-right">{n(s.paid)}</td>
                   <td className="td text-right">{money(s.sales)}</td><td className="td text-right">{money(s.ad)}</td>
                   <td className={`td text-right font-semibold ${p >= 0 ? "text-brand-700" : "text-red-600"}`}>{p < 0 ? "−" : ""}{money(Math.abs(p))}</td>
                   <td className="td text-right">{n(s.ad) > 0 ? `${(n(s.sales) / n(s.ad)).toFixed(2)}x` : "—"}</td>
                 </tr>); })}
-              {!pl?.sources?.length && <tr><td className="td text-slate-500" colSpan={6}>Nothing in this period.</td></tr>}
+              {!pl?.sources?.length && <tr><td className="td text-slate-500" colSpan={7}>Nothing in this period.</td></tr>}
             </tbody>
             {!!pl?.sources?.length && (
               <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-semibold"><tr>
-                <td className="td">Total</td><td className="td text-right">{n(pl?.won_count)}</td><td className="td text-right">{money(sales)}</td><td className="td text-right">{money(adCost)}</td>
+                <td className="td">Total</td><td className="td text-right">{n(pl?.won_count)}</td><td className="td text-right">{n(pl?.paid_count)}</td><td className="td text-right">{money(sales)}</td><td className="td text-right">{money(adCost)}</td>
                 <td className={`td text-right ${profit >= 0 ? "text-brand-700" : "text-red-600"}`}>{profit < 0 ? "−" : ""}{money(Math.abs(profit))}</td><td className="td text-right">{roas == null ? "—" : `${roas.toFixed(2)}x`}</td>
               </tr></tfoot>
             )}
@@ -171,7 +172,7 @@ export default async function ProfitLossPage({ searchParams }: { searchParams: P
         </div>
       </Panel>
 
-      <Panel title="Ad cost & sale entries" icon="list" className="mt-4" sub="Add ad cost (Google, offline, or Meta if not connected) and sales that are not in the CRM as won leads. Meta rows are pulled automatically and can't be edited.">
+      <Panel title="Ad cost & sale entries" icon="list" className="mt-4" sub="Add ad cost (Google, offline, or Meta if not connected) and sales that are not in the CRM as won leads or payments. Meta rows are pulled automatically and can't be edited.">
         <EntryForm sources={sources} defaultDate={to} />
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">

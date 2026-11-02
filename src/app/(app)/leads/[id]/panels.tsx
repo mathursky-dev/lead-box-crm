@@ -7,6 +7,7 @@ import { assignLeads, updateLead, addFollowup, completeFollowup, logActivity, st
 import { fmtDateTime, toLocalInput } from "@/lib/dates";
 import { changeStatusWithAction, setPayment, enrollLead, enrollmentAction } from "@/lib/actions/nurture";
 import type { Refs, StatusOpt, SubStatusOpt } from "@/lib/data";
+import { LANGUAGES } from "@/lib/languages";
 
 export function StatusPanel({ leadId, statusId, subStatusId, statuses, subStatuses, expected, nextAction }: {
   leadId: string; statusId: string; subStatusId: string | null; statuses: StatusOpt[]; subStatuses: SubStatusOpt[]; expected: number | null;
@@ -212,7 +213,7 @@ export function ChatPanel({ leadId, convs, numbers }: { leadId: string; convs: {
   );
 }
 
-type L = { id: string; name: string | null; email: string | null; location: string | null; branch_id: string | null; department_id: string | null; product_id: string | null; source_id: string | null; priority: string; expected_value: number | null; won_value: number | null; notes: string | null; status_category: string };
+type L = { id: string; name: string | null; email: string | null; location: string | null; branch_id: string | null; department_id: string | null; product_id: string | null; source_id: string | null; priority: string; expected_value: number | null; won_value: number | null; notes: string | null; status_category: string; language?: string | null };
 export function EditPanel({ lead, refs, tagIds }: { lead: L; refs: Refs; tagIds: string[] }) {
   const [open, setOpen] = useState(false);
   return (
@@ -227,6 +228,7 @@ export function EditPanel({ lead, refs, tagIds }: { lead: L; refs: Refs; tagIds:
           <Field label="Email"><input className="input" type="email" name="email" defaultValue={lead.email ?? ""} /></Field>
           <Field label="Location"><input className="input" name="location" defaultValue={lead.location ?? ""} /></Field>
           <Field label="Product / Service"><select className="input" name="product_id" defaultValue={lead.product_id ?? ""}><option value="">—</option>{refs.products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
+          <Field label="Language" hint="Used by lead routing rules. Auto-filled from the first WhatsApp message."><select className="input" name="language" defaultValue={lead.language ?? ""}><option value="">Not known</option>{LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.name}</option>)}</select></Field>
           <Field label="Source"><select className="input" name="source_id" defaultValue={lead.source_id ?? ""}><option value="">—</option>{refs.sources.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
           <Field label="Branch"><select className="input" name="branch_id" defaultValue={lead.branch_id ?? ""}><option value="">—</option>{refs.branches.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>
           <Field label="Department"><select className="input" name="department_id" defaultValue={lead.department_id ?? ""}><option value="">—</option>{refs.departments.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>

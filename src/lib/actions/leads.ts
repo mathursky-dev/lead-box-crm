@@ -6,6 +6,7 @@ import { pageBlocked, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone, errMsg } from "@/lib/util";
 import { fromLocalInput } from "@/lib/dates";
+import { LANG_CODES } from "@/lib/languages";
 
 type FormState = { error?: string; ok?: string; duplicate?: { lead_id: string; lead_no: number; visible: boolean } } | undefined;
 
@@ -55,8 +56,15 @@ export async function updateLead(_: FormState, form: FormData): Promise<FormStat
     product_id: p.product_id, source_id: p.source_id, priority: p.priority, expected_value: p.expected_value, notes: p.notes,
     tag_ids: p.tag_ids, ...(form.has("won_value") ? { won_value: s(form.get("won_value")) } : {}),
   };
-  const { error } = await (await createClient()).rpc("lb_update_lead", { p_lead: id, p: patch });
+  const sb = await createClient();
+  const { error } = await sb.rpc("lb_update_lead", { p_lead: id, p: patch });
   if (error) return { error: errMsg(error) };
+  if (form.has("language")) {
+    const lang = s(form.get("language"));
+    if (lang && !LANG_CODES.includes(lang)) return { error: "Unknown language." };
+    const { error: e2 } = await sb.rpc("lb_set_lead_language", { p_lead: id, p_lang: lang || null });
+    if (e2) return { error: errMsg(e2) };
+  }
   revalidatePath(`/leads/${id}`);
   return { ok: "Lead saved." };
 }

@@ -2,6 +2,7 @@ import { requireProfile, isAdmin, can, ROLE_LABEL } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { Shell, BackHome, type NavGroup, type CompanySwitch } from "@/components/shell";
 import { DayBrief, type Brief } from "@/components/day-brief";
+import { CallSync } from "@/components/call-sync";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
@@ -30,7 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { label: "Lead Reports", icon: "chart", href: "/lead-reports" },
     ...(admin ? [{ label: "Profit & Loss", icon: "rupee", href: "/profit-loss" }] : []),
     { label: "Sales", icon: "target", items: [
-      { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" },
+      { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" }, { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"), ...it(can(profile, "leads.import"), "/import", "Import"),
     ] },
     { label: "Tasks", icon: "check", href: "/tasks" },
@@ -124,6 +125,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       )}
       {children}
+      <CallSync userId={profile.id} />
       {brief && <DayBrief userId={profile.id} name={profile.full_name} brief={brief} {...istGreeting()} />}
     </Shell>
   );

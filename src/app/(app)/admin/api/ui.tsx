@@ -6,12 +6,13 @@ import { fmtDateTime } from "@/lib/dates";
 import { createApiKey, revokeApiKey, saveWebhook, deleteWebhook, testWebhook, revealWebhookSecret } from "@/lib/actions/connectors";
 import { IconAction, useAct } from "../../settings/ui";
 
-export type KeyRow = { id: string; name: string; prefix: string; scopes: string[]; created_at: string; last_used_at: string | null; revoked_at: string | null };
+export type KeyRow = { id: string; name: string; prefix: string; scopes: string[]; created_at: string; last_used_at: string | null; revoked_at: string | null; expires_at: string | null };
 export type HookRow = { id: string; name: string; url: string; events: string[]; is_active: boolean; last_status: number | null; last_error: string | null; last_sent_at: string | null; created_at: string };
 export type DeliveryRow = { id: number; webhook_id: string; event: string; status: string; attempts: number; response_code: number | null; error: string | null; created_at: string; sent_at: string | null };
 
 const EVENTS: [string, string][] = [["lead.created", "Lead created"], ["lead.status_changed", "Status changed"], ["lead.assigned", "Lead assigned"]];
-const SCOPES: [string, string][] = [["leads.write", "Create leads"], ["leads.read", "Read leads"]];
+const SCOPES: [string, string][] = [["leads.write", "Create leads"], ["leads.read", "Read leads"], ["leads.update", "Update leads"]];
+const EXPIRY: [number, string][] = [[0, "Never"], [30, "30 days"], [90, "90 days"], [180, "6 months"], [365, "1 year"]];
 
 function Copy({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -42,7 +43,13 @@ export function ApiAdmin({ origin, keys, hooks, deliveries }: { origin: string; 
                 <td className="td font-mono text-xs">{k.prefix}…</td>
                 <td className="td text-xs">{k.scopes.map((s) => SCOPES.find(([v]) => v === s)?.[1] ?? s).join(", ")}</td>
                 <td className="td text-xs">{k.last_used_at ? fmtDateTime(k.last_used_at) : "Never"}</td>
-                <td className="td"><span className={`badge ${k.revoked_at ? "bg-slate-100 text-slate-600" : "bg-brand-50 text-brand-700"}`}>{k.revoked_at ? "Revoked" : "Active"}</span></td>
+                <td className="td">{(() => {
+                  const expired = !k.revoked_at && !!k.expires_at && new Date(k.expires_at).getTime() <= Date.now();
+                  return <>
+                    <span className={`badge ${k.revoked_at || expired ? "bg-slate-100 text-slate-600" : "bg-brand-50 text-brand-700"}`}>{k.revoked_at ? "Revoked" : expired ? "Expired" : "Active"}</span>
+                    {!k.revoked_at && k.expires_at && !expired && <div className="mt-0.5 text-[11px] text-slate-500">till {fmtDateTime(k.expires_at)}</div>}
+                  </>;
+                })()}</td>
                 <td className="td text-right">{!k.revoked_at && <button type="button" className="btn-ghost btn-sm text-red-600" onClick={() => act.run(() => revokeApiKey(k.id), `Revoke "${k.name}"? Apps using this key stop working right away.`)}>Revoke</button>}</td>
               </tr>
             ))}
@@ -123,6 +130,7 @@ function SecretButton({ id }: { id: string }) {
 function NewKey({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("Website");
   const [scopes, setScopes] = useState<string[]>(["leads.write"]);
+  const [expires, setExpires] = useState(0);
   const [res, setRes] = useState<{ error?: string; key?: string }>();
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -139,13 +147,16 @@ function NewKey({ onClose }: { onClose: () => void }) {
     <div className="space-y-3">
       <label className="block"><span className="label">Name (where you will use it)</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} /></label>
       <fieldset><legend className="label">Permissions</legend>
-        <div className="flex gap-4">{SCOPES.map(([v, l]) => (
+        <div className="flex flex-wrap gap-4">{SCOPES.map(([v, l]) => (
           <label key={v} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={scopes.includes(v)} onChange={(e) => setScopes((s) => (e.target.checked ? [...s, v] : s.filter((x) => x !== v)))} /> {l}</label>
         ))}</div>
       </fieldset>
+      <label className="block"><span className="label">Expires</span>
+        <select className="input w-40" value={expires} onChange={(e) => setExpires(Number(e.target.value))}>{EXPIRY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+      </label>
       {res?.error && <p role="alert" className="text-sm text-red-600">{res.error}</p>}
       <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn-primary" disabled={pending} onClick={() => start(async () => setRes(await createApiKey(name, scopes)))}>{pending ? "Creating…" : "Create key"}</button></div>
+        <button type="button" className="btn-primary" disabled={pending} onClick={() => start(async () => setRes(await createApiKey(name, scopes, expires)))}>{pending ? "Creating…" : "Create key"}</button></div>
     </div>
   );
 }
@@ -168,7 +179,10 @@ const sig = "sha256=" + crypto.createHmac("sha256", SECRET).update(req.headers["
 if (sig !== req.headers["x-leadbox-signature"]) return res.status(401).end();`;
   return (
     <section className="card space-y-4 p-4">
-      <h2 className="text-sm font-semibold text-navy-900">API guide</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-semibold text-navy-900">API guide</h2>
+        <a href="/developers" target="_blank" rel="noopener" className="btn-ghost btn-sm ml-auto">Full API docs (share with your developer) ↗</a>
+      </div>
       <p className="text-xs text-slate-600">Base URL <code className="rounded bg-slate-100 px-1">{origin}/api/v1</code> · send the key as <code className="rounded bg-slate-100 px-1">Authorization: Bearer lbk_…</code> (or <code className="rounded bg-slate-100 px-1">X-Api-Key</code>) · 120 requests per minute per key · JSON in and out.</p>
       <Block title="Create a lead: POST /leads" code={create}>
         Only <b>phone</b> is required (Indian numbers may skip +91). <b>source</b> is matched by name (made if new, default “API”); <b>product</b> and <b>tags</b> by name; <b>custom</b> takes your custom field keys.

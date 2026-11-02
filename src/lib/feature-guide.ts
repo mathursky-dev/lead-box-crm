@@ -702,6 +702,14 @@ export const FEATURES: Feature[] = [
       "Turn on **Daily missed list** and set the morning time; **Save alert settings**.",
     ],
     keywords: "alert missed follow up notification push reminder" },
+  { id: "daily-summary", cat: "Settings & admin", icon: "chart", href: "/admin/daily-summary", access: "admin", title: "Daily WhatsApp summary to owner",
+    what: "Every night the owner gets today's new leads, sales, payments, pending tasks and follow-ups on WhatsApp (and in the app).",
+    steps: [
+      "Open [Daily summary](/admin/daily-summary).",
+      "Pick the time (default 9 PM) and who gets it (default: all company admins). Add their mobile number on the Users page.",
+      "For Cloud API numbers, create a Utility template and enter its name, so it reaches the owner any time. Tap **Send it to me now** to test.",
+    ],
+    keywords: "daily summary night report owner whatsapp sales payments today digest" },
   { id: "company-settings", cat: "Settings & admin", icon: "gear", href: "/admin/settings", access: "admin", title: "Company settings (automation, AI, SLA)",
     what: "Auto-create leads from chats, auto-allocate, AI features, SLA policy and digests.",
     steps: [
@@ -735,7 +743,7 @@ export const FEATURES: Feature[] = [
     what: "Create and read leads from your own software, and get a call on your URL when a lead changes.",
     steps: [
       "Open [API & webhooks](/admin/api) → **+ New API key**; copy it (shown once).",
-      "Call the API with header Authorization: Bearer lbk_… (POST /leads to create, GET /leads to list). See **API guide** on the page.",
+      "Call the API with header Authorization: Bearer lbk_… (POST /leads to create, GET /leads to list, PATCH /leads/{id} to update). Full docs to share with your developer: [/developers](/developers).",
       "Click **+ Add webhook**, enter your https URL and events (lead created, assigned, status changed); use **Send test**.",
     ],
     keywords: "api key rest developer webhook integration zapier erp software" },

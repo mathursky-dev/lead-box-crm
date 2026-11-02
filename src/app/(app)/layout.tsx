@@ -23,6 +23,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const demo = await isDemoCompany(profile.company_id);
   const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const admin = isAdmin(profile);
+  // Paid plan ending within 7 days: remind admins to renew (bell reminders also go out 7/3/1 days before).
+  const renewDays = billing?.plan === "paid" && billing.paid_until ? Math.ceil((new Date(billing.paid_until).getTime() - new Date().getTime()) / 86400000) : null;
   const campaigns = can(profile, "campaigns.manage") || can(profile, "campaigns.approve");
   // Plan features: modules outside the company's plan are hidden (their pages show an upgrade notice).
   const nurture = can(profile, "nurture.view") && features.includes("nurture");
@@ -44,10 +46,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ] },
     { section: "Work", label: "Conversations", icon: "inbox", items: [
       { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
+      { href: "/email", label: "Email (Gmail)", keywords: "gmail mail google inbox" },
     ] },
     { section: "Work", label: "WhatsApp", icon: "chat", items: [
       { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
-      { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns", keywords: "broadcast bulk" }, { href: "/whatsapp/commerce", label: "Commerce" },
+      { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/groups", label: "Groups", keywords: "group community invite link" }, { href: "/whatsapp/campaigns", label: "Campaigns", keywords: "broadcast bulk" }, { href: "/whatsapp/commerce", label: "Commerce" },
       { href: "/whatsapp/reports", label: "Reports" }, { href: "/whatsapp/settings", label: "Settings" },
     ] },
     { section: "Work", label: "Field Force", icon: "pin", items: [
@@ -96,6 +99,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // SaaS owner console (companies, plans, billing) — platform Super Admin only.
     ...(profile.role === "super_admin" ? [{ section: "Admin", label: "Platform", icon: "building", items: [
       { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" }, { href: "/platform/wallet", label: "Wallet payments" },
+      { href: "/platform/billing", label: "Plan payments", keywords: "subscription upi utr renew billing" },
     ] }] : []),
   ];
   // Quick Create: shortcuts to existing "new" screens, same permission checks as those pages.
@@ -148,6 +152,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {onTrial && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
           Free trial ends {fmtDateTime(billing.trial_ends_at)}. <Link href="/billing" className="font-medium underline">Upgrade to keep access</Link>
+        </div>
+      )}
+      {admin && !demo && renewDays != null && renewDays > 0 && renewDays <= 7 && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          Your plan ends in {renewDays} day{renewDays === 1 ? "" : "s"} ({fmtDateTime(billing!.paid_until)}). <Link href="/billing" className="font-medium underline">Renew now</Link> so your team keeps working.
         </div>
       )}
       {children}

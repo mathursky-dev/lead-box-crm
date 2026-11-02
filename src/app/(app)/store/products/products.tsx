@@ -6,15 +6,17 @@ import { getBrowserClient } from "@/lib/supabase/client";
 import { saveProduct, setProductFlag, startProductImage } from "@/lib/actions/store";
 import { STORE_BUCKET, rupees, type StoreProduct } from "@/lib/store";
 
-type Row = StoreProduct & { image: string | null };
+type Row = StoreProduct & { image: string | null; stock_qty: number | null; low_stock_at: number };
+const isLow = (p: Row) => p.stock_qty != null && p.stock_qty <= p.low_stock_at;
 
-export function ProductsView({ rows }: { rows: Row[] }) {
+export function ProductsView({ rows, stockOn, initialOnly = "" }: { rows: Row[]; stockOn: boolean; initialOnly?: "" | "low" }) {
   const [edit, setEdit] = useState<Row | "new" | null>(null);
   const [q, setQ] = useState("");
-  const [only, setOnly] = useState<"" | "store" | "hidden">("");
+  const [only, setOnly] = useState<"" | "store" | "hidden" | "low">(initialOnly);
   const term = q.trim().toLowerCase();
   const shown = rows.filter((p) => (!term || `${p.name} ${p.sku ?? ""} ${p.category}`.toLowerCase().includes(term))
-    && (only !== "store" || p.in_store) && (only !== "hidden" || !p.in_store));
+    && (only !== "store" || p.in_store) && (only !== "hidden" || !p.in_store) && (only !== "low" || isLow(p)));
+  const low = rows.filter((p) => p.is_active && isLow(p)).length;
   const live = rows.filter((p) => p.in_store && p.is_active && p.price != null).length;
 
   return (
@@ -23,6 +25,7 @@ export function ProductsView({ rows }: { rows: Row[] }) {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, SKU, category" className="input max-w-64 flex-1" aria-label="Search products" />
         <select className="input max-w-44" value={only} onChange={(e) => setOnly(e.target.value as typeof only)} aria-label="Show">
           <option value="">All products ({rows.length})</option><option value="store">In store ({live})</option><option value="hidden">Not in store</option>
+          {stockOn && <option value="low">Low / out of stock ({low})</option>}
         </select>
         <button type="button" className="btn-primary ml-auto" onClick={() => setEdit("new")}>+ Add product</button>
       </div>
@@ -30,6 +33,11 @@ export function ProductsView({ rows }: { rows: Row[] }) {
         These are the same products used on leads. Give a product a price and switch on <b>In store</b> to show it on your store link.
         Using a Meta (WhatsApp) catalog too? Put the item&apos;s <b>Content ID</b> in SKU so cart orders from WhatsApp map to the right product.
       </p>
+      {stockOn && low > 0 && only !== "low" && (
+        <button type="button" onClick={() => setOnly("low")} className="block w-full border-b border-red-100 bg-red-50 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-100">
+          ⚠ {low} product{low === 1 ? " is" : "s are"} low or out of stock. <span className="font-semibold underline">Show</span>
+        </button>
+      )}
       {!shown.length ? <p className="p-10 text-center text-sm text-slate-500">{rows.length ? "No products match." : "No products yet. Add your first product."}</p> : (
         <ul className="divide-y">
           {shown.map((p) => (
@@ -43,6 +51,7 @@ export function ProductsView({ rows }: { rows: Row[] }) {
                   <span className="font-semibold text-slate-700">{p.price != null ? rupees(p.price) : "No price"}</span>
                   {p.mrp != null && p.price != null && p.mrp > p.price && <span className="line-through">{rupees(p.mrp)}</span>}
                   {p.unit && <span>· {p.unit}</span>}{p.category && <span>· {p.category}</span>}{p.sku && <span>· SKU {p.sku}</span>}
+                  {p.stock_qty != null && <span className={isLow(p) ? "font-semibold text-red-600" : "text-slate-600"}>· {p.stock_qty === 0 ? "0 left" : `${p.stock_qty} in stock`}{isLow(p) && p.stock_qty > 0 ? " (low)" : ""}</span>}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-1">
@@ -62,12 +71,12 @@ export function ProductsView({ rows }: { rows: Row[] }) {
           ))}
         </ul>
       )}
-      {edit && <ProductForm p={edit === "new" ? null : edit} onClose={() => setEdit(null)} />}
+      {edit && <ProductForm p={edit === "new" ? null : edit} stockOn={stockOn} onClose={() => setEdit(null)} />}
     </section>
   );
 }
 
-function ProductForm({ p, onClose }: { p: Row | null; onClose: () => void }) {
+function ProductForm({ p, stockOn, onClose }: { p: Row | null; stockOn: boolean; onClose: () => void }) {
   const [path, setPath] = useState("");
   const [preview, setPreview] = useState<string | null>(p?.image ?? null);
   const [remove, setRemove] = useState(false);
@@ -114,6 +123,17 @@ function ProductForm({ p, onClose }: { p: Row | null; onClose: () => void }) {
           <Field label="SKU / Meta Content ID"><input className="input" name="sku" defaultValue={p?.sku ?? ""} maxLength={100} /></Field>
           <Field label="Position" hint="Lower shows first"><input className="input" name="sort_order" type="number" min={0} defaultValue={p?.sort_order ?? 100} /></Field>
         </div>
+        {stockOn && (
+          <div className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2">
+            <input type="hidden" name="stock_on" value="1" />
+            <Field label="Stock quantity" hint="Leave empty to not track stock. Orders reduce it; at 0 the product shows Out of stock.">
+              <input className="input" name="stock_qty" type="number" min={0} step={1} defaultValue={p?.stock_qty ?? ""} />
+            </Field>
+            <Field label="Alert when stock is at or below" hint="Admins get a bell + phone alert">
+              <input className="input" name="low_stock_at" type="number" min={0} step={1} defaultValue={p?.low_stock_at ?? 5} />
+            </Field>
+          </div>
+        )}
         <Field label="Description"><textarea className="input" name="description" rows={3} maxLength={2000} defaultValue={p?.description ?? ""} /></Field>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="in_store" defaultChecked={p ? p.in_store : true} /> Show in store</label>

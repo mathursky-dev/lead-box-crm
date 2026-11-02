@@ -50,6 +50,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           {edit && <CampaignForm campaign={{ ...c, template_params: c.template_params as string[] }} segments={edit[0].data ?? []} offers={edit[1].data ?? []} numbers={edit[2].data ?? []}
             templates={(edit[3].data ?? []).map((t) => ({ name: t.name, language: t.language, category: t.category, waba_id: t.waba_id, body: ((t.components as { type: string; text?: string }[]).find((x) => x.type === "BODY")?.text) ?? "" }))} />}
           <CampaignButtons id={c.id} status={c.status} manage={manage} approve={approve} />
+          {manage && <Link href={`/whatsapp/campaigns/${c.id}`} className="btn-ghost btn-sm">Delivery report</Link>}
         </span>} />
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card p-4 text-sm">

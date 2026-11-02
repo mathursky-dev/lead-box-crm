@@ -35,8 +35,8 @@ export default async function Campaigns() {
         <Kpi label="Running" value={all.filter((c) => c.status === "running").length} sub="sending now, throttled" icon="send" tone="blue" />
         <Kpi label="Completed" value={all.filter((c) => c.status === "completed").length} icon="check" tone="green" />
       </div>
-      <Panel title="Campaigns" icon="megaphone" actions={manage ? <><Link href="/nurture/segments" className="btn-ghost btn-sm">Segments</Link><Link href="/nurture/campaigns" className="btn-primary btn-sm"><Icon name="plus" className="h-3.5 w-3.5" /> New campaign</Link></> : null}>
-        {!all.length ? <EmptyState icon="megaphone" title="No campaigns yet" action={manage ? <Link href="/nurture/campaigns" className="btn-primary">Create a campaign</Link> : null}>
+      <Panel title="Campaigns" icon="megaphone" actions={manage ? <><Link href="/nurture/segments" className="btn-ghost btn-sm">Segments</Link><Link href="/nurture/campaigns" className="btn-ghost btn-sm">Campaign with approval</Link><Link href="/whatsapp/broadcast" className="btn-primary btn-sm"><Icon name="plus" className="h-3.5 w-3.5" /> New broadcast</Link></> : null}>
+        {!all.length ? <EmptyState icon="megaphone" title="No campaigns yet" action={manage ? <Link href="/whatsapp/broadcast" className="btn-primary">Send a broadcast</Link> : null}>
           Pick a segment, an approved template and a number. Every recipient is checked for consent, suppression, frequency cap and quiet hours right before sending.</EmptyState> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-sm">
@@ -46,8 +46,8 @@ export default async function Campaigns() {
                   const s = stat(c.id);
                   return (
                     <tr key={c.id}>
-                      <td className="td"><Link className="font-medium text-brand-700 hover:underline" href={`/nurture/campaigns/${c.id}`}>{c.name}</Link><div className="text-xs text-slate-500">{(c.number as unknown as { label: string } | null)?.label}</div></td>
-                      <td className="td">{(c.segment as unknown as { name: string } | null)?.name}<div className="text-xs text-slate-500">{s.total} recipients{s.skipped ? ` · ${s.skipped} skipped` : ""}</div></td>
+                      <td className="td"><Link className="font-medium text-brand-700 hover:underline" href={`/whatsapp/campaigns/${c.id}`}>{c.name}</Link><div className="text-xs text-slate-500">{(c.number as unknown as { label: string } | null)?.label}</div></td>
+                      <td className="td">{(c.segment as unknown as { name: string } | null)?.name?.replace(/^Broadcast · .*/, "Broadcast audience")}<div className="text-xs text-slate-500">{s.total} recipients{s.skipped ? ` · ${s.skipped} skipped` : ""}</div></td>
                       <td className="td font-mono text-xs">{c.template_name}</td>
                       <td className="td text-xs">{c.launched_at ? fmtDateTime(c.launched_at) : c.scheduled_at ? fmtDateTime(c.scheduled_at) : "On approval"}</td>
                       <td className="td">{s.sent}</td><td className="td">{s.delivered}</td><td className="td">{s.read}</td><td className="td text-red-600">{s.failed || ""}</td>

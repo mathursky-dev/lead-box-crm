@@ -7,12 +7,15 @@ export type SettingsGroup = { label: string; icon: string; tone: string; links: 
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   { label: "Company & team", icon: "building", tone: "navy", links: [
-    { href: "/admin/quick-setup", label: "Quick Setup", icon: "bolt", desc: "Step-by-step setup checklist", keywords: "onboarding start guide" },
+    { href: "/onboarding", label: "Setup wizard", icon: "check", desc: "Step-by-step setup for a new company", keywords: "onboarding getting started setup steps" },
+    { href: "/admin/quick-setup", label: "Quick Setup", icon: "bolt", desc: "Connect lead sources in one place", keywords: "onboarding start guide integrations" },
     { href: "/admin/settings", label: "Company settings", icon: "gear", desc: "Name, auto-create leads, SLA policy", keywords: "auto allocate nurture sla automation" },
     { href: "/admin/users", label: "Users", icon: "contacts", desc: "Add team members, reset passwords", keywords: "team agent staff login" },
     { href: "/admin/roles", label: "Roles & permissions", icon: "shield", desc: "Who can see and do what", keywords: "access rights" },
     { href: "/admin/org", label: "Organisation", icon: "building", desc: "Branches, departments, teams", keywords: "branch hierarchy manager team leader" },
     { href: "/billing", label: "Billing & plan", icon: "wallet", desc: "Your plan, renew, payments", keywords: "subscription payment renew upi razorpay invoice" },
+    { href: "/admin/security", label: "Security & logins", icon: "key", desc: "OTP two-factor login, login history", keywords: "otp two factor 2fa authenticator login history sign in password" },
+    { href: "/admin/export", label: "Data export / backup", icon: "download", desc: "Download all company data (ZIP)", keywords: "backup download all data excel csv zip" },
     { href: "/admin/audit", label: "Audit log", icon: "clock", desc: "Who changed what, and when", keywords: "history activity" },
   ] },
   { label: "Leads", icon: "target", tone: "green", links: [

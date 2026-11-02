@@ -1,4 +1,6 @@
-import { requireProfile, isAdmin, can, ROLE_LABEL } from "@/lib/auth";
+import { requireProfile, isAdmin, can, ROLE_LABEL, getPageAccess } from "@/lib/auth";
+import { headers } from "next/headers";
+import { allowed, pageForPath } from "@/lib/page-access";
 import { cookies } from "next/headers";
 import { Shell, BackHome, type NavGroup, type CompanySwitch } from "@/components/shell";
 import { DayBrief, type Brief } from "@/components/day-brief";
@@ -33,7 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every page keeps the same permission check it had before; a group with no visible items is dropped.
   const it = (ok: boolean, href: string, label: string, keywords?: string) => (ok ? [{ href, label, ...(keywords ? { keywords } : {}) }] : []);
   const reports = can(profile, "reports.view");
-  const nav: NavGroup[] = [
+  const navAll: NavGroup[] = [
     { section: "Work", label: "Dashboard", icon: "grid", href: "/dashboard" },
     { section: "Work", label: "Sales", icon: "target", items: [
       { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" },
@@ -108,8 +110,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/platform/billing", label: "Plan payments", keywords: "subscription upi utr renew billing" },
     ] }] : []),
   ];
+  // Page-wise role access (Admin → Roles & permissions → Page access): hide pages this role cannot view.
+  const pageAccess = await getPageAccess();
+  const canSee = (href: string) => { const pg = pageForPath(href.split("?")[0]); return !pg || allowed(pageAccess, pg); };
+  const nav: NavGroup[] = navAll
+    .map((g) => (g.items ? { ...g, items: g.items.filter((i) => canSee(i.href)) } : g))
+    .filter((g) => (g.items ? g.items.length > 0 : !g.href || canSee(g.href)));
+  const path = (await headers()).get("x-lb-path") ?? "";
+  // Onboarding wizard reminder for admins of a company that has not finished setup.
+  let onboarding = false;
+  if (admin && !path.startsWith("/onboarding")) {
+    const { data: ob, error: obErr } = await createClient().then((c) => c.from("lb_companies").select("onboarded_at").eq("id", profile.company_id).maybeSingle());
+    onboarding = !obErr && !!ob && !ob.onboarded_at;
+  }
   // Quick Create: shortcuts to existing "new" screens, same permission checks as those pages.
-  const quick = [
+  const quickAll = [
     ...it(can(profile, "leads.create"), "/leads/new", "New lead"),
     ...it(can(profile, "leads.import"), "/import", "Import leads (Excel / CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
@@ -123,6 +138,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(admin, "/whatsapp/flows/new", "New chatbot flow"),
     ...it(admin, "/admin/users", "Add user"),
   ];
+  const quick = quickAll.filter((q) => canSee(q.href));
   // Hindi / English: menu labels are translated here; the English label stays searchable.
   const jar = await cookies();
   const lang = parseLang(jar.get(LANG_COOKIE)?.value);
@@ -175,6 +191,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {admin && !demo && renewDays != null && renewDays > 0 && renewDays <= 7 && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
           Your plan ends in {renewDays} day{renewDays === 1 ? "" : "s"} ({fmtDateTime(billing!.paid_until)}). <Link href="/billing" className="font-medium underline">Renew now</Link> so your team keeps working.
+        </div>
+      )}
+      {onboarding && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900 sm:px-4">
+          <span><span className="font-semibold">Finish setting up {company?.name}</span> · A few quick steps: WhatsApp number, team, lead stages and your first leads.</span>
+          <Link href="/onboarding" className="btn-primary btn-sm">Continue setup</Link>
         </div>
       )}
       {children}

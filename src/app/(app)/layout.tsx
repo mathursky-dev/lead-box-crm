@@ -85,6 +85,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
       ...it(admin, "/profit-loss", "Profit & Loss", "p&l pnl ad spend revenue roi"),
     ] },
+    { section: "Help", label: "Features & Guide", icon: "book", href: "/guide" },
     ...(admin ? [{ section: "Admin", label: "Settings", icon: "gear", items: [
       { href: "/settings", label: "All settings", keywords: "admin manage configuration setup" },
       { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users", keywords: "team agent staff" },

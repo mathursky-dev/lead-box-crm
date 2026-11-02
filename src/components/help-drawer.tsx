@@ -32,7 +32,7 @@ const GUIDES: Guide[] = [
   { cat: "Sales", icon: "upload", href: "/import", title: "Import leads (CSV)", sub: "Map columns, preview validation and duplicates, then import. Product, source, branch, department and tags are matched by name; owner by email." },
   { cat: "Sales", icon: "calendar", href: "/followups", title: "Follow-ups", sub: "Times shown in IST. Reminders arrive as in-app notifications 15 minutes before due." },
   { cat: "Sales", icon: "user", href: "/customers", title: "Customer 360", sub: "Every customer you can access. Open one to see chats, leads, notes, follow-ups and the full timeline." },
-  { cat: "Sales", icon: "list", href: "/admin/statuses", title: "Lead statuses", sub: "Sales statuses (separate from chat Open/Pending/Resolved). Each maps to a stable reporting category so reports survive renames." },
+  { cat: "Sales", icon: "list", href: "/settings/statuses", title: "Lead settings", sub: "Statuses (sequence, colour), sources, tags, departments, custom fields and lead capture forms." },
   { cat: "Sales", icon: "refresh", href: "/admin/allocation", title: "Lead allocation", sub: "Per source (WhatsApp, Facebook, Website, Others), pick users with a ratio and a max leads per day. New leads of that source go to them in turns by ratio; users at their daily max, switched off or away are skipped." },
   // Inbox
   wa("/whatsapp/live-chat", "Inbox"), wa("/whatsapp/contacts", "Inbox"), wa("/whatsapp/send", "Inbox"), wa("/whatsapp/templates", "Inbox"),

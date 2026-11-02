@@ -59,7 +59,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { label: "Manage", icon: "gear", items: [
         { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users" }, { href: "/admin/roles", label: "Roles & permissions" },
         { href: "/admin/org", label: "Organisation" }, { href: "/admin/numbers", label: "WhatsApp numbers" }, { href: "/admin/templates", label: "Templates" },
-        { href: "/admin/allocation", label: "Allocation" }, { href: "/admin/statuses", label: "Statuses" }, { href: "/admin/catalog", label: "Products · Sources · Tags" },
+        { href: "/admin/allocation", label: "Allocation" }, { href: "/settings", label: "Lead settings", keywords: "status source tags department custom fields forms" }, { href: "/admin/catalog", label: "Products · Quick replies" },
         { href: "/admin/settings", label: "Settings" }, { href: "/admin/audit", label: "Audit log" },
       ] },
       { label: "Integrations", icon: "link", items: [

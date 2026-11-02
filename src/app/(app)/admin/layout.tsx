@@ -3,7 +3,7 @@ import { SectionTabs } from "@/components/section-tabs";
 
 const TABS = [
   ["/admin/quick-setup", "Quick Setup", "bolt"], ["/admin/users", "Users", "contacts"], ["/admin/roles", "Roles & permissions", "shield"], ["/admin/org", "Organisation", "building"], ["/admin/integrations", "Integrations", "link"], ["/admin/numbers", "WhatsApp numbers", "phone"], ["/admin/templates", "Templates", "template"],
-  ["/admin/allocation", "Allocation", "refresh"], ["/admin/statuses", "Statuses", "list"], ["/admin/catalog", "Products · Sources · Tags · Quick replies", "tag"],
+  ["/admin/allocation", "Allocation", "refresh"], ["/settings", "Lead settings", "list"], ["/admin/catalog", "Products · Quick replies", "tag"],
   ["/admin/settings", "Settings", "gear"], ["/admin/audit", "Audit log", "clock"],
 ] as const;
 

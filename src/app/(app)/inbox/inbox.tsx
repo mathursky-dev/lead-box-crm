@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { sendText, startUpload, sendUploaded, sendTemplate, retryMessage, conversationAction, sendReaction } from "@/lib/actions/inbox";
 import { changeStatus, addFollowup } from "@/lib/actions/leads";
-import { aiSummary, aiSuggestReply } from "@/lib/actions/ai";
+import { aiSummary, aiSuggestReply, aiSuggestReplies } from "@/lib/actions/ai";
+import { AiScoreChip } from "@/components/ai-score";
 import { complaintAction, customerPause } from "@/lib/actions/automation";
 import { fmtClock, fmtDateTime, fmtDay } from "@/lib/dates";
 import { Modal } from "@/components/ui";
@@ -240,6 +241,16 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   const [uploading, setUploading] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const clientId = useRef<string>(crypto.randomUUID()); // stable per draft => retries are idempotent
+  // AI ready replies (3 options) shown above the composer; the agent picks one, edits and sends.
+  const [sugs, setSugs] = useState<{ label: string; text: string }[] | null>(null);
+  const [sugBusy, setSugBusy] = useState(false);
+  useEffect(() => { setSugs(null); setSugBusy(false); }, [conv.id]);
+  const loadSugs = async () => {
+    setSugBusy(true); setErr(undefined);
+    const r = await aiSuggestReplies(conv.id);
+    setSugBusy(false);
+    if (r.error) setErr(r.error); else setSugs(r.replies ?? []);
+  };
   // AI drafts arrive from the details pane; the agent reviews/edits before sending.
   useEffect(() => {
     const h = (e: Event) => { const d = (e as CustomEvent<{ conv: string; text: string }>).detail; if (d.conv === conv.id) { setNoteMode(false); setText(d.text); } };
@@ -312,6 +323,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
           <div className="truncate text-xs text-slate-500">{conv.phone_e164} · {conv.number_label} · {conv.assignee_name ?? "Unassigned"}
             {conv.wa_opted_out_at && <span className="ml-1 text-red-600">· opted out</span>}</div>
         </div>
+        <AiScoreChip convId={conv.id} leadId={conv.lead_id} canAi={me.canAi} />
         <select className="input w-auto py-1 text-xs" value={conv.status} aria-label="Conversation status"
           onChange={async (e) => { const r = await conversationAction(conv.id, "status", { status: e.target.value }); if (r.error) setErr(r.error); onChanged(); }}>
           <option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option>
@@ -390,6 +402,24 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
                 {qr.map((x) => <button key={x.shortcut} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50" onClick={() => setText(x.body)}><span className="font-mono text-brand-700">/{x.shortcut}</span> {x.title}</button>)}
               </div>
             )}
+            {sugs && !noteMode && (
+              <div className="mb-1 rounded-lg border border-violet-200 bg-violet-50/60 p-1.5">
+                <div className="mb-1 flex items-center justify-between px-1 text-[11px] font-medium text-violet-800">
+                  <span>✨ AI ready replies. Click one to put it in the box, then check and send.</span>
+                  <span className="flex gap-2"><button className="underline" disabled={sugBusy} onClick={loadSugs}>{sugBusy ? "…" : "More"}</button><button onClick={() => setSugs(null)} aria-label="Close AI replies">✕</button></span>
+                </div>
+                {sugs.length === 0 && <div className="px-1 text-xs text-slate-500">No suggestion this time.</div>}
+                <div className="flex flex-col gap-1 sm:flex-row">
+                  {sugs.map((x, i) => (
+                    <button key={i} className="flex-1 rounded-md border border-violet-100 bg-white px-2 py-1.5 text-left text-xs text-slate-800 shadow-sm hover:border-violet-400"
+                      onClick={() => { setText(x.text); setSugs(null); }}>
+                      {x.label && <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-violet-700">{x.label}</span>}
+                      <span className="line-clamp-4 whitespace-pre-wrap">{x.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {replyTo && !noteMode && (
               <div className="mb-1 flex items-center gap-2 rounded border-l-4 border-brand-500 bg-slate-50 px-2 py-1 text-xs">
                 <span className="min-w-0 flex-1 truncate"><b>Replying to {replyTo.direction === "in" ? name(conv) : "you"}:</b> {snippet(replyTo)}</span>
@@ -408,6 +438,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
             </div>
             <div className="mt-1 flex gap-3 text-[11px] text-slate-500">
               <label className="flex items-center gap-1"><input type="checkbox" checked={noteMode} onChange={(e) => setNoteMode(e.target.checked)} /> Internal note</label>
+              {me.canAi && !noteMode && <button className="font-medium text-violet-700 hover:underline" disabled={sugBusy} onClick={loadSugs}>{sugBusy ? "✨ Thinking…" : "✨ AI replies"}</button>}
               {isOpenWindow && <span>Window open until {fmtDateTime(new Date(new Date(conv.last_inbound_at!).getTime() + 86400000).toISOString())}</span>}
               {!isOpenWindow && <button className="text-brand-700" onClick={() => setTpl(true)}>Send template</button>}
             </div>

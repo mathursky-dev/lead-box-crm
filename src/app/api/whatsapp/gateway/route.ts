@@ -1,4 +1,5 @@
 import { NextResponse, after, type NextRequest } from "next/server";
+import { autoScoreConversations } from "@/lib/lead-score";
 import { createHash } from "node:crypto";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { verifyMetaSignature } from "@/lib/util";
@@ -40,8 +41,11 @@ export async function POST(req: NextRequest) {
   const id = data?.[0]?.id;
   if (id) {
     after(async () => {
-      try { await processWebhookEvent(id); } catch (e) { console.error("gateway event failed; will retry via jobs:", (e as Error).message); }
+      let convs: string[] = [];
+      try { convs = await processWebhookEvent(id); } catch (e) { console.error("gateway event failed; will retry via jobs:", (e as Error).message); }
       await drainOutbox(10000).catch(() => {});
+      // AI lead score (Hot/Warm/Cold) refresh after replies went out; best effort.
+      await autoScoreConversations(convs).catch(() => {});
     });
   }
   return NextResponse.json({ ok: true });

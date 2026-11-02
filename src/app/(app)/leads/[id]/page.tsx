@@ -8,6 +8,8 @@ import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { statusOf } from "@/lib/tasks";
 import { Timeline, type Ev } from "@/components/timeline";
 import { CustomFieldsPanel } from "./custom-fields";
+import { AiScoreBadge, AiScoreCard } from "@/components/ai-score";
+import { aiConfigured } from "@/lib/ai";
 import type { CustomField } from "@/lib/settings-shared";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
@@ -17,7 +19,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const { id } = await params;
   const { created } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const { profile } = await requireProfile();
+  const { profile, features } = await requireProfile();
   const sb = await createClient();
   const { data: lead } = await sb.from("lb_leads").select("*, customer:lb_customers(*), status:lb_lead_statuses(name,category), owner:lb_profiles!lb_leads_owner_id_fkey(full_name,is_active)").eq("id", id).maybeSingle();
   if (!lead) notFound();
@@ -25,6 +27,9 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   let seenAt: string | null = lead.owner_seen_at ?? null;
   if (lead.owner_id === profile.id && !seenAt && !(await sb.rpc("lb_mark_lead_seen", { p_lead: id })).error) seenAt = new Date().toISOString();
   const refs = await loadRefs();
+  const { data: co } = await sb.from("lb_companies").select("ai_enabled").eq("id", lead.company_id).maybeSingle();
+  const canAi = features.includes("ai") && can(profile, "ai.use") && Boolean(co?.ai_enabled) && aiConfigured();
+  const ai = lead as { ai_score?: string | null; ai_score_points?: number | null; ai_score_reason?: string | null; ai_next_step?: string | null; ai_scored_at?: string | null };
   const [{ data: events }, { data: followups }, { data: tags }, { data: convs }, { data: siblings }, { data: enr }, { data: journeys }, { data: cfs }] = await Promise.all([
     sb.from("lb_lead_events").select("id,type,is_work,reason,data,created_at,to_category,actor_id,from_user_id,to_user_id,from_status_id,to_status_id").eq("lead_id", id).order("created_at", { ascending: false }).limit(200),
     sb.from("lb_followups").select("id,due_at,note,status,assigned_to,completed_at,action_type").eq("lead_id", id).order("due_at", { ascending: false }),
@@ -61,6 +66,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             <StatusBadge name={st.name} category={st.category} />
             {subSt && <span className="badge bg-slate-100 text-slate-700">{subSt.name}</span>}
             <span className={`badge capitalize ${PRIORITY_STYLE[lead.priority]}`}>{lead.priority}</span>
+            <AiScoreBadge score={ai.ai_score} points={ai.ai_score_points} reason={ai.ai_score_reason} />
             {lead.is_repeat && <span className="badge bg-sky-50 text-sky-700">Repeat opportunity</span>}
           </div>
           <div className="mt-1 text-sm">
@@ -93,6 +99,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           </section>
         </div>
         <div className="space-y-4">
+          <AiScoreCard leadId={lead.id} canAi={canAi} initial={{ score: ai.ai_score ?? null, points: ai.ai_score_points ?? null, reason: ai.ai_score_reason ?? null, next_step: ai.ai_next_step ?? null, scored_at: ai.ai_scored_at ?? null }} />
           <LeadTasks leadId={lead.id} />
           {can(profile, "leads.assign") && (
             <AssignPanel leadId={lead.id} ownerId={lead.owner_id} users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />

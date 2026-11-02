@@ -3,11 +3,11 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, TILE } from "@/components/kit";
 import {
-  addAllocSource, setAllocSourceActive, deleteAllocSource, assignWaiting,
+  addAllocSource, saveAllocCity, setAllocSourceActive, deleteAllocSource, assignWaiting,
   addAllocMember, updateAllocMember, setAllocMemberActive, deleteAllocMember,
 } from "@/lib/actions/allocation";
 
-export type AllocRow = { id: string; sourceId: string | null; name: string; active: boolean; waiting: number };
+export type AllocRow = { id: string; sourceId: string | null; name: string; active: boolean; waiting: number; cities: string[] | null; sourceName?: string | null };
 export type MemberRow = { id: string; allocId: string; userId: string; ratio: number; maxPerDay: number | null; active: boolean; today: number; total: number };
 export type UserLite = { id: string; name: string; active: boolean; open: number; block: string | null };
 type Res = { error?: string; ok?: string };
@@ -144,6 +144,107 @@ export function AllocationBoard({ rows, members, users, addable }: { rows: Alloc
       </div>
       <div className="border-t border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-navy-900">{list.length} record{list.length === 1 ? "" : "s"}</div>
 
+      {current && <DetailsModal row={current} members={members.filter((m) => m.allocId === current.id)} users={users} onClose={() => setOpenId(null)} />}
+    </section>
+  );
+}
+
+// ------------------------------------------------------------------ city-wise lists
+function CityForm({ row, sources, pending, onSave, onCancel }: {
+  row?: AllocRow; sources: { id: string; name: string }[]; pending: boolean; onSave: (v: { name: string; cities: string; source: string }) => void; onCancel?: () => void;
+}) {
+  const [name, setName] = useState(row?.name ?? "");
+  const [cities, setCities] = useState(row?.cities?.join(", ") ?? "");
+  const [source, setSource] = useState(row?.sourceId ?? "any");
+  return (
+    <div className="grid items-end gap-3 sm:grid-cols-[1fr_1.6fr_1fr_auto]">
+      <label className="block"><span className="label">List name</span><input className="input" placeholder="e.g. Rajasthan team" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <label className="block"><span className="label">Cities (comma separated)</span><input className="input" placeholder="Jaipur, Ajmer, Kota" value={cities} onChange={(e) => setCities(e.target.value)} /></label>
+      <label className="block"><span className="label">Lead source</span>
+        <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
+          <option value="any">Any source</option>{sources.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </label>
+      <div className="flex gap-2">
+        <button type="button" className="btn-primary" disabled={!cities.trim() || pending} onClick={() => onSave({ name, cities, source })}>
+          {row ? "Save" : <><Icon name="plus" className="h-4 w-4" /> Add</>}
+        </button>
+        {onCancel && <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>}
+      </div>
+    </div>
+  );
+}
+
+export function CityBoard({ rows, members, users, sources }: { rows: AllocRow[]; members: MemberRow[]; users: UserLite[]; sources: { id: string; name: string }[] }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [formKey, setFormKey] = useState(0);
+  const { pending, msg, run } = useRun();
+  const userName = new Map(users.map((u) => [u.id, u.name]));
+  const current = rows.find((r) => r.id === openId) ?? null;
+
+  return (
+    <section className="card mt-4 overflow-hidden">
+      <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-navy-900">
+          <span className="grid h-7 w-7 place-items-center rounded-md bg-sky-50 text-sky-600"><Icon name="globe" className="h-3.5 w-3.5" /></span>
+          City-wise allocation
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Leads whose customer city matches a list go to that list&apos;s users first (round-robin by ratio). If nobody there can take the lead,
+          the source list above is used. The city comes from the customer&apos;s City / location (lead form, import, or the chatbot&apos;s &quot;Update contact → City&quot; block).
+        </p>
+      </div>
+      <div className="space-y-2 px-4 py-3">
+        <CityForm key={formKey} sources={sources} pending={pending} onSave={(v) => run(() => saveAllocCity(null, v), () => setFormKey((k) => k + 1))} />
+        <Msg msg={msg} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] text-sm">
+          <thead className="bg-slate-50"><tr><th className="th">List</th><th className="th">Cities</th><th className="th">Source</th><th className="th">Users · ratio</th><th className="th">Status</th><th className="th">Actions</th></tr></thead>
+          <tbody className="divide-y">
+            {rows.map((r) => {
+              const on = members.filter((m) => m.allocId === r.id && m.active);
+              if (editId === r.id) return (
+                <tr key={r.id}><td className="td" colSpan={6}>
+                  <CityForm row={r} sources={sources} pending={pending} onCancel={() => setEditId(null)} onSave={(v) => run(() => saveAllocCity(r.id, v), () => setEditId(null))} />
+                </td></tr>
+              );
+              return (
+                <tr key={r.id} className="hover:bg-slate-50/60">
+                  <td className="td font-medium text-navy-900"><button type="button" className="hover:text-brand-700 hover:underline" onClick={() => setOpenId(r.id)}>{r.name}</button></td>
+                  <td className="td"><div className="flex max-w-xs flex-wrap gap-1">{r.cities?.map((c) => <span key={c} className="badge bg-sky-50 text-sky-700">{c}</span>)}</div></td>
+                  <td className="td text-slate-600">{r.sourceName ?? "Any source"}</td>
+                  <td className="td">
+                    {on.length ? (
+                      <div className="flex flex-wrap gap-1">{on.map((m) => <span key={m.id} className="badge bg-slate-100 text-navy-800">{userName.get(m.userId) ?? "?"} <b className="text-violet-600">{m.ratio}</b></span>)}</div>
+                    ) : <span className="text-xs font-medium text-amber-600">No users yet. Source list is used.</span>}
+                  </td>
+                  <td className="td">
+                    <div className="flex items-center gap-2">
+                      <Switch on={r.active} label={`${r.name} ${r.active ? "on" : "off"}`} disabled={pending} onChange={(v) => run(() => setAllocSourceActive(r.id, v))} />
+                      <span className={`badge ${r.active ? "bg-brand-50 text-brand-700" : "bg-slate-100 text-slate-500"}`}>{r.active ? "Active" : "Inactive"}</span>
+                    </div>
+                  </td>
+                  <td className="td">
+                    <div className="flex items-center gap-1.5">
+                      <IconBtn icon="user" tone="sky" label="Users, ratio and max per day" onClick={() => setOpenId(r.id)} />
+                      <IconBtn icon="pencil" tone="slate" label="Edit cities" onClick={() => setEditId(r.id)} />
+                      {r.active && on.length > 0 && (
+                        <IconBtn icon="send" tone="violet" label="Assign waiting leads of these cities now" disabled={pending}
+                          onClick={() => window.confirm(`Assign unassigned leads from ${r.cities?.join(", ")} now?`) && run(() => assignWaiting(r.id))} />
+                      )}
+                      <IconBtn icon="trash" tone="red" label="Delete city list" disabled={pending}
+                        onClick={() => window.confirm(`Delete city list ${r.name}? Already assigned leads stay as they are.`) && run(() => deleteAllocSource(r.id))} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!rows.length && <div className="px-4 py-6 text-center text-sm text-slate-500">No city lists yet. Optional: add one above to send e.g. Jaipur leads to your Jaipur team.</div>}
+      </div>
       {current && <DetailsModal row={current} members={members.filter((m) => m.allocId === current.id)} users={users} onClose={() => setOpenId(null)} />}
     </section>
   );
@@ -290,11 +391,11 @@ function DetailsModal({ row, members, users, onClose }: { row: AllocRow; members
                 })}
               </tbody>
             </table>
-            {!members.length && <div className="px-4 py-6 text-center text-sm text-slate-500">No users yet. Until you add one, {row.name} leads stay unassigned.</div>}
+            {!members.length && <div className="px-4 py-6 text-center text-sm text-slate-500">{row.cities ? "No users yet. Until you add one, these cities fall back to the source list." : `No users yet. Until you add one, ${row.name} leads stay unassigned.`}</div>}
           </div>
 
           <p className="text-xs text-slate-500">
-            New {row.name} leads go to these users in turns by ratio{example ? ` (${example}: out of every ${sum} leads each gets their ratio)` : ""}.
+            New {row.cities ? `leads from ${row.cities.join(", ")}${row.sourceName ? ` (${row.sourceName})` : ""}` : `${row.name} leads`} go to these users in turns by ratio{example ? ` (${example}: out of every ${sum} leads each gets their ratio)` : ""}.
             A user who reaches their max for the day is skipped until tomorrow (IST). Users who are switched off, away, outside working hours,
             opted out of auto-allocation or at their open-lead limit are skipped too. If nobody can take a lead, it stays unassigned.
           </p>

@@ -10,6 +10,7 @@ export default async function NurtureLayout({ children }: { children: React.Reac
   const tabs: [string, string, boolean, string][] = [
     ["/nurture", "Action queues", true, "list"],
     ["/nurture/journeys", "Journeys", true, "flow"],
+    ["/nurture/drip", "Drip campaigns", true, "clock"],
     ["/nurture/campaigns", "Campaigns", can(profile, "campaigns.manage") || can(profile, "campaigns.approve"), "megaphone"],
     ["/nurture/segments", "Segments", can(profile, "campaigns.manage"), "layers"],
     ["/nurture/offers", "Offers", can(profile, "campaigns.manage") || can(profile, "campaigns.approve"), "gift"],

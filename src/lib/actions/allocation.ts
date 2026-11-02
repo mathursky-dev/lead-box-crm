@@ -39,7 +39,7 @@ export async function addAllocSource(source: string): Promise<Res> {
     const { data } = await sb.from("lb_sources").select("id").eq("id", sourceId).eq("company_id", me.company_id).maybeSingle();
     if (!data) return { error: "Invalid source." };
   }
-  const q = sb.from("lb_alloc_sources").select("id").eq("company_id", me.company_id);
+  const q = sb.from("lb_alloc_sources").select("id").eq("company_id", me.company_id).is("cities", null);
   const { data: dupe } = await (sourceId ? q.eq("source_id", sourceId) : q.is("source_id", null)).maybeSingle();
   if (dupe) return { error: "This source is already in the list." };
   const { data, error } = await sb.from("lb_alloc_sources").insert({ company_id: me.company_id, source_id: sourceId, is_active: true }).select("id").single();
@@ -47,6 +47,55 @@ export async function addAllocSource(source: string): Promise<Res> {
   await audit(me.company_id, me.id, "allocation.source_add", data.id, { source_id: sourceId });
   revalidatePath(PATH);
   return { ok: "Source added. Now add users to it." };
+}
+
+const cityInput = z.object({
+  name: z.string().trim().max(60).optional().default(""),
+  cities: z.string().trim().min(1, "Type at least one city"),
+  source: z.string().optional().default(""),
+});
+
+/** Parse "Jaipur, Ajmer\nKota" into a clean, de-duplicated city list. */
+function parseCities(raw: string) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of raw.split(/[,\n;]+/).map((x) => x.trim().replace(/\s+/g, " ")).filter(Boolean)) {
+    const k = c.toLowerCase();
+    if (!seen.has(k) && c.length <= 60) { seen.add(k); out.push(c); }
+  }
+  return out.slice(0, 50);
+}
+
+async function citySource(sb: Awaited<ReturnType<typeof createClient>>, companyId: string, source: string) {
+  if (!source || source === "any") return { sourceId: null as string | null };
+  if (!id.safeParse(source).success) return { error: "Invalid source." };
+  const { data } = await sb.from("lb_sources").select("id").eq("id", source).eq("company_id", companyId).maybeSingle();
+  return data ? { sourceId: source } : { error: "Invalid source." };
+}
+
+/** City-wise list: leads whose customer city matches go to these users first (before the source list). */
+export async function saveAllocCity(allocId: string | null, input: { name: string; cities: string; source: string }): Promise<Res> {
+  const { me, sb } = await ctx();
+  const p = cityInput.safeParse(input);
+  if (!p.success) return { error: p.error.issues[0].message };
+  const cities = parseCities(p.data.cities);
+  if (!cities.length) return { error: "Type at least one city" };
+  const src = await citySource(sb, me.company_id, p.data.source);
+  if ("error" in src) return { error: src.error };
+  const row = { name: p.data.name || cities.slice(0, 3).join(", "), cities, source_id: src.sourceId };
+  if (allocId) {
+    if (!id.safeParse(allocId).success || !(await ownAlloc(sb, allocId, me.company_id))) return { error: "Invalid list." };
+    const { error } = await sb.from("lb_alloc_sources").update(row).eq("id", allocId).eq("company_id", me.company_id).not("cities", "is", null);
+    if (error) return { error: error.message };
+    await audit(me.company_id, me.id, "allocation.city_update", allocId, row);
+    revalidatePath(PATH);
+    return { ok: "City list saved." };
+  }
+  const { data, error } = await sb.from("lb_alloc_sources").insert({ company_id: me.company_id, is_active: true, ...row }).select("id").single();
+  if (error) return { error: error.message };
+  await audit(me.company_id, me.id, "allocation.city_add", data.id, row);
+  revalidatePath(PATH);
+  return { ok: "City list added. Now add users to it." };
 }
 
 export async function setAllocSourceActive(allocId: string, active: boolean): Promise<Res> {

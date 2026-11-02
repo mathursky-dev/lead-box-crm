@@ -26,7 +26,7 @@ export default async function JourneysPage() {
     <>
       <PageHeader icon="flow" tone="violet" title="Nurturing journeys"
         sub="Automated sequences of approved-template messages, agent tasks, waits and branches. One running journey per lead; lower priority number wins conflicts. Drafts never run: preview and publish to create a version. Eligibility, consent, caps and quiet hours are rechecked before every send."
-        actions={manage ? <Link className="btn-primary" href="/nurture/journeys/new">+ New journey</Link> : null} />
+        actions={manage ? <span className="flex gap-2"><Link className="btn-ghost" href="/nurture/drip/new">+ Simple drip</Link><Link className="btn-primary" href="/nurture/journeys/new">+ New journey</Link></span> : null} />
       {!journeys?.length ? <Empty title="No journeys yet">{manage ? "Create one to start nurturing leads automatically." : "Ask an admin to set up journeys."}</Empty> : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[1000px] text-sm">

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { money } from "@/lib/dates";
 
-// Hand-drawn SVG charts for /analytics (no chart library in this app).
+// Hand-drawn SVG charts for the Dashboard (/dashboard) (no chart library in this app).
 // Colours come from the caller and follow the entity (status, source, activity type), never its rank.
 
 export type Slice = { key: string; label: string; value: number; color: string; href?: string; sub?: string };

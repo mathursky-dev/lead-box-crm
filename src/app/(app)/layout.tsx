@@ -12,6 +12,7 @@ import { fmtDateTime } from "@/lib/dates";
 import { isDemoCompany } from "@/lib/demo";
 import { settingsGroups } from "@/lib/settings-nav";
 import { LANG_COOKIE, parseLang, tr } from "@/lib/i18n";
+import { brandCss, brandLogo, getUserBrand } from "@/lib/brand";
 
 function istGreeting() {
   const now = new Date();
@@ -24,6 +25,9 @@ function istGreeting() {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, company, billing, features, homeCompanyId } = await requireProfile();
   const demo = await isDemoCompany(profile.company_id);
+  // White-label: the company's partner brand (logo + colours), if any.
+  const brand = await getUserBrand();
+  const reseller = Boolean(brand?.is_owner) && isAdmin(profile);
   const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const admin = isAdmin(profile);
   // Paid plan ending within 7 days: remind admins to renew (bell reminders also go out 7/3/1 days before).
@@ -103,12 +107,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/settings/statuses", label: "Lead settings", keywords: "status source tags department custom fields forms" },
       { href: "/admin/lead-sources", label: "Integrations", keywords: "google ads indiamart justdial website chat widget zapier pabbly webhook sync api" },
       // Every other settings page stays reachable from menu search and Ctrl+K, without crowding the menu.
-      ...settingsGroups(features).flatMap((g) => g.links).map((l) => ({ href: l.href, label: l.label, keywords: `${l.desc} ${l.keywords ?? ""}`, hidden: true })),
+      ...settingsGroups(features, { reseller }).flatMap((g) => g.links).map((l) => ({ href: l.href, label: l.label, keywords: `${l.desc} ${l.keywords ?? ""}`, hidden: true })),
     ] }] : []),
     // SaaS owner console (companies, plans, billing) — platform Super Admin only.
     ...(profile.role === "super_admin" ? [{ section: "Admin", label: "Platform", icon: "building", items: [
       { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" }, { href: "/platform/wallet", label: "Wallet payments" },
       { href: "/platform/billing", label: "Plan payments", keywords: "subscription upi utr renew billing" },
+      { href: "/platform/brands", label: "White-label brands", keywords: "reseller partner logo domain branding" },
     ] }] : []),
   ];
   // Page-wise role access (Admin → Roles & permissions → Page access): hide pages this role cannot view.
@@ -166,13 +171,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     switcher = { current: profile.company_id, home: homeCompanyId, companies: (cos ?? []).map((c) => ({ id: c.id as string, name: c.name as string, active: c.is_active !== false })) };
   }
 
+  // Branch access: a user locked to one branch sees its name next to the company.
+  let branchLabel = "";
+  if ((profile as { branch_scope?: boolean }).branch_scope && profile.branch_id && profile.role !== "super_admin") {
+    const { data: br } = await sb.from("lb_branches").select("name").eq("id", profile.branch_id).maybeSingle();
+    if (br?.name) branchLabel = ` · ${br.name}`;
+  }
+  const css = brandCss(brand);
+
   let brief: Brief | null = null;
   if (jar.get("lb_brief")) {
     const { data } = await sb.rpc("lb_day_brief");
     brief = data as Brief | null;
   }
   return (
-    <Shell nav={navT} quick={quickT} lang={lang} wallet={walletBalance} switcher={switcher} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+    <Shell nav={navT} quick={quickT} lang={lang} wallet={walletBalance} switcher={switcher} brand={brandLogo(brand)} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: (company?.name ?? "") + branchLabel }}>
+      {css && <style dangerouslySetInnerHTML={{ __html: css }} />}
       {away && (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 sm:px-4 sm:text-sm">
           <span><span className="font-semibold">Super Admin view</span> · You are working inside <span className="font-semibold">{company?.name}</span>. Everything you see and change here is this company&apos;s data.</span>

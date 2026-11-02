@@ -6,6 +6,7 @@ import { PageHeader, ErrorBox } from "@/components/static";
 import { Kpi, Panel } from "@/components/kit";
 import { fmtDateTime, fmtDay } from "@/lib/dates";
 import { companyStatus, accessEnds, inr, priceFor, priceLabel, limitLabel, FEATURES, STATUS_BADGE, type BillingRow, type Plan } from "@/lib/plans";
+import { CompanyBrandForm } from "@/components/brand-forms";
 import { ChangePlanForm, TrialForm, ManualPaymentButton, SuspendForm, InternalForm, WalletForm, NotesForm, PasswordButton } from "../../forms";
 
 export const metadata = { title: "Company" };
@@ -19,7 +20,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   if (!hasServiceRole()) return <ErrorBox message="SUPABASE_SERVICE_ROLE_KEY is missing on the server." />;
   const db = createAdminClient();
   const [{ data: company }, { data: b }, { data: plans }, { data: usage }, { data: users }, { data: payments }, { data: wallet }, { data: log }] = await Promise.all([
-    db.from("lb_companies").select("id,name,slug,created_at").eq("id", id).maybeSingle(),
+    db.from("lb_companies").select("id,name,slug,created_at,brand_id").eq("id", id).maybeSingle(),
     db.from("lb_billing").select("*").eq("company_id", id).maybeSingle(),
     db.from("lb_plans").select("*").order("sort"),
     db.rpc("lb_platform_usage"),
@@ -28,6 +29,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     db.from("lb_wallets").select("balance").eq("company_id", id).maybeSingle(),
     db.from("lb_audit_log").select("action,data,created_at").eq("company_id", id).like("action", "platform.%").order("created_at", { ascending: false }).limit(10),
   ]);
+  const { data: brands } = await db.from("lb_brands").select("id,name").order("name");
   if (!company) notFound();
   const billing = b as BillingRow | null;
   const allPlans = (plans ?? []) as Plan[];
@@ -68,6 +70,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
               <ManualPaymentButton companyId={id} seats={seats} suggested={plan ? priceFor(plan, seats) : 0} days={plan?.period_days ?? 30} />
               <InternalForm companyId={id} internal={billing?.plan === "internal"} />
             </div>
+            <div className="border-t border-slate-100 pt-3"><CompanyBrandForm companyId={id} brands={(brands ?? []) as { id: string; name: string }[]} current={(company as { brand_id?: string | null }).brand_id ?? null} /></div>
             {!own && <div className="border-t border-slate-100 pt-3"><SuspendForm companyId={id} suspended={Boolean(billing?.suspended_at)} /></div>}
           </div>
         </Panel>

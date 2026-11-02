@@ -13,6 +13,11 @@ type Db = ReturnType<typeof createAdminClient>;
 const opt = z.string().trim().transform((v) => v || null).nullable().optional();
 const uuidOpt = z.union([z.uuid(), z.literal("")]).optional().transform((v) => v || null);
 
+/** The branch a (non Super Admin) user is locked to by "Branch access", else null. */
+function myBranchLock(p: Profile) {
+  return p.role !== "super_admin" && (p as Profile & { branch_scope?: boolean }).branch_scope && p.branch_id ? p.branch_id : null;
+}
+
 async function audit(db: Db, me: Profile, action: string, entity: string, entityId: string | null, data: object = {}) {
   await db.from("lb_audit_log").insert({ company_id: me.company_id, actor_id: me.id, action, entity, entity_id: entityId, data });
 }
@@ -57,6 +62,7 @@ const userSchema = z.object({
   branch_id: uuidOpt, department_id: uuidOpt, team_id: uuidOpt,
   allocation_limit: z.string().optional().transform((v) => (v ? Math.max(0, parseInt(v, 10)) : null)),
   accepts_auto_allocation: z.string().optional().transform((v) => v === "on"),
+  branch_scope: z.string().optional().transform((v) => v === "on"),
   mode: z.enum(["password", "invite"]).default("password"),
   password: z.string().optional(),
 });
@@ -74,6 +80,9 @@ export async function createUser(_: FormState, form: FormData): Promise<FormStat
   if (v.mode === "password" && manual && (v.password ?? "").length < PASSWORD_MIN) return { error: `Password must be at least ${PASSWORD_MIN} characters.` };
   if (v.mode === "password" && manual && v.password !== form.get("password_confirm")) return { error: "Passwords do not match." };
   const permissions = Object.keys(PERMISSIONS).filter((k) => form.get(`perm_${k}`) === "on");
+  // A branch-locked admin only adds users to their own branch, also branch-locked.
+  if (myBranchLock(me)) { v.branch_id = me.branch_id; v.branch_scope = true; }
+  if (v.branch_scope && !v.branch_id) return { error: "Pick a branch to give branch access." };
   try {
     const db = createAdminClient();
     await assertOwned(db, me.company_id, { lb_branches: v.branch_id, lb_departments: v.department_id, lb_teams: v.team_id });
@@ -97,7 +106,7 @@ export async function createUser(_: FormState, form: FormData): Promise<FormStat
     const { error } = await db.from("lb_profiles").insert({
       id: userId, company_id: me.company_id, role: v.role, full_name: v.full_name, email, username: v.username, phone: v.phone,
       branch_id: v.branch_id, department_id: v.department_id, team_id: v.team_id, permissions,
-      allocation_limit: v.allocation_limit, accepts_auto_allocation: v.accepts_auto_allocation,
+      allocation_limit: v.allocation_limit, accepts_auto_allocation: v.accepts_auto_allocation, branch_scope: v.branch_scope && v.role !== "super_admin",
     });
     if (error) {
       await db.auth.admin.deleteUser(userId); // don't leave a login without a profile
@@ -151,6 +160,13 @@ export async function updateUser(_: FormState, form: FormData): Promise<FormStat
     if (!target || (target.company_id !== me.company_id && me.role !== "super_admin")) return { error: "User not found" };
     if ((v.role === "super_admin" || target.role === "super_admin") && me.role !== "super_admin") return { error: "Only a Super Admin can change Super Admin roles." };
     if (target.id === me.id && v.role !== me.role) return { error: "You cannot change your own role." };
+    // A branch-locked admin manages only their branch's users and cannot move anyone out of it (or unlock themselves).
+    if (myBranchLock(me)) {
+      if (target.branch_id !== me.branch_id) return { error: "You can only edit users of your branch." };
+      v.branch_id = me.branch_id;
+      v.branch_scope = target.id === me.id ? true : v.branch_scope || Boolean(target.branch_scope);
+    }
+    if (v.branch_scope && !v.branch_id) return { error: "Pick a branch to give branch access." };
     await assertOwned(db, target.company_id, { lb_branches: v.branch_id, lb_departments: v.department_id, lb_teams: v.team_id });
     const permissions = Object.keys(PERMISSIONS).filter((k) => form.get(`perm_${k}`) === "on");
     const teamAccess = form.getAll("team_access").map(String).filter(Boolean);
@@ -161,6 +177,7 @@ export async function updateUser(_: FormState, form: FormData): Promise<FormStat
     const { error } = await db.from("lb_profiles").update({
       full_name: v.full_name, phone: v.phone, role: v.role, branch_id: v.branch_id, department_id: v.department_id, team_id: v.team_id,
       permissions, allocation_limit: v.allocation_limit, accepts_auto_allocation: v.accepts_auto_allocation, updated_at: new Date().toISOString(),
+      branch_scope: v.branch_scope && v.role !== "super_admin",
       working_hours: workingHours(form), backup_user_id: backup,
     }).eq("id", target.id);
     if (error) return { error: error.message };
@@ -443,4 +460,35 @@ export async function savePageAccess(_: FormState, form: FormData): Promise<Form
     Object.fromEntries(limited.map((r) => [`${r.role}:${r.page}`, `${r.can_view ? "view" : "-"}${r.can_edit ? "/edit" : ""}${r.can_delete ? "/delete" : ""}`])));
   revalidatePath("/", "layout");
   return { ok: limited.length ? "Page access saved. It applies on each user's next page load." : "Saved. Agents and Team Leaders have full page access." };
+}
+
+// ---------------------------------------------------------- branch details
+const branchSchema = z.object({
+  id: z.uuid(),
+  code: z.string().trim().max(20).optional().transform((v) => v || null),
+  city: z.string().trim().max(80).optional().transform((v) => v || null),
+  address: z.string().trim().max(300).optional().transform((v) => v || null),
+  phone: z.string().trim().max(30).optional().transform((v) => v || null),
+  manager_id: uuidOpt,
+});
+
+/** Saves a branch's code, city, address, phone and manager (Company Admin). */
+export async function saveBranch(_: FormState, form: FormData): Promise<FormState> {
+  const { profile: me } = await requireAdmin();
+  const p = branchSchema.safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message ?? "Check the form." };
+  const { id, ...v } = p.data;
+  if (myBranchLock(me) && id !== me.branch_id) return { error: "You can only edit your own branch." };
+  try {
+    const db = createAdminClient();
+    await assertOwned(db, me.company_id, { lb_branches: id, lb_profiles: v.manager_id });
+    const supabase = await createClient(); // RLS: admin-only update
+    const { error } = await supabase.from("lb_branches").update(v).eq("id", id);
+    if (error) return { error: error.message };
+    await audit(db, me, "org.branch_update", "lb_branches", id, v);
+    revalidatePath("/admin/branches");
+    return { ok: "Branch saved." };
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
 }

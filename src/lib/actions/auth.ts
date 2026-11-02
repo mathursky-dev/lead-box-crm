@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { headers, cookies } from "next/headers";
 import { z } from "zod";
+import { getHostBrand } from "@/lib/brand";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { createHash } from "node:crypto";
 import { normalizePhone } from "@/lib/util";
@@ -154,6 +155,12 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   if (error) {
     await admin.auth.admin.deleteUser(uid); // roll back the half-created account
     return { error: /trial_used/.test(error.message) ? "A free trial was already used with this email or mobile number." : "Could not create your workspace. Try again." };
+  }
+  // Signed up on a white-label partner's domain: the new company belongs to that partner's brand.
+  const hostBrand = await getHostBrand();
+  if (hostBrand) {
+    const { data: prof } = await admin.from("lb_profiles").select("company_id").eq("id", uid).maybeSingle();
+    if (prof?.company_id) await admin.from("lb_companies").update({ brand_id: hostBrand.id }).eq("id", prof.company_id);
   }
 
   const supabase = await createClient();

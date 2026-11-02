@@ -12,12 +12,14 @@
     "@anthropic-ai/sdk": "^0.135.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "@types/web-push": "^3.6.4",
     "libphonenumber-js": "^1.13.15",
     "next": "16.4.2",
     "papaparse": "^5.7.0",
     "qrcode": "^1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "web-push": "^3.6.7",
     "zod": "^4.6.7"
   },
   "devDependencies": {

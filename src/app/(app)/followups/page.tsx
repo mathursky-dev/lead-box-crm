@@ -5,6 +5,7 @@ import { PageHeader, Empty, ErrorBox, Pager } from "@/components/static";
 import { istDate, istMidnight, fmtDateTime } from "@/lib/dates";
 import { FollowupActions } from "./actions";
 import { PillTabs } from "@/components/kit";
+import { PushToggle } from "@/components/push-toggle";
 
 export const metadata = { title: "Follow-ups" };
 const LIMIT = 50;
@@ -30,7 +31,8 @@ export default async function FollowupsPage({ searchParams }: { searchParams: Pr
 
   return (
     <>
-      <PageHeader icon="calendar" tone="amber" title="Follow-ups" sub="Times shown in IST. Reminders arrive as in-app notifications 15 minutes before due." />
+      <PageHeader icon="calendar" tone="amber" title="Follow-ups" sub="Times shown in IST. Reminder 15 minutes before due; a missed follow-up alerts you again (bell, phone push, WhatsApp)." />
+      <div className="mb-4"><PushToggle compact /></div>
       <div className="relative">
         <PillTabs label="Follow-up lists" tabs={TABS.map(([t, l, i]) => ({ href: `/followups?tab=${t}${sp.mine ? `&mine=${sp.mine}` : ""}`, label: l, icon: i, active: tab === t }))} />
         {isManager(profile) && (

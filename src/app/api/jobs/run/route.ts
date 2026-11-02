@@ -4,6 +4,7 @@ import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { drainOutbox } from "@/lib/outbox";
 import { reprocessPendingWebhooks } from "@/lib/webhook";
 import { runQueuedJobs } from "@/lib/jobs";
+import { drainAlerts } from "@/lib/alerts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ async function authorized(req: NextRequest) {
 }
 
 // Durable background work: retries queued sends (incl. journey/campaign messages)
-// replays unprocessed webhooks and runs queued AI jobs. pg_cron calls it every minute when there is
+// replays unprocessed webhooks, runs queued AI jobs and sends staff alerts (push / WhatsApp). pg_cron calls it every minute when there is
 // work; SLA, journeys, campaigns and reminders run inside the database (lb_nurture_tick).
 async function run(req: NextRequest) {
   if (!(await authorized(req))) return new NextResponse("Unauthorized", { status: 401 });
@@ -30,7 +31,8 @@ async function run(req: NextRequest) {
   const webhooks = await reprocessPendingWebhooks();
   const outbox = await drainOutbox(25000);
   const jobs = await runQueuedJobs();
-  return NextResponse.json({ webhooks, outbox, jobs });
+  const alerts = await drainAlerts(10000);
+  return NextResponse.json({ webhooks, outbox, jobs, alerts });
 }
 
 export const GET = run;

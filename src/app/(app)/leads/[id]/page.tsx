@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { orderStatus, paymentStatus, rupees } from "@/lib/store";
 import { notFound } from "next/navigation";
 import { requireProfile, isManager, isAdmin, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -109,6 +110,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
         <div className="space-y-4">
           <AiScoreCard leadId={lead.id} canAi={canAi} initial={{ score: ai.ai_score ?? null, points: ai.ai_score_points ?? null, reason: ai.ai_score_reason ?? null, next_step: ai.ai_next_step ?? null, scored_at: ai.ai_scored_at ?? null }} />
           <LeadTasks leadId={lead.id} />
+          <LeadOrders leadId={lead.id} />
           {can(profile, "leads.assign") && (
             <AssignPanel leadId={lead.id} ownerId={lead.owner_id} users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
           )}
@@ -164,6 +166,34 @@ async function LeadTasks({ leadId }: { leadId: string }) {
         </ul>
       )}
       <Link href={`/tasks?lead=${leadId}`} className="mt-2 inline-block text-xs text-brand-700 hover:underline">All tasks of this lead</Link>
+    </section>
+  );
+}
+
+// Store / WhatsApp catalog orders on this lead.
+async function LeadOrders({ leadId }: { leadId: string }) {
+  const sb = await createClient();
+  const { data, error } = await sb.from("lb_orders").select("id,order_no,total,status,payment_status,created_at,items")
+    .eq("lead_id", leadId).order("created_at", { ascending: false }).limit(6);
+  if (error || !data?.length) return null; // no orders (or store SQL not applied yet)
+  return (
+    <section className="card p-4">
+      <h2 className="mb-2 text-sm font-semibold text-navy-900">Orders</h2>
+      <ul className="divide-y divide-slate-100">
+        {data.map((o) => {
+          const s = orderStatus(o.status as string), p = paymentStatus(o.payment_status as string);
+          return (
+            <li key={o.id as string} className="py-1.5 text-sm">
+              <Link href={`/store?order=${o.id}`} className="font-medium text-navy-900 hover:text-brand-700">#{o.order_no as number} · {rupees(o.total as number)}</Link>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className={`rounded px-1.5 text-[10px] font-bold uppercase ${s.cls}`}>{s.label}</span>
+                <span className={`rounded px-1.5 text-[10px] font-bold uppercase ${p.cls}`}>{p.label}</span>
+                {fmtDay(o.created_at as string)} · {(o.items as unknown[]).length} item(s)
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

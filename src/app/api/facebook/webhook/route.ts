@@ -4,6 +4,7 @@ import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { verifyMetaSignature } from "@/lib/util";
 import { processFbLead } from "@/lib/facebook";
 import { webhookVerifyTokens, webhookAppSecrets } from "@/lib/integrations";
+import { hasMessagingEntries, processSocialWebhook } from "@/lib/social";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,8 +32,12 @@ export async function POST(req: NextRequest) {
   if (!secrets.some((s) => verifyMetaSignature(raw, req.headers.get("x-hub-signature-256"), s))) {
     return new NextResponse("Invalid signature", { status: 401 });
   }
-  let payload: { object?: string; entry?: { changes?: LeadgenChange[] }[] };
+  let payload: { object?: string; entry?: { id: string; changes?: LeadgenChange[]; messaging?: unknown[] }[] };
   try { payload = JSON.parse(raw); } catch { return new NextResponse("Bad JSON", { status: 400 }); }
+  // Instagram DMs and Messenger messages: ACK now, store after the response.
+  if (hasMessagingEntries(payload as Parameters<typeof hasMessagingEntries>[0])) {
+    after(async () => { try { await processSocialWebhook(payload as Parameters<typeof processSocialWebhook>[0]); } catch (e) { console.error("social webhook:", (e as Error).message); } });
+  }
   if (payload.object !== "page") return NextResponse.json({ ok: true });
 
   const db = createAdminClient();

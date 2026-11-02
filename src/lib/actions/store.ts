@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdmin, requireProfile, type Profile } from "@/lib/auth";
+import { pageBlocked, requireAdmin, requireProfile, type Profile } from "@/lib/auth";
 import { createAdminClient, createClient, hasServiceRole } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { STORE_BUCKET, STORE_KEYWORDS, storeUrl } from "@/lib/store";
@@ -122,6 +122,19 @@ export async function saveProduct(_: FormState, form: FormData): Promise<FormSta
     : await db.from("lb_products").insert({ ...row, company_id: me.company_id }).select("id").single();
   if (error) return { error: error.code === "23505" ? (/sku/.test(error.message) ? "Another product already has that SKU." : "A product with that name already exists.") : errMsg(error) };
   if (old && "image_path" in row && row.image_path !== old) await db.storage.from(STORE_BUCKET).remove([old]);
+  // Stock (stock-alerts SQL): saved through lb_set_product_stock so the change is logged and alerts fire.
+  if (form.get("stock_on") === "1") {
+    const raw = String(form.get("stock_qty") ?? "").trim();
+    const qty = raw === "" ? null : Math.floor(Number(raw));
+    const lowRaw = Math.floor(Number(form.get("low_stock_at") ?? 5));
+    if (qty != null && (!Number.isFinite(qty) || qty < 0 || qty > 10_000_000)) return { error: "Stock quantity must be 0 or more." };
+    const low = Number.isFinite(lowRaw) ? Math.min(Math.max(lowRaw, 0), 1_000_000) : 5;
+    const { data: cur } = await db.from("lb_products").select("stock_qty,low_stock_at").eq("id", data.id).single();
+    if (!cur || cur.stock_qty !== qty || cur.low_stock_at !== low) {
+      const r = await db.rpc("lb_set_product_stock", { p_product: data.id, p_company: me.company_id, p_qty: qty, p_low: low, p_actor: me.id, p_note: null });
+      if (r.error) return { error: `Product saved, but stock was not: ${r.error.message}` };
+    }
+  }
   await audit(db, me, id ? "product.update" : "product.create", "lb_products", data.id, { name: v.name, price: v.price, in_store: v.in_store });
   return done("Product saved.");
 }
@@ -142,6 +155,7 @@ export async function setProductFlag(id: string, flag: "in_store" | "in_stock" |
 
 // -------------------------------------------------------------------- orders
 export async function updateOrder(id: string, status: string, payment: string, note: string): Promise<FormState> {
+  { const blocked = await pageBlocked("store", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   if (!z.uuid().safeParse(id).success) return { error: "Invalid order" };
   const sb = await createClient();

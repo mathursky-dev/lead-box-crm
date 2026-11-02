@@ -1,4 +1,6 @@
-import { requireProfile, isAdmin, can, ROLE_LABEL } from "@/lib/auth";
+import { requireProfile, isAdmin, can, ROLE_LABEL, getPageAccess } from "@/lib/auth";
+import { headers } from "next/headers";
+import { allowed, pageForPath } from "@/lib/page-access";
 import { cookies } from "next/headers";
 import { Shell, BackHome, type NavGroup, type CompanySwitch } from "@/components/shell";
 import { DayBrief, type Brief } from "@/components/day-brief";
@@ -9,6 +11,7 @@ import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
 import { isDemoCompany } from "@/lib/demo";
 import { settingsGroups } from "@/lib/settings-nav";
+import { LANG_COOKIE, parseLang, tr } from "@/lib/i18n";
 
 function istGreeting() {
   const now = new Date();
@@ -23,6 +26,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const demo = await isDemoCompany(profile.company_id);
   const onTrial = billing?.plan === "trial" && !(billing.paid_until && new Date(billing.paid_until) > new Date());
   const admin = isAdmin(profile);
+  // Paid plan ending within 7 days: remind admins to renew (bell reminders also go out 7/3/1 days before).
+  const renewDays = billing?.plan === "paid" && billing.paid_until ? Math.ceil((new Date(billing.paid_until).getTime() - new Date().getTime()) / 86400000) : null;
   const campaigns = can(profile, "campaigns.manage") || can(profile, "campaigns.approve");
   // Plan features: modules outside the company's plan are hidden (their pages show an upgrade notice).
   const nurture = can(profile, "nurture.view") && features.includes("nurture");
@@ -30,24 +35,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every page keeps the same permission check it had before; a group with no visible items is dropped.
   const it = (ok: boolean, href: string, label: string, keywords?: string) => (ok ? [{ href, label, ...(keywords ? { keywords } : {}) }] : []);
   const reports = can(profile, "reports.view");
-  const nav: NavGroup[] = [
+  const navAll: NavGroup[] = [
     { section: "Work", label: "Dashboard", icon: "grid", href: "/dashboard" },
     { section: "Work", label: "Sales", icon: "target", items: [
       { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" },
       { href: "/tasks", label: "Tasks", keywords: "todo to-do reminder" },
       { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"),
-      { href: "/quotes", label: "Quotes & Invoices", keywords: "quotation invoice estimate bill gst payment link" },
+      { href: "/quotes", label: "Quotes & Invoices", keywords: "quotation invoice estimate bill gst payment link e-sign signature" },
+      { href: "/commissions", label: "Commissions", keywords: "incentive payout agent earning deal" },
       { href: "/documents", label: "Documents", keywords: "files brochure pdf library" },
       ...it(can(profile, "leads.import"), "/import", "Import", "excel csv upload bulk"),
       ...it(admin, "/leads/duplicates", "Duplicate leads", "merge same number dedupe"),
     ] },
     { section: "Work", label: "Conversations", icon: "inbox", items: [
       { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
+      { href: "/email", label: "Email (Gmail)", keywords: "gmail mail google inbox" },
     ] },
     { section: "Work", label: "WhatsApp", icon: "chat", items: [
       { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
-      { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns", keywords: "broadcast bulk" }, { href: "/whatsapp/commerce", label: "Commerce" },
+      { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/groups", label: "Groups", keywords: "group community invite link" }, { href: "/whatsapp/campaigns", label: "Campaigns", keywords: "broadcast bulk" }, { href: "/whatsapp/commerce", label: "Commerce" },
       { href: "/whatsapp/reports", label: "Reports" }, { href: "/whatsapp/settings", label: "Settings" },
     ] },
     { section: "Work", label: "Field Force", icon: "pin", items: [
@@ -68,6 +75,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(nurture, "/nurture/journeys", "Journeys", "drip sequence"),
       ...it(nurture && can(profile, "journeys.manage"), "/nurture/logs", "Execution log"),
       ...it(nurture && can(profile, "knowledge.manage"), "/nurture/knowledge", "AI knowledge"),
+      ...(can(profile, "reports.view") ? [{ href: "/forecast", label: "AI sales forecast", keywords: "prediction next month product sales projection target" }] : []),
     ] },
     { section: "Grow", label: "Store", icon: "cart", items: [
       { href: "/store", label: "Orders", keywords: "shop catalog mini-store order" },
@@ -86,8 +94,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { section: "Insights", label: "Reports", icon: "chart", items: [
       { href: "/lead-reports", label: "Lead Reports" },
       ...it(reports, "/reports", "360 Reports"),
+      ...it(reports, "/report-builder", "Report Builder", "custom report excel export pivot chart"),
+      ...it(reports, "/win-loss", "Win / Loss", "lost reason won deal analysis"),
       { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
       ...it(admin, "/profit-loss", "Profit & Loss", "p&l pnl ad spend revenue roi"),
+      ...it(admin, "/gst", "GST reports", "gstr-1 gstr1 e-invoice irn hsn tax return accountant"),
     ] },
     { section: "Help", label: "Features & Guide", icon: "book", href: "/guide" },
     ...(admin ? [{ section: "Admin", label: "Settings", icon: "gear", items: [
@@ -101,10 +112,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // SaaS owner console (companies, plans, billing) — platform Super Admin only.
     ...(profile.role === "super_admin" ? [{ section: "Admin", label: "Platform", icon: "building", items: [
       { href: "/platform", label: "Companies" }, { href: "/platform/plans", label: "Plans & pricing" }, { href: "/platform/wallet", label: "Wallet payments" },
+      { href: "/platform/billing", label: "Plan payments", keywords: "subscription upi utr renew billing" },
     ] }] : []),
   ];
+  // Page-wise role access (Admin → Roles & permissions → Page access): hide pages this role cannot view.
+  const pageAccess = await getPageAccess();
+  const canSee = (href: string) => { const pg = pageForPath(href.split("?")[0]); return !pg || allowed(pageAccess, pg); };
+  const nav: NavGroup[] = navAll
+    .map((g) => (g.items ? { ...g, items: g.items.filter((i) => canSee(i.href)) } : g))
+    .filter((g) => (g.items ? g.items.length > 0 : !g.href || canSee(g.href)));
+  const path = (await headers()).get("x-lb-path") ?? "";
+  // Onboarding wizard reminder for admins of a company that has not finished setup.
+  let onboarding = false;
+  if (admin && !path.startsWith("/onboarding")) {
+    const { data: ob, error: obErr } = await createClient().then((c) => c.from("lb_companies").select("onboarded_at").eq("id", profile.company_id).maybeSingle());
+    onboarding = !obErr && !!ob && !ob.onboarded_at;
+  }
   // Quick Create: shortcuts to existing "new" screens, same permission checks as those pages.
-  const quick = [
+  const quickAll = [
     ...it(can(profile, "leads.create"), "/leads/new", "New lead"),
     ...it(can(profile, "leads.import"), "/import", "Import leads (Excel / CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
@@ -118,7 +143,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(admin, "/whatsapp/flows/new", "New chatbot flow"),
     ...it(admin, "/admin/users", "Add user"),
   ];
+  const quick = quickAll.filter((q) => canSee(q.href));
+  // Hindi / English: menu labels are translated here; the English label stays searchable.
+  const jar = await cookies();
+  const lang = parseLang(jar.get(LANG_COOKIE)?.value);
+  const navT: NavGroup[] = lang === "en" ? nav : nav.map((g) => ({
+    ...g, label: tr(lang, g.label),
+    items: g.items?.map((i) => ({ ...i, label: tr(lang, i.label), keywords: `${i.label} ${i.keywords ?? ""}` })),
+  }));
+  const quickT = lang === "en" ? quick : quick.map((q) => ({ ...q, label: tr(lang, q.label), keywords: q.label }));
+
   const sb = await createClient();
+  // Lost / Invalid reasons master: offered as suggestions in every "Reason" box (empty until the SQL is applied).
+  const { data: reasonRows } = await sb.from("lb_lost_reasons").select("name,category").eq("company_id", profile.company_id).eq("is_active", true).order("sort_order").order("name");
+  const reasons = (reasonRows ?? []) as { name: string; category: string }[];
   const { data: wallet } = await sb.from("lb_wallets").select("balance").eq("company_id", profile.company_id).maybeSingle();
   // Admins always see the chip (it is where they add balance); others only once there is a wallet.
   const walletBalance = wallet ? Number(wallet.balance) : admin ? 0 : null;
@@ -133,12 +171,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   let brief: Brief | null = null;
-  if ((await cookies()).get("lb_brief")) {
+  if (jar.get("lb_brief")) {
     const { data } = await sb.rpc("lb_day_brief");
     brief = data as Brief | null;
   }
   return (
-    <Shell nav={nav} quick={quick} wallet={walletBalance} switcher={switcher} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+    <Shell nav={navT} quick={quickT} lang={lang} wallet={walletBalance} switcher={switcher} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
       {away && (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 sm:px-4 sm:text-sm">
           <span><span className="font-semibold">Super Admin view</span> · You are working inside <span className="font-semibold">{company?.name}</span>. Everything you see and change here is this company&apos;s data.</span>
@@ -155,7 +193,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Free trial ends {fmtDateTime(billing.trial_ends_at)}. <Link href="/billing" className="font-medium underline">Upgrade to keep access</Link>
         </div>
       )}
+      {admin && !demo && renewDays != null && renewDays > 0 && renewDays <= 7 && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+          Your plan ends in {renewDays} day{renewDays === 1 ? "" : "s"} ({fmtDateTime(billing!.paid_until)}). <Link href="/billing" className="font-medium underline">Renew now</Link> so your team keeps working.
+        </div>
+      )}
+      {onboarding && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900 sm:px-4">
+          <span><span className="font-semibold">Finish setting up {company?.name}</span> · A few quick steps: WhatsApp number, team, lead stages and your first leads.</span>
+          <Link href="/onboarding" className="btn-primary btn-sm">Continue setup</Link>
+        </div>
+      )}
       {children}
+      {(["lost", "invalid"] as const).map((c) => (
+        <datalist key={c} id={`lb-reasons-${c}`}>
+          {reasons.filter((r) => r.category === c || r.category === "any").map((r) => <option key={r.name} value={r.name} />)}
+        </datalist>
+      ))}
       <CallSync userId={profile.id} />
       <OfflineSync userId={profile.id} />
       {brief && <DayBrief userId={profile.id} name={profile.full_name} brief={brief} {...istGreeting()} />}

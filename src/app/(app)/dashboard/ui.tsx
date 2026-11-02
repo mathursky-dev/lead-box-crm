@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/kit";
+import { Tx } from "@/components/lang";
 
 // Server-side layout pieces for the Dashboard (/dashboard).
 
@@ -8,7 +9,7 @@ export function Box({ title, actions, headline, children, className = "" }: { ti
   return (
     <section className={`card flex flex-col overflow-hidden ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold text-navy-900"><span className="h-4 w-1 rounded-full bg-brand-600" />{title}</h2>
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold text-navy-900"><span className="h-4 w-1 rounded-full bg-brand-600" /><Tx>{title}</Tx></h2>
         {actions && <div className="flex flex-wrap items-center gap-1.5">{actions}</div>}
       </div>
       {headline && <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-xs text-slate-600">{headline}</div>}
@@ -41,7 +42,7 @@ export function SumCard({ title, icon, value, href, foot }: { title: string; ico
   return (
     <div className="flex min-w-[180px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-navy-800">
-        <Icon name={icon} className="h-3.5 w-3.5 text-brand-600" /><span className="truncate" title={title}>{title}</span>
+        <Icon name={icon} className="h-3.5 w-3.5 text-brand-600" /><span className="truncate" title={title}><Tx>{title}</Tx></span>
       </div>
       {href ? <Link href={href} className="hover:bg-brand-50/40">{num}</Link> : num}
       {foot && (

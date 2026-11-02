@@ -7,16 +7,20 @@ export type SettingsGroup = { label: string; icon: string; tone: string; links: 
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
   { label: "Company & team", icon: "building", tone: "navy", links: [
-    { href: "/admin/quick-setup", label: "Quick Setup", icon: "bolt", desc: "Step-by-step setup checklist", keywords: "onboarding start guide" },
+    { href: "/onboarding", label: "Setup wizard", icon: "check", desc: "Step-by-step setup for a new company", keywords: "onboarding getting started setup steps" },
+    { href: "/admin/quick-setup", label: "Quick Setup", icon: "bolt", desc: "Connect lead sources in one place", keywords: "onboarding start guide integrations" },
     { href: "/admin/settings", label: "Company settings", icon: "gear", desc: "Name, auto-create leads, SLA policy", keywords: "auto allocate nurture sla automation" },
     { href: "/admin/users", label: "Users", icon: "contacts", desc: "Add team members, reset passwords", keywords: "team agent staff login" },
     { href: "/admin/roles", label: "Roles & permissions", icon: "shield", desc: "Who can see and do what", keywords: "access rights" },
     { href: "/admin/org", label: "Organisation", icon: "building", desc: "Branches, departments, teams", keywords: "branch hierarchy manager team leader" },
     { href: "/billing", label: "Billing & plan", icon: "wallet", desc: "Your plan, renew, payments", keywords: "subscription payment renew upi razorpay invoice" },
+    { href: "/admin/security", label: "Security & logins", icon: "key", desc: "OTP two-factor login, login history", keywords: "otp two factor 2fa authenticator login history sign in password" },
+    { href: "/admin/export", label: "Data export / backup", icon: "download", desc: "Download all company data (ZIP)", keywords: "backup download all data excel csv zip" },
     { href: "/admin/audit", label: "Audit log", icon: "clock", desc: "Who changed what, and when", keywords: "history activity" },
   ] },
   { label: "Leads", icon: "target", tone: "green", links: [
     { href: "/settings/statuses", label: "Manage Status", icon: "check", desc: "Lead stages, colours, sub-statuses", keywords: "stage pipeline sub status" },
+    { href: "/settings/lost-reasons", label: "Lost Reasons", icon: "xCircle", desc: "Why leads are lost or invalid", keywords: "lost reason invalid win loss" },
     { href: "/settings/sources", label: "Manage Source", icon: "link", desc: "Where leads come from", keywords: "channel" },
     { href: "/settings/tags", label: "Tags", icon: "tag", desc: "Labels to group leads", keywords: "label" },
     { href: "/settings/departments", label: "Departments", icon: "building", desc: "Teams that own leads", keywords: "team" },
@@ -31,6 +35,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     { href: "/admin/catalog", label: "Products · Quick replies", icon: "tag", desc: "Product list and saved replies", keywords: "catalog product price quick reply canned" },
     { href: "/store/settings", label: "Store settings", icon: "cart", desc: "Mini-store link and checkout", keywords: "shop store" },
     { href: "/care/settings", label: "Customer care settings", icon: "heart", desc: "Booking, feedback, referrals, portal", keywords: "appointment nps referral portal" },
+    { href: "/care/meetings", label: "Meeting links", icon: "calendar", desc: "Zoom / Google Meet link on appointments", keywords: "zoom google meet video call appointment link" },
   ] },
   { label: "WhatsApp", icon: "chat", tone: "green", links: [
     { href: "/admin/numbers", label: "WhatsApp numbers", icon: "phone", desc: "Numbers and who uses them", keywords: "number phone" },
@@ -42,6 +47,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     { href: "/admin/lead-sources", label: "Lead sources", icon: "globe", desc: "Google Ads, IndiaMART, JustDial, widget", keywords: "google ads indiamart justdial website chat widget zapier pabbly webhook sync" },
     { href: "/admin/fb-login", label: "Facebook Lead Ads", icon: "facebook", desc: "Pull leads from Facebook forms", keywords: "meta facebook instant form", feature: "fb_leads" },
     { href: "/admin/api", label: "API & webhooks", icon: "code", desc: "API keys and outgoing webhooks", keywords: "api key rest developer zapier webhook integration software" },
+    { href: "/admin/social", label: "Instagram & Messenger", icon: "chat", desc: "Instagram DMs and Messenger in the Inbox", keywords: "instagram dm direct message facebook messenger inbox social chat" },
+    { href: "/admin/ivr", label: "Cloud calling (IVR)", icon: "phone", desc: "Exotel / Knowlarity click-to-call + recording", keywords: "exotel knowlarity ivr click to call virtual number recording" },
   ] },
 ];
 

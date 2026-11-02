@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { demoBlocked } from "@/lib/demo";
 import { fbApp, FB_SCOPES } from "@/lib/facebook";
+import { SOCIAL_SCOPES } from "@/lib/social";
 import { GRAPH_VERSION } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,12 @@ export async function GET(req: NextRequest) {
   const app = await fbApp(profile.company_id).catch(() => null);
   if (!app) return NextResponse.redirect(`${origin}/admin/fb-login?error=${encodeURIComponent("Save the Meta App ID and App Secret in Admin → Integrations first.")}`);
   const state = randomBytes(16).toString("hex");
-  const q = new URLSearchParams({ client_id: app.appId, redirect_uri: `${origin}/api/facebook/callback`, state, scope: FB_SCOPES, response_type: "code" });
+  // ?for=social also asks for Instagram / Messenger messaging (Admin → Instagram & Messenger).
+  const social = req.nextUrl.searchParams.get("for") === "social";
+  const q = new URLSearchParams({ client_id: app.appId, redirect_uri: `${origin}/api/facebook/callback`, state, scope: social ? `${FB_SCOPES},${SOCIAL_SCOPES}` : FB_SCOPES, response_type: "code" });
   const res = NextResponse.redirect(`https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${q}`);
   res.cookies.set("lb_fb_state", state, { httpOnly: true, secure: true, sameSite: "lax", path: "/api/facebook", maxAge: 600 });
+  if (social) res.cookies.set("lb_fb_next", "social", { httpOnly: true, secure: true, sameSite: "lax", path: "/api/facebook", maxAge: 600 });
+  else res.cookies.delete({ name: "lb_fb_next", path: "/api/facebook" });
   return res;
 }

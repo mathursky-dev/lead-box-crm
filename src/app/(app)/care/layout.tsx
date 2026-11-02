@@ -12,7 +12,7 @@ export default async function CareLayout({ children }: { children: React.ReactNo
     { href: "/care/renewals", label: "Renewals / AMC", icon: "refresh" },
     { href: "/care/loyalty", label: "Loyalty points", icon: "trophy" },
     { href: "/care/wishes", label: "Wishes", icon: "sparkle" },
-    ...(isAdmin(profile) ? [{ href: "/care/settings", label: "Settings", icon: "gear" }] : []),
+    ...(isAdmin(profile) ? [{ href: "/care/meetings", label: "Meeting links", icon: "link" }, { href: "/care/settings", label: "Settings", icon: "gear" }] : []),
   ];
   return (
     <div>

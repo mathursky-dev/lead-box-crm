@@ -2,6 +2,7 @@
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
 import { normalizePhone } from "@/lib/util";
+import { ensureMeeting } from "@/lib/meetings";
 
 // Public (unauthenticated) customer-care endpoints: booking page, feedback form, referral form.
 // Everything goes through service-role RPCs that validate the input again.
@@ -24,7 +25,7 @@ async function phoneFor(companyId: string, raw: string) {
   return normalizePhone(String(raw ?? ""), co?.default_country ?? "IN");
 }
 
-export async function bookSlot(code: string, input: { name: string; phone: string; note: string; at: string; website?: string }): Promise<{ error?: string; label?: string }> {
+export async function bookSlot(code: string, input: { name: string; phone: string; note: string; at: string; website?: string }): Promise<{ error?: string; label?: string; meeting?: string | null }> {
   if (input.website) return { label: "" }; // honeypot
   if (await tooMany("book")) return { error: "Too many tries. Please wait a minute and try again." };
   if (!/^[A-Z0-9]{4,12}$/i.test(code)) return { error: "Booking page not found." };
@@ -40,7 +41,10 @@ export async function bookSlot(code: string, input: { name: string; phone: strin
     p_code: code.toUpperCase(), p: { phone_e164: phone, name, note: String(input.note ?? "").trim().slice(0, 1000), starts_at: input.at },
   });
   if (error) return { error: clean(error.message, "Could not book. Please try again.") };
-  return { label: String((data as { label?: string })?.label ?? "") };
+  // Video meeting link when the company turned them on (best effort; the jobs runner retries).
+  const apptId = (data as { appointment_id?: string })?.appointment_id;
+  const m = apptId ? await ensureMeeting(apptId).catch(() => null) : null;
+  return { label: String((data as { label?: string })?.label ?? ""), meeting: m?.url ?? null };
 }
 
 export async function submitFeedback(token: string, score: number, comment: string): Promise<{ error?: string; reviewUrl?: string | null }> {

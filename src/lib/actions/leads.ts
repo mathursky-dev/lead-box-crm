@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireProfile } from "@/lib/auth";
+import { pageBlocked, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { normalizePhone, errMsg } from "@/lib/util";
 import { fromLocalInput } from "@/lib/dates";
@@ -23,6 +23,7 @@ function leadPayload(form: FormData) {
 }
 
 export async function createLead(_: FormState, form: FormData): Promise<FormState> {
+  { const blocked = await pageBlocked("leads", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   const phone = normalizePhone(s(form.get("phone")));
   if (!phone) return { error: "Enter a valid mobile/WhatsApp number (with country code if not Indian)." };
@@ -43,6 +44,7 @@ export async function createLead(_: FormState, form: FormData): Promise<FormStat
 }
 
 export async function updateLead(_: FormState, form: FormData): Promise<FormState> {
+  { const blocked = await pageBlocked("leads", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   const id = s(form.get("id"));
   const p = leadPayload(form);
@@ -135,6 +137,7 @@ export type QuickEdit =
   | { kind: "remark"; text: string };
 
 export async function quickEditLead(id: string, e: QuickEdit): Promise<{ error?: string }> {
+  { const blocked = await pageBlocked("leads", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   const sb = await createClient();
   let error: { message: string } | null = null;
@@ -209,6 +212,7 @@ export async function restoreLeads(ids: string[]): Promise<{ error?: string; n?:
 
 /** Save the lead's Custom Fields (Settings → Custom Fields). Validated in lb_set_lead_custom. */
 export async function saveLeadCustom(_: FormState, form: FormData): Promise<FormState> {
+  { const blocked = await pageBlocked("leads", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   const id = s(form.get("id"));
   if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: "Invalid lead" };

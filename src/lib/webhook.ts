@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "./supabase/server";
 import { downloadMedia, numberCredentials } from "./whatsapp";
 import { runAutoReplies } from "./wa-bots";
+import { applyGroupStatus, applyGroupWebhook, ingestGroupMessage } from "./wa-groups";
 
 type WaMessage = {
   id: string; from: string; timestamp: string; type: string;
@@ -11,10 +12,11 @@ type WaMessage = {
   image?: Media; video?: Media; audio?: Media; document?: Media & { filename?: string }; sticker?: Media;
   contacts?: { name?: { formatted_name?: string } }[];
   context?: { id?: string }; reaction?: { emoji?: string; message_id?: string };
+  group_id?: string;
   order?: { catalog_id?: string; text?: string; product_items?: { product_retailer_id: string; quantity: number | string; item_price?: number | string; currency?: string }[] };
 };
 type Media = { id: string; mime_type?: string; caption?: string };
-type WaStatus = { id: string; status: string; timestamp: string; errors?: { code: number; title?: string; message?: string; error_data?: { details?: string } }[] };
+type WaStatus = { id: string; status: string; timestamp: string; recipient_type?: string; errors?: { code: number; title?: string; message?: string; error_data?: { details?: string } }[] };
 type Change = { field: string; value: { metadata?: { phone_number_id: string }; contacts?: { wa_id: string; profile?: { name?: string } }[]; messages?: WaMessage[]; statuses?: WaStatus[] } };
 
 const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"] as const;
@@ -52,10 +54,22 @@ export async function processWebhookEvent(eventId: string): Promise<string[]> {
           }
           continue;
         }
+        // WhatsApp groups (Groups API): lifecycle / participants / settings / suspension. Never blocks the rest of the webhook.
+        if (change.field.startsWith("group_")) {
+          const gv = change.value as unknown as { metadata?: { phone_number_id: string }; groups?: Parameters<typeof applyGroupWebhook>[2] };
+          await applyGroupWebhook(db, gv.metadata?.phone_number_id, gv.groups ?? []).catch((e) => console.error("group webhook", e));
+          continue;
+        }
         if (change.field !== "messages") continue;
         const v = change.value;
         const pnid = v.metadata?.phone_number_id;
         for (const m of v.messages ?? []) {
+          // A message inside a group goes to that group's log, not to a 1-to-1 chat or a lead.
+          if (m.group_id) {
+            const who = v.contacts?.find((c) => c.wa_id === m.from)?.profile?.name;
+            await ingestGroupMessage(db, pnid, { ...m, group_id: m.group_id }, bodyOf(m), who).catch((e) => console.error("group message", e));
+            continue;
+          }
           if (m.type === "reaction" && m.reaction?.message_id) {
             const { error } = await db.rpc("lb__apply_reaction", { p_target_wamid: m.reaction.message_id, p_emoji: m.reaction.emoji ?? "" });
             if (error) throw new Error(`reaction: ${error.message}`);
@@ -88,6 +102,10 @@ export async function processWebhookEvent(eventId: string): Promise<string[]> {
         }
         for (const s of v.statuses ?? []) {
           const err = s.errors?.[0];
+          if (s.recipient_type === "group") {
+            await applyGroupStatus(db, s.id, s.status, err ? err.title ?? err.message : null).catch((e) => console.error("group status", e));
+            continue;
+          }
           const { error } = await db.rpc("lb_apply_status", {
             p_wamid: s.id, p_status: s.status, p_ts: new Date(Number(s.timestamp) * 1000).toISOString(),
             p_code: err ? String(err.code) : null, p_msg: err ? [err.title ?? err.message, err.error_data?.details].filter(Boolean).join(" — ") : null,

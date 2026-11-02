@@ -34,7 +34,7 @@ function CallItem({ c, showLead, canEdit }: { c: CallRow; showLead: boolean; can
           {canEdit && <button type="button" className="text-xs text-slate-500 hover:underline" onClick={() => setEdit(!edit)}>{edit ? "Close" : "Outcome"}</button>}
         </span>
       </div>
-      <div className="mt-0.5 text-xs text-slate-500">{c.user_name} · {fmtDateTime(c.started_at)}{c.source === "app_lite" ? " · approx. duration" : ""}</div>
+      <div className="mt-0.5 text-xs text-slate-500">{c.user_name} · {fmtDateTime(c.started_at)}{c.source === "app_lite" ? " · approx. duration" : c.source === "ivr" ? " · IVR" : ""}</div>
       {c.note && <div className="mt-0.5 whitespace-pre-wrap text-xs text-slate-700">{c.note}</div>}
       {audio && <audio className="mt-1 h-9 w-full" src={audio} controls autoPlay preload="none" />}
       {err && <div className="text-xs text-red-600">{err}</div>}

@@ -6,6 +6,7 @@ import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/
 import { createHash } from "node:crypto";
 import { normalizePhone } from "@/lib/util";
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo";
+import { logLogin } from "@/lib/login-log";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -37,20 +38,34 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
   if (!ident.includes("@")) {
     if (!hasServiceRole()) return { error: "Sign in with your email address." };
     const { data } = await createAdminClient().from("lb_profiles").select("email").eq("username", ident).maybeSingle();
-    if (!data) return { error: "Invalid User ID/email or password." };
+    if (!data) { await logLogin({ login: ident, success: false, reason: "unknown user id" }); return { error: "Invalid User ID/email or password." }; }
     email = data.email;
   }
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error || !data.user) return { error: "Invalid User ID/email or password." };
+  if (error || !data.user) {
+    let uid: string | null = null;
+    if (hasServiceRole()) uid = ((await createAdminClient().from("lb_profiles").select("id").eq("email", email).maybeSingle()).data?.id as string | undefined) ?? null;
+    await logLogin({ userId: uid, login: ident, success: false, reason: "wrong password" });
+    return { error: "Invalid User ID/email or password." };
+  }
   const { data: profile } = await supabase.from("lb_profiles").select("is_active").eq("id", data.user.id).maybeSingle();
   if (!profile?.is_active) {
+    await logLogin({ userId: profile ? data.user.id : null, login: ident, success: false, reason: profile ? "deactivated" : "no access" });
     await supabase.auth.signOut();
     return { error: profile ? "Your account is deactivated. Contact your administrator." : "This account has no LEAD BOX access." };
   }
+  const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  // Two-factor: the password was right, now the authenticator code is needed (session stays aal1 until then).
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2") {
+    await logLogin({ userId: data.user.id, login: ident, success: true, reason: "password ok, waiting for OTP" });
+    redirect(`/two-factor?next=${encodeURIComponent(target)}`);
+  }
+  await logLogin({ userId: data.user.id, login: ident, success: true });
   // Show the day brief once after each sign-in.
   (await cookies()).set("lb_brief", "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 12 * 3600 });
-  redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+  redirect(target);
 }
 
 export async function dismissBrief() {
@@ -59,6 +74,8 @@ export async function dismissBrief() {
 
 export async function logout() {
   const supabase = await createClient();
+  const { data: u } = await supabase.auth.getUser();
+  if (u.user) await logLogin({ userId: u.user.id, login: u.user.email, success: true, method: "logout" });
   await supabase.auth.signOut();
   redirect("/login");
 }
@@ -143,5 +160,5 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
   if (signInError) redirect("/login");
   (await cookies()).set("lb_brief", "1", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 12 * 3600 });
-  redirect("/dashboard");
+  redirect("/onboarding"); // new company: step-by-step setup wizard
 }

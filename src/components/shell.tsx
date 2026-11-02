@@ -13,6 +13,8 @@ import { Logo } from "./logo";
 import { HelpDrawer } from "./help-drawer";
 import { fmtNum } from "@/lib/wa";
 import { clearOfflineData } from "@/lib/offline/queue";
+import { tr, type Lang } from "@/lib/i18n";
+import { LangProvider, LangSwitch, useT } from "./lang";
 
 /** hidden: found by menu search / Ctrl+K (and shown while it is the open page), not listed in the menu. */
 export type NavItem = { href: string; label: string; keywords?: string; hidden?: boolean };
@@ -27,7 +29,8 @@ const COLLAPSE_KEY = "lb_nav_collapsed";
 const leaves = (nav: NavGroup[]) => nav.flatMap((g) => (g.href ? [{ href: g.href, label: g.label, group: "" }] : (g.items ?? []).map((i) => ({ ...i, group: g.label }))));
 const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
 
-export function Shell({ nav, quick, user, wallet, switcher = null, children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; switcher?: CompanySwitch | null; children: React.ReactNode }) {
+export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; switcher?: CompanySwitch | null; lang?: Lang; children: React.ReactNode }) {
+  const t = (x: string) => tr(lang, x);
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -64,6 +67,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
   };
 
   return (
+    <LangProvider lang={lang}>
     <div className="flex h-full">
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] transform flex-col bg-navy-900 text-slate-300 transition md:static md:w-60 md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:hidden" : ""}`}>
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 bg-white px-4">
@@ -74,7 +78,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
           <label className="relative block">
             <span className="sr-only">Search menu</span>
             <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder="Search menu…" autoComplete="off"
+            <input value={menuQ} onChange={(e) => setMenuQ(e.target.value)} placeholder={t("Search menu…")} autoComplete="off"
               onKeyDown={(e) => {
                 if (e.key === "Escape") setMenuQ("");
                 if (e.key === "Enter") { const first = leaves(shownGroups)[0]; if (first) { router.push(first.href); setMenuQ(""); setOpen(false); } }
@@ -87,7 +91,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
           {shownGroups.map((g, i) => (
             <div key={g.label}>
               {!searching && g.section && g.section !== shownGroups[i - 1]?.section && (
-                <div className={`px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 ${i ? "pt-4" : "pt-1"}`}>{g.section}</div>
+                <div className={`px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 ${i ? "pt-4" : "pt-1"}`}>{t(g.section)}</div>
               )}
               <NavGroupLink group={g} activeHref={activeHref} searching={searching} open={searching || openGroup === g.label}
                 onToggle={() => setOpenGroup((o) => (o === g.label ? null : g.label))} onNavigate={() => { setOpen(false); setMenuQ(""); }} />
@@ -115,15 +119,16 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
           <button onClick={() => setSearch(true)} aria-label="Search (Ctrl+K)"
             className="flex h-9 shrink-0 items-center gap-2 rounded-lg border-slate-200 text-sm text-slate-400 hover:border-slate-300 max-md:w-9 max-md:justify-center max-md:text-navy-900 max-md:hover:bg-slate-100 md:w-64 md:border md:bg-slate-50 md:px-3">
             <Icon name="search" className="h-4 w-4 shrink-0" />
-            <span className="flex-1 truncate text-left max-md:hidden">Search pages, leads…</span>
+            <span className="flex-1 truncate text-left max-md:hidden">{t("Search pages, leads…")}</span>
             <kbd className="rounded border border-slate-200 bg-white px-1.5 font-mono text-[10px] text-slate-500 max-md:hidden">Ctrl K</kbd>
           </button>
           {quick.length > 0 && <QuickCreate items={quick} />}
           {switcher && <CompanySwitcher data={switcher} />}
           <span className="ml-auto flex items-center gap-1.5 md:gap-2">
+            <LangSwitch className="max-md:hidden" />
             <button onClick={() => setHelp(true)} aria-label="Help & Guides (?)" title="Help & Guides (?)"
               className="flex h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700 hover:bg-violet-100 max-md:w-9 max-md:justify-center md:px-3">
-              <Icon name="book" className="h-4 w-4" /><span className="max-md:hidden">Help &amp; Guides</span>
+              <Icon name="book" className="h-4 w-4" /><span className="max-md:hidden">{t("Help & Guides")}</span>
               <kbd className="rounded border border-violet-200 bg-white px-1 font-mono text-[10px] max-md:hidden">?</kbd>
             </button>
             {wallet !== null && (
@@ -142,6 +147,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
       {search && <SearchPalette items={all} onClose={() => setSearch(false)} />}
       {help && <HelpDrawer allowed={[...all.map((n) => n.href), ...quick.map((q) => q.href)]} onClose={() => setHelp(false)} />}
     </div>
+    </LangProvider>
   );
 }
 
@@ -220,12 +226,13 @@ function useOutside(open: boolean, close: () => void) {
 }
 
 function QuickCreate({ items }: { items: NavItem[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useOutside(open, useCallback(() => setOpen(false), []));
   return (
     <div ref={ref} className="relative shrink-0">
       <button className="btn-primary h-9 max-md:w-9 max-md:justify-center max-md:px-0" aria-label="Quick Create" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        <Icon name="plus" className="h-4 w-4" /><span className="max-md:hidden">Quick Create</span>
+        <Icon name="plus" className="h-4 w-4" /><span className="max-md:hidden">{t("Quick Create")}</span>
       </button>
       {open && (
         <div className="absolute left-0 z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
@@ -311,6 +318,7 @@ export function BackHome({ className }: { className?: string }) {
 }
 
 function Profile({ user, initial }: { user: User; initial: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useOutside(open, useCallback(() => setOpen(false), []));
   return (
@@ -321,7 +329,9 @@ function Profile({ user, initial }: { user: User; initial: string }) {
           <div className="text-sm font-semibold text-navy-900">{user.name}</div>
           <div className="mb-3 text-xs text-slate-500">{user.role} · {user.company}</div>
           <Availability value={user.availability} />
-          <form action={logout} onSubmit={() => { void clearOfflineData(); }} className="mt-3 border-t border-slate-100 pt-2"><button className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"><Icon name="logout" className="h-4 w-4" />Sign out</button></form>
+          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-sm text-navy-900"><span>{t("Language")} · भाषा</span><LangSwitch /></div>
+          <Link href="/security" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2 text-sm font-medium text-navy-900 hover:text-brand-700"><Icon name="shield" className="h-4 w-4" />{t("Security")} · OTP · {t("Login history")}</Link>
+          <form action={logout} onSubmit={() => { void clearOfflineData(); }} className="mt-3 border-t border-slate-100 pt-2"><button className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"><Icon name="logout" className="h-4 w-4" />{t("Sign out")}</button></form>
         </div>
       )}
     </div>
@@ -329,6 +339,7 @@ function Profile({ user, initial }: { user: User; initial: string }) {
 }
 
 function SearchPalette({ items, onClose }: { items: (NavItem & { group: string })[]; onClose: () => void }) {
+  const tt = useT();
   const router = useRouter();
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -341,7 +352,7 @@ function SearchPalette({ items, onClose }: { items: (NavItem & { group: string }
       <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-slate-200 px-3">
           <Icon name="search" className="h-4 w-4 text-slate-400" />
-          <input autoFocus className="h-12 flex-1 bg-transparent text-sm text-navy-900 outline-none" placeholder="Search pages, or leads by name / phone / LB-123" value={q}
+          <input autoFocus className="h-12 flex-1 bg-transparent text-sm text-navy-900 outline-none" placeholder={tt("Search pages, or leads by name / phone / LB-123")} value={q}
             onChange={(e) => { setQ(e.target.value); setSel(0); }}
             onKeyDown={(e) => {
               if (e.key === "Escape") onClose();

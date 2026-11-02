@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireProfile } from "@/lib/auth";
+import { pageBlocked, requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { fromLocalInput } from "@/lib/dates";
@@ -27,6 +27,7 @@ const TaskForm = z.object({
 
 /** Add or edit a task (used by the task form; FormData from ActionForm). */
 export async function saveTask(_: Result | undefined, fd: FormData): Promise<Result> {
+  { const blocked = await pageBlocked("tasks", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const raw = Object.fromEntries([...fd.entries()].map(([k, v]) => [k, typeof v === "string" ? v : ""]).filter(([, v]) => v !== ""));
   const p = TaskForm.safeParse(raw);
@@ -47,6 +48,7 @@ export async function saveTask(_: Result | undefined, fd: FormData): Promise<Res
 
 /** Change the status of one or more tasks (row dropdown and bulk Actions). */
 export async function setTaskStatus(ids: string[], status: string): Promise<{ error?: string; n?: number }> {
+  { const blocked = await pageBlocked("tasks", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const s = STATUS.safeParse(status);
   const list = z.array(z.uuid()).min(1).max(500).safeParse(ids);
@@ -60,6 +62,7 @@ export async function setTaskStatus(ids: string[], status: string): Promise<{ er
 
 /** Reassign one or more tasks. */
 export async function assignTasks(ids: string[], userId: string): Promise<{ error?: string; n?: number }> {
+  { const blocked = await pageBlocked("tasks", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const list = z.array(z.uuid()).min(1).max(500).safeParse(ids);
   if (!list.success || !z.uuid().safeParse(userId).success) return { error: "Invalid request" };
@@ -72,6 +75,7 @@ export async function assignTasks(ids: string[], userId: string): Promise<{ erro
 
 /** Delete tasks. Only the creator or an admin can (RLS); others are skipped. */
 export async function deleteTasks(ids: string[]): Promise<{ error?: string; n?: number }> {
+  { const blocked = await pageBlocked("tasks", "delete"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const list = z.array(z.uuid()).min(1).max(500).safeParse(ids);
   if (!list.success) return { error: "Invalid request" };

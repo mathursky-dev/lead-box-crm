@@ -6,6 +6,7 @@ import { Kpi, PillTabs, Table } from "@/components/kit";
 import { fmtDateTime, istDate, istMidnight } from "@/lib/dates";
 import { apptStatus, nowMs } from "@/lib/care";
 import { ApptStatus, LinkBar } from "../ui";
+import { MeetingCell } from "../meetings/cell";
 
 export const metadata = { title: "Appointments" };
 
@@ -38,6 +39,17 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
   ]);
   if (error) return <ErrorBox message={/lb_appointments|schema cache/i.test(error.message) ? "Customer care is not set up yet: the database update has to be run once (Supabase SQL)." : error.message} />;
   const admin = isAdmin(profile);
+  // Meeting links (separate query: the page keeps working before the meeting links SQL is applied).
+  const ids = (data ?? []).map((a) => a.id as string);
+  const [{ data: meets }, { data: mode }] = ids.length
+    ? await Promise.all([
+      sb.from("lb_appointments").select("id,meeting_url,meeting_error").in("id", ids),
+      sb.from("lb_care_settings").select("meeting_mode").eq("company_id", cid).maybeSingle(),
+    ])
+    : [{ data: null }, { data: null }];
+  const meetOn = Boolean(mode?.meeting_mode && mode.meeting_mode !== "none");
+  const meetBy = new Map((meets ?? []).map((m) => [m.id as string, m as { meeting_url: string | null; meeting_error: string | null }]));
+  const showMeet = meetOn || [...meetBy.values()].some((m) => m.meeting_url);
   return (
     <div className="space-y-4">
       {s?.booking_enabled && s.booking_code ? (
@@ -55,7 +67,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       </div>
       <PillTabs label="Appointment views" tabs={VIEWS.map((v) => ({ href: `/care/appointments?view=${v.key}`, label: v.label, active: !sp.id && v.key === view }))} />
       <div className="card overflow-hidden">
-        <Table head={["When", "Customer", "Lead", "With", "Note", "Status"]} empty={data?.length ? undefined : "No appointments here yet."}>
+        <Table head={["When", "Customer", "Lead", "With", "Note", ...(showMeet ? ["Meeting"] : []), "Status"]} empty={data?.length ? undefined : "No appointments here yet."}>
           {(data ?? []).map((a) => {
             const st = apptStatus(a.status as string);
             const lead = a.lead as unknown as { lead_no: number } | null, who = a.who as unknown as { full_name: string } | null;
@@ -66,6 +78,10 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <td className="td">{a.lead_id && lead ? <Link href={`/leads/${a.lead_id}`} className="text-brand-700 hover:underline">LB-{lead.lead_no}</Link> : "—"}</td>
                 <td className="td">{who?.full_name ?? "—"}</td>
                 <td className="td max-w-xs truncate text-slate-600" title={(a.note as string) ?? ""}>{(a.note as string) || "—"}</td>
+                {showMeet && (
+                  <td className="td"><MeetingCell id={a.id as string} url={meetBy.get(a.id as string)?.meeting_url ?? null} error={meetBy.get(a.id as string)?.meeting_error ?? null}
+                    canCreate={meetOn && ["booked", "confirmed"].includes(a.status as string)} /></td>
+                )}
                 <td className="td"><span className="sr-only">{st.label}</span><ApptStatus id={a.id as string} status={a.status as string} /></td>
               </tr>
             );

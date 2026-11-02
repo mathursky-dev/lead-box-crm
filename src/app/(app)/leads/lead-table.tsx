@@ -7,6 +7,7 @@ import { ActionForm, Field, Modal, Submit } from "@/components/ui";
 import { assignLeads } from "@/lib/actions/leads";
 import { saveLeadTableLayout, type LeadTableLayout } from "@/lib/actions/prefs";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
+import { PhoneMenu } from "./phone-menu";
 import { InlineEditProvider, StatusEdit, SubStatusEdit, ProductEdit, FollowupEdit, RemarkEdit, type EditRefs } from "./inline-edit";
 
 type Row = {
@@ -25,8 +26,8 @@ const dash = <span className="text-slate-400">—</span>;
 // also the server sort key (lb_list_leads p.sort).
 type Col = { key: string; label: string; on: boolean; cell: (r: Row, o: { subInStatus: boolean }) => React.ReactNode; td?: string };
 const COLS: Col[] = [
-  { key: "customer", label: "Customer", on: true, cell: (r) => <><div className={`text-navy-900 ${unseen(r) ? "font-bold" : "font-medium"}`}>{r.customer_name || "—"}</div><div className="text-xs text-slate-500">{r.phone_e164}</div></> },
-  { key: "mobile", label: "Mobile number", on: false, td: "text-xs", cell: (r) => r.phone_e164 },
+  { key: "customer", label: "Customer", on: true, cell: (r) => <><div className={`text-navy-900 ${unseen(r) ? "font-bold" : "font-medium"}`}>{r.customer_name || "—"}</div><div className="flex items-center text-xs text-slate-500">{r.phone_e164}<PhoneMenu leadId={r.id} phone={r.phone_e164} /></div></> },
+  { key: "mobile", label: "Mobile number", on: false, td: "text-xs", cell: (r) => <span className="flex items-center whitespace-nowrap">{r.phone_e164}<PhoneMenu leadId={r.id} phone={r.phone_e164} /></span> },
   { key: "email", label: "Email", on: false, td: "text-xs", cell: (r) => r.email || dash },
   { key: "status", label: "Status", on: true, cell: (r, o) => <StatusEdit r={r} subBelow={o.subInStatus} /> },
   { key: "sub_status", label: "Sub-status", on: true, td: "text-xs", cell: (r) => <SubStatusEdit r={r} /> },

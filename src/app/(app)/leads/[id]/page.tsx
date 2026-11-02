@@ -227,6 +227,10 @@ async function LeadCalls({ leadId, meId, admin }: { leadId: string; meId: string
         {rows.length > 0 && <span className="text-xs text-slate-500">{rows.length} call{rows.length === 1 ? "" : "s"} · talk time {fmtDuration(talk)}</span>}
       </div>
       <CallsList calls={rows} meId={meId} admin={admin} />
+    </section>
+  );
+}
+
 // Quotations, invoices and payment links of this lead.
 async function LeadQuotes({ leadId, companyId, canSend }: { leadId: string; companyId: string; canSend: boolean }) {
   const sb = await createClient();

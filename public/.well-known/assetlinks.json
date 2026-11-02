@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.leadboxs.wacrm",
+      "sha256_cert_fingerprints": [
+        "F3:AF:AE:49:D3:22:C8:11:EF:D3:E9:6F:54:B7:96:85:51:46:25:C0:FF:7B:CF:3F:10:C6:50:3C:E1:8C:E9:5A"
+      ]
+    }
+  }
+]

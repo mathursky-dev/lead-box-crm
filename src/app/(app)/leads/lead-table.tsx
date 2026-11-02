@@ -7,18 +7,15 @@ import { ActionForm, Field, Modal, Submit } from "@/components/ui";
 import { assignLeads } from "@/lib/actions/leads";
 import { saveLeadTableLayout, type LeadTableLayout } from "@/lib/actions/prefs";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
+import { InlineEditProvider, StatusEdit, SubStatusEdit, ProductEdit, FollowupEdit, RemarkEdit, type EditRefs } from "./inline-edit";
 
 type Row = {
-  id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_name: string; status_category: string; sub_status_name?: string | null;
+  id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_id?: string; status_name: string; status_category: string; sub_status_id?: string | null; sub_status_name?: string | null;
   priority: string; owner_id?: string | null; owner_name: string | null; owner_seen_at?: string | null; email?: string | null; assigned_at?: string | null;
   converted_at?: string | null; remark?: string | null; remark_at?: string | null; product_name: string | null; source_name: string | null;
   expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null;
 };
 
-const CAT: Record<string, string> = {
-  new: "bg-sky-50 text-sky-700", assigned: "bg-indigo-50 text-indigo-700", contacted: "bg-violet-50 text-violet-700", interested: "bg-amber-50 text-amber-700",
-  follow_up: "bg-orange-50 text-orange-700", scheduled: "bg-teal-50 text-teal-700", won: "bg-brand-100 text-brand-700", lost: "bg-slate-200 text-slate-700", invalid: "bg-red-50 text-red-700",
-};
 
 const unseen = (r: Row) => !!r.owner_id && !r.owner_seen_at;
 const dash = <span className="text-slate-400">—</span>;
@@ -31,21 +28,18 @@ const COLS: Col[] = [
   { key: "customer", label: "Customer", on: true, cell: (r) => <><div className={`text-navy-900 ${unseen(r) ? "font-bold" : "font-medium"}`}>{r.customer_name || "—"}</div><div className="text-xs text-slate-500">{r.phone_e164}</div></> },
   { key: "mobile", label: "Mobile number", on: false, td: "text-xs", cell: (r) => r.phone_e164 },
   { key: "email", label: "Email", on: false, td: "text-xs", cell: (r) => r.email || dash },
-  { key: "status", label: "Status", on: true, cell: (r, o) => <><span className={`badge ${CAT[r.status_category] ?? ""}`}>{r.status_name}</span>
-      {o.subInStatus && r.sub_status_name && <div className="mt-1 text-xs text-slate-500">{r.sub_status_name}</div>}</> },
-  { key: "sub_status", label: "Sub-status", on: true, td: "text-xs", cell: (r) => r.sub_status_name ? <span className="badge whitespace-nowrap bg-slate-100 text-slate-700">{r.sub_status_name}</span> : dash },
-  { key: "remark", label: "Remark", on: true, td: "text-xs", cell: (r) => r.remark
-      ? <div className="line-clamp-2 max-w-[240px] whitespace-normal break-words text-slate-700" title={`${r.remark}${r.remark_at ? `\n— ${fmtDateTime(r.remark_at)}` : ""}`}>{r.remark}</div> : dash },
+  { key: "status", label: "Status", on: true, cell: (r, o) => <StatusEdit r={r} subBelow={o.subInStatus} /> },
+  { key: "sub_status", label: "Sub-status", on: true, td: "text-xs", cell: (r) => <SubStatusEdit r={r} /> },
+  { key: "remark", label: "Remark", on: true, td: "text-xs", cell: (r) => <RemarkEdit r={r} /> },
   { key: "seen", label: "Seen / Unseen", on: true, td: "text-xs", cell: (r) => !r.owner_id ? dash : unseen(r)
       ? <span className="badge bg-sky-50 text-sky-700"><span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-sky-500" />Unseen</span>
       : <span className="text-slate-500" title={r.owner_seen_at ? `Opened by owner ${fmtDateTime(r.owner_seen_at)}` : ""}><Icon name="eye" className="mr-1 inline h-3.5 w-3.5" />Seen</span> },
   { key: "owner", label: "Owner", on: true, cell: (r) => r.owner_name ?? <span className="badge bg-amber-50 text-amber-700">Unassigned</span> },
   { key: "priority", label: "Priority", on: false, td: "text-xs capitalize", cell: (r) => r.priority },
-  { key: "product", label: "Product", on: true, td: "text-xs", cell: (r) => r.product_name ?? dash },
+  { key: "product", label: "Product", on: true, td: "text-xs", cell: (r) => <ProductEdit r={r} /> },
   { key: "source", label: "Source", on: true, td: "text-xs", cell: (r) => r.source_name ?? dash },
   { key: "value", label: "Value", on: true, td: "text-xs", cell: (r) => r.won_value != null ? <span className="text-brand-700">{money(r.won_value)} won</span> : money(r.expected_value) },
-  { key: "followup", label: "Next follow-up", on: true, td: "text-xs", cell: (r) => r.next_followup_at
-      ? <span className={new Date(r.next_followup_at) < new Date() ? "font-medium text-red-600" : ""}>{fmtDateTime(r.next_followup_at)}</span> : dash },
+  { key: "followup", label: "Next follow-up", on: true, td: "text-xs", cell: (r) => <FollowupEdit r={r} /> },
   { key: "activity", label: "Last activity", on: true, td: "text-xs text-slate-500", cell: (r) => fmtDay(r.last_activity_at) },
   { key: "created", label: "Created on", on: false, td: "text-xs text-slate-500", cell: (r) => fmtDateTime(r.created_at) },
   { key: "assigned", label: "Assigned on", on: false, td: "text-xs text-slate-500", cell: (r) => r.assigned_at ? fmtDateTime(r.assigned_at) : dash },
@@ -76,8 +70,8 @@ function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
   );
 }
 
-export function LeadTable({ rows, canAssign, users, saved, sortable }: {
-  rows: Row[]; canAssign: boolean; users: { id: string; name: string }[]; saved: LeadTableLayout | null; sortable: boolean;
+export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
+  rows: Row[]; canAssign: boolean; users: { id: string; name: string }[]; saved: LeadTableLayout | null; sortable: boolean; edit: EditRefs;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -114,7 +108,7 @@ export function LeadTable({ rows, canAssign, users, saved, sortable }: {
   );
 
   return (
-    <>
+    <InlineEditProvider refs={edit}>
       {canAssign && sel.size > 0 && (
         <div className="card mb-3 border-brand-100 bg-brand-50 p-3">
           <ActionForm action={assignLeads} onOk={() => setSel(new Set())} className="flex flex-wrap items-end gap-2">
@@ -165,7 +159,7 @@ export function LeadTable({ rows, canAssign, users, saved, sortable }: {
         </table>
       </div>
       {open && <CustomizeTable initial={layout} onClose={() => setOpen(false)} onSaved={(l) => { setLayout(l); setOpen(false); }} />}
-    </>
+    </InlineEditProvider>
   );
 }
 

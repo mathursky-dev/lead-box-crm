@@ -47,6 +47,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   }
 
   // Saved "Customize Table" layout for this user (null until they save one, or before the SQL is applied).
+  const { data: company } = await sb.from("lb_companies").select("require_next_action").eq("id", profile.company_id).maybeSingle();
   const { data: pref } = await sb.from("lb_user_prefs").select("value").eq("user_id", profile.id).eq("key", "leads.table").maybeSingle();
 
   const statusName = metric?.startsWith("status:") ? refs.statuses.find((s) => s.id === metric.slice(7))?.name : null;
@@ -96,7 +97,10 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       {error ? <ErrorBox message={error} /> : rows.length === 0 ? (
         <Empty icon="target" title="No leads found">{metric ? "Nothing matches this metric for the selected filters." : "Try different filters, create a lead, or import a CSV."}</Empty>
       ) : (
-        <LeadTable rows={rows} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")}
+        <LeadTable rows={rows} edit={{
+            statuses: refs.statuses, subStatuses: refs.subStatuses, products: refs.products,
+            canStatus: can(profile, "leads.status"), canEdit: can(profile, "leads.edit"), requireNext: company?.require_next_action ?? true,
+          }} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
       )}
       <Pager total={total} limit={LIMIT} offset={offset} params={sp} basePath="/leads" />

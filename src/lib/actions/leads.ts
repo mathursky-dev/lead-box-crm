@@ -125,3 +125,39 @@ export async function startConversation(leadId: string, numberId: string): Promi
   if (error) return { error: errMsg(error) };
   return { id: data };
 }
+
+// Inline edits from the leads list. One field per call; the list refreshes after.
+export type QuickEdit =
+  | { kind: "status"; status_id: string; reason?: string; won_value?: string; due?: string }
+  | { kind: "sub_status"; sub_status_id: string | null }
+  | { kind: "product"; product_id: string | null }
+  | { kind: "followup"; due: string }
+  | { kind: "remark"; text: string };
+
+export async function quickEditLead(id: string, e: QuickEdit): Promise<{ error?: string }> {
+  await requireProfile();
+  const sb = await createClient();
+  let error: { message: string } | null = null;
+  if (e.kind === "status") {
+    const due = e.due ? fromLocalInput(e.due) : null;
+    ({ error } = await sb.rpc("lb_change_status_with_action", {
+      p_lead: id, p_status: e.status_id, p_reason: e.reason?.trim() || null, p_won_value: e.won_value ? Number(e.won_value) : null,
+      p_action_type: "call", p_action_note: null, p_due: due,
+    }));
+  } else if (e.kind === "sub_status") {
+    ({ error } = await sb.rpc("lb_set_sub_status", { p_lead: id, p_sub_status: e.sub_status_id || null }));
+  } else if (e.kind === "product") {
+    ({ error } = await sb.rpc("lb_update_lead", { p_lead: id, p: { product_id: e.product_id ?? "" } }));
+  } else if (e.kind === "followup") {
+    const due = fromLocalInput(e.due);
+    if (!due) return { error: "Pick a date and time." };
+    ({ error } = await sb.rpc("lb_set_next_followup", { p_lead: id, p_due: due }));
+  } else if (e.kind === "remark") {
+    if (!e.text.trim()) return { error: "Write a remark." };
+    ({ error } = await sb.rpc("lb_log_activity", { p_lead: id, p_type: "note", p_body: e.text.trim().slice(0, 2000) }));
+  }
+  if (error) return { error: errMsg(error) };
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${id}`);
+  return {};
+}

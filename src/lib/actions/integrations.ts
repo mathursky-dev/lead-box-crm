@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { encryptSecret } from "@/lib/util";
+import { demoBlocked } from "@/lib/demo";
 
 type FormState = { error?: string; ok?: string } | undefined;
 
@@ -19,6 +20,7 @@ async function audit(companyId: string, actorId: string, action: string, data: o
 
 export async function saveMetaIntegration(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const notReady = ready();
   if (notReady) return { error: notReady };
   const appId = String(form.get("meta_app_id") ?? "").trim();
@@ -38,6 +40,7 @@ export async function saveMetaIntegration(_: FormState, form: FormData): Promise
 
 export async function generateVerifyToken(): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const notReady = ready();
   if (notReady) return { error: notReady };
   const token = `lb_${randomBytes(18).toString("hex")}`;

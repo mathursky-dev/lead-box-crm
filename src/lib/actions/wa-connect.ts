@@ -7,6 +7,7 @@ import { encryptSecret } from "@/lib/util";
 import { fbApp } from "@/lib/facebook";
 import { graph, phoneInfo, subscribeApp, gatewayConfigured, gatewayBase } from "@/lib/whatsapp";
 import { syncTemplates } from "./whatsapp";
+import { demoBlocked } from "@/lib/demo";
 
 type FormState = { error?: string; ok?: string } | undefined;
 
@@ -17,6 +18,7 @@ async function audit(companyId: string, actorId: string, action: string, entityI
 /** Meta "Facebook Login for Business" configuration id used by Embedded Signup. */
 export async function saveSignupConfig(_: FormState, form: FormData): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   if (!hasServiceRole()) return { error: "Server is not configured (SUPABASE_SERVICE_ROLE_KEY)." };
   const v = String(form.get("config_id") ?? "").trim();
   if (v && !/^\d{6,30}$/.test(v)) return { error: "Configuration ID must be digits." };
@@ -36,6 +38,7 @@ type Phone = { id: string; display_phone_number: string; verified_name: string; 
  */
 export async function completeEmbeddedSignup(input: { code: string; wabaId?: string; phoneNumberId?: string }): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   if (!hasServiceRole() || !process.env.LB_SECRETS_KEY) return { error: "Server is not configured (service key / LB_SECRETS_KEY)." };
   const app = await fbApp(me.company_id).catch(() => null);
   if (!app) return { error: "Save the Meta App ID and App Secret below first." };
@@ -109,6 +112,7 @@ const gw = <T>(path: string, init: RequestInit = {}) => graph<T>(process.env.WA_
 /** Create a QR number row and ask the gateway for a fresh login QR. */
 export async function startQrSession(label: string): Promise<{ error?: string; id?: string }> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   if (!hasServiceRole()) return { error: "Server is not configured (SUPABASE_SERVICE_ROLE_KEY)." };
   if (!gatewayConfigured()) return { error: "QR connect needs the WhatsApp gateway server. Set WA_GATEWAY_URL and WA_GATEWAY_KEY in Vercel." };
   const db = createAdminClient();
@@ -135,6 +139,7 @@ async function ownQrNumber(companyId: string, id: string) {
 /** Polled by the QR dialog. Marks the number connected as soon as the phone has scanned. */
 export async function qrSessionStatus(id: string): Promise<GwSession & { error?: string }> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo } as never; }
   const n = await ownQrNumber(me.company_id, id);
   if (!n || !gatewayConfigured()) return { status: "expired", error: "Session not found." };
   const r = await gw<GwSession>(`sessions/${n.phone_number_id}`);
@@ -153,6 +158,7 @@ export async function qrSessionStatus(id: string): Promise<GwSession & { error?:
 /** Closing the dialog before scanning drops the half-made number; a connected one is kept. */
 export async function cancelQrSession(id: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const n = await ownQrNumber(me.company_id, id);
   if (!n || n.status === "connected") return { ok: "Kept." };
   if (gatewayConfigured()) await gw(`sessions/${n.phone_number_id}`, { method: "DELETE" });
@@ -164,6 +170,7 @@ export async function cancelQrSession(id: string): Promise<FormState> {
 /** Log a QR number out of WhatsApp (the phone shows it under Linked devices until then). */
 export async function logoutQrNumber(id: string): Promise<FormState> {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) return { error: demo }; }
   const n = await ownQrNumber(me.company_id, id);
   if (!n) return { error: "Number not found." };
   if (gatewayConfigured()) {

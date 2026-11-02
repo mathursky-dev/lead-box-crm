@@ -4,10 +4,12 @@ import { requireProfile, isAdmin } from "@/lib/auth";
 import { activeSeats, createPaymentLink, razorpayConfigured } from "@/lib/billing";
 import { getPlan, priceFor } from "@/lib/plans";
 import type { FormState } from "./auth";
+import { demoBlocked } from "@/lib/demo";
 
 /** Starts a Razorpay checkout for every active user in the company. */
 export async function startCheckout(_?: FormState, form?: FormData): Promise<FormState> {
   const { profile, billing } = await requireProfile({ allowUnpaid: true });
+  { const demo = await demoBlocked(profile.company_id); if (demo) return { error: demo }; }
   if (!isAdmin(profile)) return { error: "Only an admin can pay for the workspace." };
   if (!razorpayConfigured()) return { error: "Online payment is not set up yet. Contact us to activate your plan." };
   const seats = await activeSeats(profile.company_id);

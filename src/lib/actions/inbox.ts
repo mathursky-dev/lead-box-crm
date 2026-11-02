@@ -7,6 +7,7 @@ import { enqueue, kick, mediaKind, MAX_MB } from "@/lib/inbox-send";
 import { rateLimit } from "./auth";
 import { graph, numberCredentials } from "@/lib/whatsapp";
 import { errMsg } from "@/lib/util";
+import { demoBlocked } from "@/lib/demo";
 
 type Result = { error?: string; ok?: boolean; data?: unknown };
 
@@ -78,6 +79,10 @@ export async function sendReaction(messageId: string, emoji: string): Promise<Re
   if (!(await rateLimit(`react:${profile.id}`, 60, 60))) return { error: "Too many reactions — wait a moment." };
   const { data: t, error } = await (await createClient()).rpc("lb_reaction_target", { p_msg: messageId });
   if (error) return { error: errMsg(error) };
+  if (await demoBlocked(profile.company_id)) {
+    await createAdminClient().from("lb_messages").update({ agent_reaction: emoji || null }).eq("id", messageId).eq("company_id", profile.company_id);
+    return { ok: true };
+  }
   const c = await numberCredentials(t.number_id);
   if (!c?.is_active) return { error: "Business number is disconnected or has no access token." };
   const r = await graph(c.token, `${c.endpoint}/messages`, { method: "POST", body: JSON.stringify({

@@ -6,6 +6,7 @@ import { decryptSecret, encryptSecret, errMsg } from "@/lib/util";
 import { fbAccount, fbApp } from "@/lib/facebook";
 import { graph } from "@/lib/whatsapp";
 import { fmtDateTime } from "@/lib/dates";
+import { demoBlocked } from "@/lib/demo";
 
 type FormState = { error?: string; ok?: string } | undefined;
 export type FbAd = { id: string; name: string; status?: string };
@@ -15,6 +16,7 @@ const ID = /^\d{3,30}$/;
 
 async function connected() {
   const { profile: me } = await requireAdmin();
+  { const demo = await demoBlocked(me.company_id); if (demo) throw new Error(demo); }
   if (!hasServiceRole() || !process.env.LB_SECRETS_KEY) throw new Error("Server is not configured: SUPABASE_SERVICE_ROLE_KEY / LB_SECRETS_KEY missing.");
   const acct = await fbAccount(me.company_id);
   if (!acct) throw new Error("Facebook is not connected.");

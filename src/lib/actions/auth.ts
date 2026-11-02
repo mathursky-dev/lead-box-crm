@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { createHash } from "node:crypto";
 import { normalizePhone } from "@/lib/util";
+import { DEMO_EMAIL_DOMAIN } from "@/lib/demo";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -67,6 +68,8 @@ export async function requestPasswordReset(_: FormState, form: FormData): Promis
   if (!email.success) return { error: "Enter a valid email." };
   const ip = await clientIp();
   if (!(await rateLimit(`reset:${ip}`, 5, 900))) return { error: "Too many requests. Try again later." };
+  // Demo logins have no mailbox; never send them email.
+  if (email.data.toLowerCase().endsWith(DEMO_EMAIL_DOMAIN)) return { ok: "If that email has an account, a reset link has been sent." };
   const supabase = await createClient();
   const base = process.env.APP_URL ?? "http://localhost:3000";
   const { error } = await supabase.auth.resetPasswordForEmail(email.data, {
@@ -83,6 +86,8 @@ export async function updatePassword(_: FormState, form: FormData): Promise<Form
   if (pw.length < 8) return { error: "Password must be at least 8 characters." };
   if (pw !== form.get("confirm")) return { error: "Passwords do not match." };
   const supabase = await createClient();
+  const { data: u } = await supabase.auth.getUser();
+  if (u.user?.email?.toLowerCase().endsWith(DEMO_EMAIL_DOMAIN)) return { error: "This is a demo account, so the password cannot be changed." };
   const { error } = await supabase.auth.updateUser({ password: pw });
   if (error) return { error: error.message };
   redirect("/dashboard");

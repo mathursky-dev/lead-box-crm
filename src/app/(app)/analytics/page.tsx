@@ -238,7 +238,7 @@ async function LeadsTab({ sb, cid, from, to, days, who, refs, sp, qs }: { sb: Sb
           {!total ? <NoData /> : <Trend labels={days.map(dayLabel)} series={trendSeries} mode={tv as "area" | "line" | "bar"} />}
         </Box>
         <Box title="Opportunity Funnel" headline={oppHead} actions={<Toggle options={funnelOpts} value={ov} href={(v) => qs({ ov: v === "funnel" ? null : v })} />}>
-          {!opp.length ? <NoData>No data for this period<br /><span className="text-xs">Add an expected value on leads to see the money in each stage.</span></NoData> : ov === "bars" ? <HBars rows={opp} format={inr} /> : <Funnel rows={opp} format={inr} />}
+          {!opp.length ? <NoData>No data for this period<br /><span className="text-xs">Add an expected value on leads to see the money in each stage.</span></NoData> : ov === "bars" ? <HBars rows={opp} currency /> : <Funnel rows={opp} currency />}
         </Box>
         <Box title="Lead Source" headline={srcHead} actions={<Toggle options={[{ value: "donut", label: "Donut", icon: "overview" }, { value: "bars", label: "Bars", icon: "list" }]} value={sv} href={(v) => qs({ sv: v === "donut" ? null : v })} />}>
           {!total ? <NoData /> : sv === "bars" ? <HBars rows={srcSlices} /> : <Donut rows={srcSlices} center={nf.format(total)} centerSub="leads" />}

@@ -213,7 +213,7 @@ begin
   update lb_profiles set branch_id = br_jaipur, department_id = dep, team_id = tm_jaipur where id in (u_priya, u_rahul, u_anjali);
   update lb_profiles set branch_id = br_delhi, department_id = dep, team_id = tm_delhi where id in (u_vikram, u_neha);
   update lb_profiles set branch_id = br_jaipur where id = u_admin;
-  v_agents := array[u_rahul, u_anjali, u_vikram, u_neha, u_rahul, u_anjali, u_priya];
+  v_agents := array[u_rahul, u_anjali, u_vikram, u_neha, u_rahul, u_anjali, u_priya, u_admin, u_admin]; -- the demo login owns some leads too
 
   for r in select * from (values ('New','new',10),('Assigned','assigned',20),('Contacted','contacted',30),('Interested','interested',40),
       ('Follow-up','follow_up',50),('Site Visit Scheduled','scheduled',60),('Converted/Won','won',70),('Lost','lost',80),('Invalid','invalid',90)) s(name, cat, so)

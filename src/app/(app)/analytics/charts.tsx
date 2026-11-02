@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { money } from "@/lib/dates";
 
 // Hand-drawn SVG charts for /analytics (no chart library in this app).
 // Colours come from the caller and follow the entity (status, source, activity type), never its rank.
@@ -40,7 +41,11 @@ export function SliceLegend({ rows, total, format = (v: number) => nf.format(v),
 }
 
 /** Stacked funnel: one band per slice, band height ~ value, narrowing to the bottom. */
-export function Funnel({ rows, format = (v: number) => nf.format(v) }: { rows: Slice[]; format?: (v: number) => string }) {
+// Server pages can't pass functions to client components, so money formatting is picked by a flag.
+const fmtOf = (currency?: boolean) => (currency ? (v: number) => money(Math.round(v)) : (v: number) => nf.format(v));
+
+export function Funnel({ rows, currency }: { rows: Slice[]; currency?: boolean }) {
+  const format = fmtOf(currency);
   const [hover, setHover] = useState<string | null>(null);
   const total = rows.reduce((n, r) => n + r.value, 0);
   const W = 260, H = 260, GAP = 2, MIN = 7;
@@ -74,7 +79,8 @@ export function Funnel({ rows, format = (v: number) => nf.format(v) }: { rows: S
 }
 
 /** Horizontal bars, an alternative view for funnel / source data. */
-export function HBars({ rows, format = (v: number) => nf.format(v) }: { rows: Slice[]; format?: (v: number) => string }) {
+export function HBars({ rows, currency }: { rows: Slice[]; currency?: boolean }) {
+  const format = fmtOf(currency);
   const max = Math.max(1, ...rows.map((r) => r.value));
   const total = rows.reduce((n, r) => n + r.value, 0);
   return (

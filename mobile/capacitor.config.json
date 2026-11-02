@@ -1,0 +1,13 @@
+{
+  "appId": "in.leadboxs.wacrm",
+  "appName": "Lead Box",
+  "webDir": "www",
+  "server": {
+    "url": "https://wacrm.leadboxs.in",
+    "androidScheme": "https",
+    "allowNavigation": ["wacrm.leadboxs.in", "*.supabase.co"]
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

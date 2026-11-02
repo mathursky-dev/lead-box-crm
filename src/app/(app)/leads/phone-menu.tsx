@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { openLeadChat } from "@/lib/actions/leads";
 import { openChatPopup } from "./chat-popup-host";
+import { dialNumber } from "@/components/call-sync";
 
 // ⋮ menu next to a lead's mobile number: Call, Chat (popup with the CRM chat), WhatsApp, Copy.
 // The menu is position:fixed so the table's horizontal scroll box cannot clip it.
@@ -50,7 +51,7 @@ export function PhoneMenu({ leadId, phone }: { leadId: string; phone: string }) 
       </button>
       {pos && (
         <div ref={menu} role="menu" style={{ top: pos.top, left: pos.left }} className="fixed z-50 w-44 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-          <a role="menuitem" href={`tel:+${digits}`} className={item} onClick={() => setPos(null)}>
+          <a role="menuitem" href={`tel:+${digits}`} className={item} onClick={(e) => { e.preventDefault(); setPos(null); dialNumber(phone); }}>
             <Svg d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" className="text-green-600" />Call
           </a>
           <button role="menuitem" type="button" className={item} onClick={chat} disabled={busy}>

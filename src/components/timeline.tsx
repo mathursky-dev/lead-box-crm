@@ -14,7 +14,7 @@ function describe(e: Ev) {
       if (!e.to_user) return <>Unassigned from <b>{e.from_user}</b></>;
       return e.from_user ? <>Transferred <b>{e.from_user}</b> → <b>{e.to_user}</b></> : <>Assigned to <b>{e.to_user}</b></>;
     case "note": return <>Note: <span className="whitespace-pre-wrap">{String(e.data?.body ?? "")}</span></>;
-    case "call": return <>Call logged: <span className="whitespace-pre-wrap">{String(e.data?.body ?? "")}</span></>;
+    case "call": return e.data?.auto ? <>📞 {String(e.data?.body ?? "Call")} <span className="text-xs text-slate-400">(mobile app)</span></> : <>Call logged: <span className="whitespace-pre-wrap">{String(e.data?.body ?? "")}</span></>;
     case "message_out": return "WhatsApp message sent";
     case "message_in": return "WhatsApp message received";
     case "followup_created": return <>Follow-up scheduled{e.data?.due_at ? ` for ${fmtDateTime(String(e.data.due_at))}` : e.data?.journey ? ` by ${e.data.journey}` : ""}{e.data?.note ? ` — ${e.data.note}` : ""}</>;

@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireProfile, isManager, can } from "@/lib/auth";
+import { requireProfile, isManager, isAdmin, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { StatusBadge, PRIORITY_STYLE } from "@/components/static";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { statusOf } from "@/lib/tasks";
+import { fmtDuration } from "@/lib/calls";
 import { Timeline, type Ev } from "@/components/timeline";
+import { CallsList } from "@/components/calls-list";
+import { CallButton } from "@/components/call-button";
+import { CALL_SELECT, toCallRow } from "@/lib/calls-server";
 import { CustomFieldsPanel } from "./custom-fields";
 import type { CustomField } from "@/lib/settings-shared";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
@@ -78,7 +82,10 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <div>Expected <b>{money(lead.expected_value)}</b></div>
           {lead.won_value != null && <div className="text-brand-700">Won <b>{money(lead.won_value)}</b></div>}
           {lead.lost_reason && <div className="max-w-xs text-xs text-red-700">Reason: {lead.lost_reason}</div>}
-          <Link className="btn-ghost btn-sm mt-2" href={`/leads/new?repeat=${lead.id}`}>+ Repeat opportunity</Link>
+          <div className="mt-2 flex justify-end gap-2">
+            <CallButton phone={c.phone_e164} />
+            <Link className="btn-ghost btn-sm" href={`/leads/new?repeat=${lead.id}`}>+ Repeat opportunity</Link>
+          </div>
         </div>
       </div>
 
@@ -87,6 +94,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           {can(profile, "leads.status") && <StatusPanel leadId={lead.id} statusId={lead.status_id} subStatusId={subStatusId} subStatuses={refs.subStatuses} statuses={refs.statuses.filter((s) => s.is_active || s.id === lead.status_id)} expected={lead.expected_value}
             nextAction={pending ? { note: pending.note, due_at: pending.due_at, action_type: (pending as { action_type?: string }).action_type ?? "call" } : null} />}
           <ActivityPanel leadId={lead.id} />
+          <LeadCalls leadId={lead.id} meId={profile.id} admin={isAdmin(profile)} />
           <section className="card p-4">
             <h2 className="mb-3 text-sm font-semibold text-navy-900">History</h2>
             <Timeline events={evs} />
@@ -149,6 +157,24 @@ async function LeadTasks({ leadId }: { leadId: string }) {
         </ul>
       )}
       <Link href={`/tasks?lead=${leadId}`} className="mt-2 inline-block text-xs text-brand-700 hover:underline">All tasks of this lead</Link>
+    </section>
+  );
+}
+
+// Calls saved from the mobile app (and their recordings).
+async function LeadCalls({ leadId, meId, admin }: { leadId: string; meId: string; admin: boolean }) {
+  const sb = await createClient();
+  const { data, error } = await sb.from("lb_calls").select(CALL_SELECT).eq("lead_id", leadId).order("started_at", { ascending: false }).limit(20);
+  if (error) return null; // Call tracking SQL not applied yet.
+  const rows = (data ?? []).map(toCallRow);
+  const talk = rows.reduce((n, r) => n + r.duration_sec, 0);
+  return (
+    <section className="card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-navy-900">Calls</h2>
+        {rows.length > 0 && <span className="text-xs text-slate-500">{rows.length} call{rows.length === 1 ? "" : "s"} · talk time {fmtDuration(talk)}</span>}
+      </div>
+      <CallsList calls={rows} meId={meId} admin={admin} />
     </section>
   );
 }

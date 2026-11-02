@@ -25,8 +25,24 @@ android {
         full { dimension "dist" }
     }
     buildFeatures { buildConfig = true }
+    // Release signing: put keystore.properties (storeFile, storePassword, keyAlias, keyPassword)
+    // next to this file. It is git-ignored; without it release builds come out unsigned.
+    def ksFile = rootProject.file("keystore.properties")
+    if (ksFile.exists()) {
+        def ks = new Properties()
+        ks.load(new FileInputStream(ksFile))
+        signingConfigs {
+            release {
+                storeFile rootProject.file(ks["storeFile"])
+                storePassword ks["storePassword"]
+                keyAlias ks["keyAlias"]
+                keyPassword ks["keyPassword"]
+            }
+        }
+    }
     buildTypes {
         release {
+            if (ksFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

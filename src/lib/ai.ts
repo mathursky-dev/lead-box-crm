@@ -157,3 +157,41 @@ export async function suggestReplies(customer: string, messages: Msg[], knowledg
   if (!replies.length) throw new AiError("The AI returned no replies. Try again.", true);
   return { replies, model: r.model };
 }
+
+export type HelpTurn = { role: "user" | "assistant"; text: string };
+
+/** In-app help bot: answers "how do I…" questions about the CRM from the feature guide only. */
+export async function answerHelp(guide: string, who: string, history: HelpTurn[], question: string) {
+  const system =
+    "You are the Lead Box CRM help assistant inside the CRM web app. You help users learn how to use the CRM, step by step. " +
+    "Answer ONLY from the guide below. If the guide does not cover something, say so honestly and suggest the closest feature or asking their admin / Lead Box support. Never invent pages, buttons or features. " +
+    "Reply in the user's language and style: Hinglish (Hindi in Roman script) if they write Hinglish, Hindi in Devanagari if they write Devanagari, otherwise simple English. " +
+    "Format: a one-line answer, then numbered steps (max 8), each short. Link pages exactly as markdown [Page name](/path) using only paths from the guide. Use **bold** for button names. No headings, no tables, under 180 words. " +
+    "If a feature is marked for admins and the user is not an admin, tell them an admin has to do it. " +
+    "Questions about the user's own data (e.g. how many leads) cannot be answered here; tell them which page shows it. " +
+    `The user is: ${who}.\n\n<guide>\n${guide}\n</guide>`;
+  const msgs = [...history.slice(-8), { role: "user" as const, text: question }]
+    .filter((m) => m.text.trim())
+    .map((m) => ({ role: m.role, content: m.text.slice(0, 2000) }));
+  while (msgs.length && msgs[0].role !== "user") msgs.shift();
+  try {
+    const res = await getClient().beta.messages.create({
+      model: AI_MODEL,
+      max_tokens: 1500,
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      messages: msgs,
+      output_config: { effort: "low" },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+    });
+    if (res.stop_reason === "refusal") throw new AiError("The AI declined to answer this question.", false);
+    const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+    if (!text) throw new AiError("The AI returned an empty answer.", true);
+    return text;
+  } catch (e) {
+    if (e instanceof AiError) throw e;
+    if (e instanceof Anthropic.RateLimitError) throw new AiError("AI is busy (rate limited). Try again shortly.", true);
+    if (e instanceof Anthropic.APIError) throw new AiError(`AI service error (${e.status ?? "network"}).`, true);
+    throw new AiError("AI request failed.", true);
+  }
+}

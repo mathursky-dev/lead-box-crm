@@ -28,7 +28,7 @@ const CAT: Record<string, string> = {
 };
 const closedCat = (c?: string) => c === "won" || c === "lost" || c === "invalid";
 const dash = <span className="text-slate-400">—</span>;
-const pill = "cursor-pointer appearance-none rounded-full border border-transparent py-0.5 pl-2.5 pr-6 text-xs font-medium hover:border-slate-300 focus:border-brand-400 focus:outline-none disabled:cursor-default disabled:hover:border-transparent bg-[length:10px] bg-[right_0.45rem_center] bg-no-repeat";
+const pill = "[field-sizing:content] max-w-[220px] cursor-pointer appearance-none rounded-full border border-transparent py-0.5 pl-2.5 pr-6 text-xs font-medium hover:border-slate-300 focus:border-brand-400 focus:outline-none disabled:cursor-default disabled:hover:border-transparent bg-[length:10px] bg-[right_0.45rem_center] bg-no-repeat";
 const caret = { backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2364748b' stroke-width='1.5'/%3E%3C/svg%3E\")" };
 
 export function InlineEditProvider({ refs, children }: { refs: EditRefs; children: React.ReactNode }) {

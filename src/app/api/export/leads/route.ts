@@ -3,7 +3,7 @@ import { getSession, can } from "@/lib/auth";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { rateLimit } from "@/lib/actions/auth";
 import { METRICS, toRpcFilters, pickFilters } from "@/lib/metrics";
-import { fmtDateTime, istDate } from "@/lib/dates";
+import { fmtDateTime, istDate, rangeFrom } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   for (let offset = 0; offset < MAX_ROWS; ) {
     const { data, error } = metric
       ? await sb.rpc("lb_metric_leads", { p: toRpcFilters(pickFilters(sp)), p_metric: metric, p_user: sp.mu || null, p_limit: 200, p_offset: offset })
-      : await sb.rpc("lb_list_leads", { p: { ...sp, unassigned: sp.unassigned === "1", open_only: sp.open === "1", limit: 500, offset } });
+      : await sb.rpc("lb_list_leads", { p: { ...sp, from: rangeFrom(sp.range) ?? undefined, unassigned: sp.unassigned === "1", open_only: sp.open === "1", limit: 500, offset } });
     if (error) return new NextResponse(error.message, { status: 400 });
     rows.push(...data.rows);
     offset += data.rows.length;

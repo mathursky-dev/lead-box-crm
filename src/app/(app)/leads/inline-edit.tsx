@@ -113,7 +113,7 @@ function StatusDialog({ lead, status, requireNext, onClose, onSave }: {
     <Modal open onClose={onClose} title={`LB-${lead.lead_no} → ${status.name}`}>
       <form onSubmit={submit} className="space-y-3">
         {cat === "won" && <Field label="Won value (₹)"><input className="input" type="number" min={0} step="0.01" value={won} onChange={(e) => setWon(e.target.value)} autoFocus /></Field>}
-        {lostLike && <Field label="Reason (required)"><input className="input" required value={reason} onChange={(e) => setReason(e.target.value)} autoFocus placeholder="e.g. Wrong number" /></Field>}
+        {lostLike && <Field label="Reason (required)"><input className="input" required value={reason} onChange={(e) => setReason(e.target.value)} autoFocus list={`lb-reasons-${cat}`} autoComplete="off" placeholder="Pick or type a reason" /></Field>}
         {needDue && <Field label="Next follow-up (required)" hint="Open leads need a next action."><input className="input" type="datetime-local" required value={due} onChange={(e) => setDue(e.target.value)} autoFocus /></Field>}
         {!lostLike && <Field label="Comment (optional)"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Shows in the Remark column" /></Field>}
         <div className="flex justify-end gap-2 pt-1">

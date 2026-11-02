@@ -2,6 +2,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
+import { Tx } from "./lang";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 type Action = (state: FormState, form: FormData) => Promise<FormState>;
@@ -76,7 +77,7 @@ export function ActionButton({ action, children, className = "btn-ghost btn-sm",
 export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <label className="block">
-      <span className="label">{label}</span>
+      <span className="label"><Tx>{label}</Tx></span>
       {children}
       {hint && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
     </label>

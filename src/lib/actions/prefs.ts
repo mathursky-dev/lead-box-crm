@@ -65,3 +65,9 @@ export async function saveLeadViews(pref: LeadViews): Promise<{ error?: string }
     .upsert({ user_id: profile.id, key: "leads.views", value: parsed.data, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
   return error ? { error: error.message } : {};
 }
+
+/** Interface language (Hindi / English): a cookie, so it applies on this device right away. */
+export async function setLanguage(lang: string): Promise<void> {
+  const { cookies } = await import("next/headers");
+  (await cookies()).set("lb_lang", lang === "hi" ? "hi" : "en", { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+}

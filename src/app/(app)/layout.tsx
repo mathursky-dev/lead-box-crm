@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Shell, BackHome, type NavGroup, type CompanySwitch } from "@/components/shell";
 import { DayBrief, type Brief } from "@/components/day-brief";
 import { CallSync } from "@/components/call-sync";
+import { OfflineSync } from "@/components/offline-sync";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
@@ -36,6 +37,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"), ...it(can(profile, "leads.import"), "/import", "Import"),
     ] },
     { label: "Tasks", icon: "check", href: "/tasks" },
+    { label: "Field Force", icon: "pin", items: [
+      { href: "/field", label: "Field app", keywords: "check in check out attendance visit expense offline gps location" },
+      { href: "/field/attendance", label: "Attendance", keywords: "check in present hours gps" },
+      { href: "/field/visits", label: "Field visits", keywords: "visit report location meeting" },
+      { href: "/field/expenses", label: "Expenses", keywords: "claim travel fuel reimbursement approval" },
+    ] },
     { label: "Conversations", icon: "inbox", items: [
       { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
     ] },
@@ -92,6 +99,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(can(profile, "leads.import"), "/import", "Import leads (CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
     { href: "/tasks?new=1", label: "New task" },
+    { href: "/field", label: "Check in / field visit" },
+    { href: "/field?expense=1", label: "Add expense claim" },
     { href: "/documents", label: "Upload document" },
     ...it(nurture && can(profile, "campaigns.manage"), "/nurture/campaigns", "New campaign"),
     ...it(nurture && can(profile, "journeys.manage"), "/nurture/journeys/new", "New journey"),
@@ -138,6 +147,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       )}
       {children}
       <CallSync userId={profile.id} />
+      <OfflineSync userId={profile.id} />
       {brief && <DayBrief userId={profile.id} name={profile.full_name} brief={brief} {...istGreeting()} />}
     </Shell>
   );

@@ -12,6 +12,7 @@ import { Icon } from "./kit";
 import { Logo } from "./logo";
 import { HelpDrawer } from "./help-drawer";
 import { fmtNum } from "@/lib/wa";
+import { clearOfflineData } from "@/lib/offline/queue";
 
 export type NavItem = { href: string; label: string; keywords?: string };
 export type NavGroup = { label: string; icon: string; href?: string; items?: NavItem[] };
@@ -86,7 +87,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, children }: {
               <div className="truncate text-sm font-semibold text-white">{user.name}</div>
               <div className="truncate text-slate-400">{user.role} · {user.company}</div>
             </div>
-            <form action={logout}><button className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white" title="Sign out" aria-label="Sign out"><Icon name="logout" className="h-4 w-4" /></button></form>
+            <form action={logout} onSubmit={() => { void clearOfflineData(); }}><button className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white" title="Sign out" aria-label="Sign out"><Icon name="logout" className="h-4 w-4" /></button></form>
           </div>
         </div>
       </aside>
@@ -297,7 +298,7 @@ function Profile({ user, initial }: { user: User; initial: string }) {
           <div className="text-sm font-semibold text-navy-900">{user.name}</div>
           <div className="mb-3 text-xs text-slate-500">{user.role} · {user.company}</div>
           <Availability value={user.availability} />
-          <form action={logout} className="mt-3 border-t border-slate-100 pt-2"><button className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"><Icon name="logout" className="h-4 w-4" />Sign out</button></form>
+          <form action={logout} onSubmit={() => { void clearOfflineData(); }} className="mt-3 border-t border-slate-100 pt-2"><button className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"><Icon name="logout" className="h-4 w-4" />Sign out</button></form>
         </div>
       )}
     </div>

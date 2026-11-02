@@ -2,7 +2,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdmin, requireProfile, can, type Profile } from "@/lib/auth";
+import { pageBlocked, requireAdmin, requireProfile, can, type Profile } from "@/lib/auth";
 import { createAdminClient, createClient, hasServiceRole } from "@/lib/supabase/server";
 import { errMsg, normalizePhone } from "@/lib/util";
 import { enqueue } from "@/lib/inbox-send";
@@ -175,6 +175,7 @@ export async function sendCareLink(leadId: string, kind: "portal" | "booking" | 
 
 // --------------------------------------------------------- appointments
 export async function bookAppointment(_: FormState, form: FormData): Promise<FormState> {
+  { const blocked = await pageBlocked("care", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const p = z.object({
     lead_id: z.uuid("Invalid lead"),
@@ -199,6 +200,7 @@ export async function bookAppointment(_: FormState, form: FormData): Promise<For
 }
 
 export async function setAppointmentStatus(id: string, status: string): Promise<FormState> {
+  { const blocked = await pageBlocked("care", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   if (!Uuid.safeParse(id).success) return { error: "Invalid appointment" };
   const { data, error } = await (await createClient()).rpc("lb_set_appointment", { p_id: id, p_status: status, p_note: null });
@@ -209,6 +211,7 @@ export async function setAppointmentStatus(id: string, status: string): Promise<
 
 // ------------------------------------------------------------ referrals
 export async function addReferrer(_: FormState, form: FormData): Promise<FormState> {
+  { const blocked = await pageBlocked("care", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const leadId = String(form.get("lead_id") ?? "");
   if (!Uuid.safeParse(leadId).success) return { error: "Invalid lead" };
@@ -222,6 +225,7 @@ export async function addReferrer(_: FormState, form: FormData): Promise<FormSta
 }
 
 export async function setReferralStatus(id: string, status: string, note?: string): Promise<FormState> {
+  { const blocked = await pageBlocked("care", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   if (!Uuid.safeParse(id).success) return { error: "Invalid referral" };
   const { error } = await (await createClient()).rpc("lb_set_referral", { p_id: id, p_status: status, p_note: note ?? null });

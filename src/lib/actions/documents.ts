@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireProfile, isAdmin } from "@/lib/auth";
+import { pageBlocked, requireProfile, isAdmin } from "@/lib/auth";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { enqueue, mediaKind, MAX_MB } from "@/lib/inbox-send";
@@ -24,6 +24,7 @@ const cleanDesc = (d: unknown) => String(d ?? "").trim().slice(0, 300);
 
 /** Step 1 of an upload: a one-time signed URL so the browser sends the file straight to storage. */
 export async function startDocUpload(name: string, size: number): Promise<{ error?: string; path?: string; token?: string }> {
+  { const blocked = await pageBlocked("documents", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   if (!Number.isFinite(size) || size <= 0) return { error: "File is empty" };
   if (size > MAX_MB * MB) return { error: `File is too big. The limit is ${MAX_MB} MB.` };
@@ -48,6 +49,7 @@ async function uploaded(companyId: string, path: string) {
 
 /** Step 2: save the document row (new document). */
 export async function createDocument(path: string, description: string): Promise<Result> {
+  { const blocked = await pageBlocked("documents", "edit"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const f = await uploaded(profile.company_id, String(path));
   if ("error" in f) return { error: f.error };
@@ -69,6 +71,7 @@ async function ownDoc(id: string) {
 
 /** Edit the description and, optionally, replace the file (newPath from startDocUpload). */
 export async function updateDocument(id: string, description: string, newPath?: string): Promise<Result> {
+  { const blocked = await pageBlocked("documents", "edit"); if (blocked) return { error: blocked }; }
   const o = await ownDoc(id);
   if ("error" in o) return { error: o.error };
   if (!o.canEdit) return { error: "Only the person who added it or an admin can edit this document." };
@@ -86,6 +89,7 @@ export async function updateDocument(id: string, description: string, newPath?: 
 }
 
 export async function deleteDocuments(ids: string[]): Promise<Result & { deleted?: number }> {
+  { const blocked = await pageBlocked("documents", "delete"); if (blocked) return { error: blocked }; }
   const { profile } = await requireProfile();
   const list = ids.filter((i) => z.uuid().safeParse(i).success).slice(0, 200);
   if (!list.length) return { error: "Nothing selected" };

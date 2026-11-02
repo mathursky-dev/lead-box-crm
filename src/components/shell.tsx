@@ -330,6 +330,7 @@ function Profile({ user, initial }: { user: User; initial: string }) {
           <div className="mb-3 text-xs text-slate-500">{user.role} · {user.company}</div>
           <Availability value={user.availability} />
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-sm text-navy-900"><span>{t("Language")} · भाषा</span><LangSwitch /></div>
+          <Link href="/security" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2 text-sm font-medium text-navy-900 hover:text-brand-700"><Icon name="shield" className="h-4 w-4" />{t("Security")} · OTP · {t("Login history")}</Link>
           <form action={logout} onSubmit={() => { void clearOfflineData(); }} className="mt-3 border-t border-slate-100 pt-2"><button className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"><Icon name="logout" className="h-4 w-4" />{t("Sign out")}</button></form>
         </div>
       )}

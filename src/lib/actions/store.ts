@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdmin, requireProfile, type Profile } from "@/lib/auth";
+import { pageBlocked, requireAdmin, requireProfile, type Profile } from "@/lib/auth";
 import { createAdminClient, createClient, hasServiceRole } from "@/lib/supabase/server";
 import { errMsg } from "@/lib/util";
 import { STORE_BUCKET, STORE_KEYWORDS, storeUrl } from "@/lib/store";
@@ -155,6 +155,7 @@ export async function setProductFlag(id: string, flag: "in_store" | "in_stock" |
 
 // -------------------------------------------------------------------- orders
 export async function updateOrder(id: string, status: string, payment: string, note: string): Promise<FormState> {
+  { const blocked = await pageBlocked("store", "edit"); if (blocked) return { error: blocked }; }
   await requireProfile();
   if (!z.uuid().safeParse(id).success) return { error: "Invalid order" };
   const sb = await createClient();

@@ -412,3 +412,35 @@ export async function saveRolePermissions(_: FormState, form: FormData): Promise
   revalidatePath("/", "layout");
   return { ok: "Permissions saved. They apply immediately on each user's next page load." };
 }
+
+// ---------------------------------------------------------- page-wise access (view / edit / delete per role)
+export async function savePageAccess(_: FormState, form: FormData): Promise<FormState> {
+  const { profile: me } = await requireAdmin();
+  const { PAGES } = await import("@/lib/page-access");
+  const supabase = await createClient(); // RLS: admins of this company only
+  const now = new Date().toISOString();
+  const rows = (["agent", "team_leader"] as const).flatMap((role) => PAGES.map((p) => {
+    const view = form.get(`${role}:${p.key}:view`) === "on";
+    return { company_id: me.company_id, role, page: p.key, can_view: view,
+      can_edit: view && (!p.edit || form.get(`${role}:${p.key}:edit`) === "on"),
+      can_delete: view && (!p.delete || form.get(`${role}:${p.key}:delete`) === "on"), updated_by: me.id, updated_at: now };
+  }));
+  // Full access is stored as "no row", so a company that never restricts anything keeps today's behaviour.
+  const limited = rows.filter((r) => !(r.can_view && r.can_edit && r.can_delete));
+  const full = rows.filter((r) => r.can_view && r.can_edit && r.can_delete);
+  for (const role of ["agent", "team_leader"] as const) {
+    const pages = full.filter((r) => r.role === role).map((r) => r.page);
+    if (pages.length) {
+      const { error } = await supabase.from("lb_role_page_access").delete().eq("company_id", me.company_id).eq("role", role).in("page", pages);
+      if (error) return { error: /lb_role_page_access/.test(error.message) ? "Run the new SQL in Supabase first." : error.message };
+    }
+  }
+  if (limited.length) {
+    const { error } = await supabase.from("lb_role_page_access").upsert(limited);
+    if (error) return { error: error.message };
+  }
+  await audit(createAdminClient(), me, "roles.pages.save", "role_page_access", null,
+    Object.fromEntries(limited.map((r) => [`${r.role}:${r.page}`, `${r.can_view ? "view" : "-"}${r.can_edit ? "/edit" : ""}${r.can_delete ? "/delete" : ""}`])));
+  revalidatePath("/", "layout");
+  return { ok: limited.length ? "Page access saved. It applies on each user's next page load." : "Saved. Agents and Team Leaders have full page access." };
+}

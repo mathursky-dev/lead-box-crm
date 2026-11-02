@@ -66,6 +66,8 @@ export async function requireProfile({ allowUnpaid = false } = {}) {
   const s = await getSession();
   if (!s) redirect("/login");
   if (!s.profile) redirect("/login?error=no_access");
+  const gate = await twoFactorGate();
+  if (gate) redirect(gate);
   if (!s.entitled && !allowUnpaid) redirect("/billing");
   return { profile: s.profile, company: s.company!, billing: s.billing, entitled: s.entitled, features: s.features ?? [],
     /** The signed-in user's own company; differs from profile.company_id while a Super Admin has another company open. */
@@ -87,3 +89,43 @@ export async function requireAdmin() {
   if (!isAdmin(s.profile)) redirect("/dashboard");
   return s;
 }
+
+// ---------------------------------------------------------- page-wise access (Agent / Team Leader)
+import { allowed, type PageAccess, type PageAction } from "./page-access";
+
+/** Pages this user is limited on (empty object = full access, always empty for admins). */
+export const getPageAccess = cache(async (): Promise<PageAccess> => {
+  const s = await getSession();
+  if (!s?.profile || isAdmin(s.profile)) return {};
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("lb_my_page_access");
+  // Before the SQL is applied the function is missing: keep today's behaviour (full access).
+  if (error || !data || typeof data !== "object") return {};
+  return data as PageAccess;
+});
+
+/** For server actions: an error message when the role may not do this on the page, else null. */
+export async function pageBlocked(page: string, action: PageAction = "edit"): Promise<string | null> {
+  const access = await getPageAccess();
+  if (allowed(access, page, action)) return null;
+  return action === "delete" ? "Your role is not allowed to delete here. Ask your admin." : action === "edit" ? "Your role can only view this page. Ask your admin for edit access." : "Your role does not have access to this page.";
+}
+
+// ---------------------------------------------------------- two-factor (authenticator OTP)
+/**
+ * Where to send the user before any app page: "/two-factor" when they have 2FA on but have not entered the
+ * code in this session, "/two-factor?setup=1" when their company makes 2FA compulsory and they have not set it
+ * up yet; null when nothing is needed. Users without 2FA in a company that does not require it are never affected.
+ */
+export const twoFactorGate = cache(async (): Promise<string | null> => {
+  const s = await getSession();
+  if (!s?.profile) return null;
+  const supabase = await createClient();
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aal?.currentLevel === "aal1" && aal.nextLevel === "aal2") return "/two-factor";
+  if (aal?.currentLevel === "aal2" || s.profile.role === "super_admin") return null;
+  // Compulsory 2FA is a setting of the user's own company (tolerates the column not existing yet).
+  const { data: co, error } = await supabase.from("lb_companies").select("require_2fa,is_demo").eq("id", s.profile.company_id).maybeSingle();
+  if (error || !co?.require_2fa || co.is_demo) return null;
+  return "/two-factor?setup=1";
+});

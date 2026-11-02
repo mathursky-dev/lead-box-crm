@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireProfile, isAdmin, can } from "@/lib/auth";
+import { pageBlocked, requireProfile, isAdmin, can } from "@/lib/auth";
 import { createClient, createAdminClient, hasServiceRole } from "@/lib/supabase/server";
 import { encryptSecret, errMsg } from "@/lib/util";
 import { enqueue } from "@/lib/inbox-send";
@@ -68,6 +68,7 @@ function gstFields(input: QuoteInput): { error: string } | Record<string, unknow
 }
 
 export async function saveQuote(input: QuoteInput): Promise<Result & { id?: string }> {
+  { const blocked = await pageBlocked("quotes", "edit"); if (blocked) return { error: blocked }; }
   const v = await visibleLead(input.lead_id);
   if ("error" in v) return { error: v.error };
   const kind: QuoteKind = input.kind === "invoice" ? "invoice" : "quotation";
@@ -111,6 +112,7 @@ async function rememberGstin(customerId: string | null, companyId: string, gstin
 }
 
 export async function setQuoteStatus(id: string, status: "accepted" | "rejected" | "cancelled" | "sent"): Promise<FormState> {
+  { const blocked = await pageBlocked("quotes", "edit"); if (blocked) return { error: blocked }; }
   if (!["accepted", "rejected", "cancelled", "sent"].includes(status)) return { error: "Invalid status" };
   const o = await visibleQuote(id);
   if ("error" in o) return { error: o.error };
@@ -122,6 +124,7 @@ export async function setQuoteStatus(id: string, status: "accepted" | "rejected"
 }
 
 export async function deleteQuote(id: string): Promise<FormState> {
+  { const blocked = await pageBlocked("quotes", "delete"); if (blocked) return { error: blocked }; }
   const o = await visibleQuote(id);
   if ("error" in o) return { error: o.error };
   if (o.q.status !== "draft" && !isAdmin(o.profile)) return { error: "Only drafts can be deleted. Cancel it instead." };
@@ -134,6 +137,7 @@ export async function deleteQuote(id: string): Promise<FormState> {
 
 /** Quotation -> new draft invoice with the same items. */
 export async function convertToInvoice(id: string): Promise<Result & { id?: string }> {
+  { const blocked = await pageBlocked("quotes", "edit"); if (blocked) return { error: blocked }; }
   const o = await visibleQuote(id);
   if ("error" in o) return { error: o.error };
   if (o.q.kind !== "quotation") return { error: "This is already an invoice." };
@@ -153,6 +157,7 @@ export async function convertToInvoice(id: string): Promise<Result & { id?: stri
 
 /** Marks as sent without WhatsApp (shared by email/link). Also applies the "Quotation sent" status. */
 export async function markQuoteSent(id: string): Promise<FormState> {
+  { const blocked = await pageBlocked("quotes", "edit"); if (blocked) return { error: blocked }; }
   const o = await visibleQuote(id);
   if ("error" in o) return { error: o.error };
   const { data, error } = await createAdminClient().rpc("lb_quote_mark_sent", { p_quote: id, p_actor: o.profile.id });
@@ -191,6 +196,7 @@ export async function sendQuoteOnWhatsApp(id: string, caption?: string): Promise
 
 // ----------------------------------------------------- payment links
 export async function createPaymentLink(input: { lead_id: string; quote_id?: string | null; amount: number; description: string; send: boolean }): Promise<Result & { url?: string; sent?: boolean; warn?: string }> {
+  { const blocked = await pageBlocked("quotes", "edit"); if (blocked) return { error: blocked }; }
   const v = await visibleLead(input.lead_id);
   if ("error" in v) return { error: v.error };
   const amount = Math.round((Number(input.amount) || 0) * 100) / 100;

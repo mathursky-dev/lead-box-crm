@@ -36,7 +36,7 @@ const HI: Record<string, string> = {
   "New chatbot": "नया चैटबॉट", "New chatbot flow": "नया चैटबॉट फ़्लो", "Add user": "यूज़र जोड़ें",
   // -------------------------------------------------------------- top bar
   "Search menu…": "मेन्यू खोजें…", "Search pages, leads…": "पेज, लीड खोजें…", "Help & Guides": "मदद और गाइड",
-  "Quick Create": "जल्दी बनाएँ", "Sign out": "साइन आउट", "Search pages, or leads by name / phone / LB-123": "पेज खोजें, या लीड नाम / फ़ोन / LB-123 से",
+  "Quick Create": "जल्दी बनाएँ", Security: "सुरक्षा", "Login history": "लॉगिन इतिहास", "Setup wizard": "सेटअप विज़ार्ड", "Security & logins": "सुरक्षा और लॉगिन", "Data export / backup": "डेटा एक्सपोर्ट / बैकअप", "Sign out": "साइन आउट", "Search pages, or leads by name / phone / LB-123": "पेज खोजें, या लीड नाम / फ़ोन / LB-123 से",
   Notifications: "सूचनाएँ", "Mark all read": "सब पढ़ा हुआ करें", Available: "उपलब्ध", Busy: "व्यस्त", Away: "बाहर", Offline: "ऑफ़लाइन",
   Language: "भाषा",
   // ----------------------------------------------------------- page titles

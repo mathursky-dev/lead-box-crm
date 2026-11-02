@@ -125,6 +125,7 @@ export function LeadsToolbar({ qs, views: initialViews, total, q, activeFilters,
               <Link role="menuitem" className={item} href="/lead-reports"><Icon name="chart" className="h-4 w-4 text-violet-600" />Lead reports</Link>
               {perm.admin && <>
                 <div className="my-1 border-t border-slate-100" />
+                <Link role="menuitem" className={item} href="/leads/duplicates"><Icon name="layers" className="h-4 w-4 text-amber-600" />Duplicate leads (merge)</Link>
                 <Link role="menuitem" className={item} href="/settings/statuses"><Icon name="tag" className="h-4 w-4 text-slate-500" />Lead statuses</Link>
                 <Link role="menuitem" className={item} href="/admin/allocation"><Icon name="userPlus" className="h-4 w-4 text-slate-500" />Lead allocation</Link>
                 <Link role="menuitem" className={item} href="/settings/sources"><Icon name="layers" className="h-4 w-4 text-slate-500" />Sources & tags</Link>

@@ -22,7 +22,7 @@ export const PAGES: { key: string; label: string; paths: string[]; edit?: string
   { key: "quotes", label: "Quotes & Invoices", paths: ["/quotes"], edit: "Create / edit quotes, payment links", delete: "Delete quotes" },
   { key: "care", label: "Customer care", paths: ["/care"], edit: "Book appointments, referrals" },
   { key: "marketing", label: "Marketing (nurture)", paths: ["/nurture"] },
-  { key: "reports", label: "360 Reports", paths: ["/reports"] },
+  { key: "reports", label: "360 Reports & AI sales forecast", paths: ["/reports", "/forecast"] },
 ];
 
 /** Page key for a URL path (longest matching prefix wins), or null when the path is not configurable. */

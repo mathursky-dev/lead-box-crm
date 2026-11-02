@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Tx } from "./lang";
 
 // Presentational building blocks shared by the CRM and the WhatsApp Business module (server-safe).
 
@@ -109,7 +110,7 @@ export function PillTabs({ tabs, label }: { tabs: { href: string; label: React.R
       {tabs.map((t) => (
         <Link key={t.href} href={t.href} aria-current={t.active ? "page" : undefined}
           className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${t.active ? "border-transparent bg-brand-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-brand-100 hover:bg-brand-50 hover:text-brand-700"}`}>
-          {t.icon && <Icon name={t.icon} className="h-3.5 w-3.5" />}{t.label}
+          {t.icon && <Icon name={t.icon} className="h-3.5 w-3.5" />}<Tx>{t.label}</Tx>
           {t.count !== undefined && <span className={`rounded-full px-1.5 text-[10px] ${t.active ? "bg-white/20" : "bg-slate-100"}`}>{t.count}</span>}
         </Link>
       ))}
@@ -124,7 +125,7 @@ export function Kpi({ label, value, sub, icon, tone = "green", href, title }: { 
       <span className={`absolute inset-x-0 top-0 h-1 ${t.bar}`} />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500"><Tx>{label}</Tx></div>
           <div className="mt-1 text-2xl font-bold text-navy-900">{value}</div>
           {sub && <div className="mt-1 truncate text-xs text-slate-500">{sub}</div>}
         </div>
@@ -145,7 +146,7 @@ export function Panel({ title, icon, actions, children, className = "", tone = "
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-navy-900">
           {icon && <span className={`grid h-7 w-7 place-items-center rounded-md ${PANEL_CHIP[tone] ?? PANEL_CHIP.green}`}><Icon name={icon} className="h-3.5 w-3.5" /></span>}
-          {title}
+          <Tx>{title}</Tx>
         </h2>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         {sub && <p className="w-full text-xs text-slate-500">{sub}</p>}
@@ -159,7 +160,7 @@ export function EmptyState({ icon, title, children, action }: { icon: string; ti
   return (
     <div className="flex flex-col items-center px-4 py-10 text-center">
       <span className="mb-3 text-slate-300"><Icon name={icon} className="h-10 w-10" /></span>
-      <div className="text-sm font-semibold text-navy-900">{title}</div>
+      <div className="text-sm font-semibold text-navy-900"><Tx>{title}</Tx></div>
       {children && <div className="mt-1 max-w-md text-sm text-slate-500">{children}</div>}
       {action && <div className="mt-4">{action}</div>}
     </div>
@@ -206,7 +207,7 @@ export function Table({ head, children, empty }: { head: string[]; children: Rea
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50"><tr>{head.map((h) => <th key={h} className="th">{h}</th>)}</tr></thead>
+        <thead className="bg-slate-50"><tr>{head.map((h) => <th key={h} className="th"><Tx>{h}</Tx></th>)}</tr></thead>
         <tbody className="divide-y">{children}</tbody>
       </table>
       {empty && <div className="px-3 py-4 text-sm text-slate-500">{empty}</div>}

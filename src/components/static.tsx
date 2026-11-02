@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon, TILE } from "./kit";
+import { Tx } from "./lang";
 
 // Server-safe presentational helpers.
 
@@ -9,8 +10,8 @@ export function PageHeader({ title, sub, actions, icon, tone = "green" }: { titl
       <div className="flex min-w-0 items-center gap-3">
         {icon && <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl shadow-sm ${TILE[tone] ?? TILE.green}`}><Icon name={icon} className="h-5 w-5" /></span>}
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-navy-900">{title}</h1>
-          {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
+          <h1 className="text-xl font-semibold text-navy-900"><Tx>{title}</Tx></h1>
+          {sub && <p className="mt-0.5 text-sm text-slate-500"><Tx>{sub}</Tx></p>}
         </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -22,7 +23,7 @@ export function Empty({ title, children, icon = "inbox" }: { title: string; chil
   return (
     <div className="card flex flex-col items-center justify-center px-6 py-12 text-center">
       <span className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-400"><Icon name={icon} className="h-6 w-6" /></span>
-      <div className="text-sm font-semibold text-navy-900">{title}</div>
+      <div className="text-sm font-semibold text-navy-900"><Tx>{title}</Tx></div>
       {children && <div className="mt-1 max-w-md text-sm text-slate-500">{children}</div>}
     </div>
   );

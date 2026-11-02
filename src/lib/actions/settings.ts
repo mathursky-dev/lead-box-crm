@@ -289,3 +289,29 @@ export async function toggleForm(id: string, active: boolean): Promise<FormState
   return done(active ? "Form is live." : "Form paused.");
 }
 
+
+// ------------------------------------------------------------- lost reasons
+export async function saveLostReason(_: FormState, form: FormData): Promise<FormState> {
+  const { profile: me } = await requireAdmin();
+  const p = z.object({ id: uuidOpt, name: z.string().trim().min(1, "Write a reason").max(100), category: z.enum(["lost", "invalid", "any"]), is_active: on })
+    .safeParse(Object.fromEntries(form));
+  if (!p.success) return { error: p.error.issues[0]?.message };
+  const { id, ...v } = p.data;
+  const db = createAdminClient();
+  const { error } = id
+    ? await db.from("lb_lost_reasons").update(v).eq("id", id).eq("company_id", me.company_id)
+    : await db.from("lb_lost_reasons").insert({ ...v, is_active: true, company_id: me.company_id, sort_order: await nextOrder(db, "lb_lost_reasons", me.company_id) });
+  if (error) return { error: dup(error, "A reason") };
+  await audit(db, me, id ? "lost_reason.update" : "lost_reason.create", "lost_reason", id, v);
+  return done("Saved.");
+}
+
+export async function deleteLostReason(id: string): Promise<FormState> {
+  const { profile: me } = await requireAdmin();
+  if (!z.uuid().safeParse(id).success) return { error: "Invalid reason" };
+  const db = createAdminClient();
+  const { error } = await db.from("lb_lost_reasons").delete().eq("id", id).eq("company_id", me.company_id);
+  if (error) return { error: errMsg(error) };
+  await audit(db, me, "lost_reason.delete", "lost_reason", id);
+  return done("Deleted. Leads keep the reason text they already have.");
+}

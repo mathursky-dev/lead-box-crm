@@ -42,7 +42,7 @@ export function StatusPanel({ leadId, statusId, subStatusId, statuses, subStatus
           </Field>
         )}
         {cat === "won" && <Field label="Won value (₹)"><input className="input" type="number" min={0} step="0.01" name="won_value" defaultValue={expected ?? ""} /></Field>}
-        {(cat === "lost" || cat === "invalid") && <Field label="Reason (required)"><input className="input" name="reason" required /></Field>}
+        {(cat === "lost" || cat === "invalid") && <Field label="Reason (required)"><input className="input" name="reason" required list={`lb-reasons-${cat}`} autoComplete="off" placeholder="Pick or type a reason" /></Field>}
         {!closed && <Field label="Comment (optional)"><input className="input" name="reason" /></Field>}
         {!closed && (
           <>

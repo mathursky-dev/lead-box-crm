@@ -17,6 +17,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   ] },
   { label: "Leads", icon: "target", tone: "green", links: [
     { href: "/settings/statuses", label: "Manage Status", icon: "check", desc: "Lead stages, colours, sub-statuses", keywords: "stage pipeline sub status" },
+    { href: "/settings/lost-reasons", label: "Lost Reasons", icon: "xCircle", desc: "Why leads are lost or invalid", keywords: "lost reason invalid win loss" },
     { href: "/settings/sources", label: "Manage Source", icon: "link", desc: "Where leads come from", keywords: "channel" },
     { href: "/settings/tags", label: "Tags", icon: "tag", desc: "Labels to group leads", keywords: "label" },
     { href: "/settings/departments", label: "Departments", icon: "building", desc: "Teams that own leads", keywords: "team" },

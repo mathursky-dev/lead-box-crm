@@ -124,7 +124,7 @@ function StatusPanel({ statuses, requireNext, n, working, onRun }: { statuses: S
           {statuses.filter((x) => x.is_active).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
       </Field>
-      <Field label={lostLike ? "Reason (required)" : "Comment (optional)"}><input className="input min-w-56" value={reason} onChange={(e) => setReason(e.target.value)} required={!!lostLike} /></Field>
+      <Field label={lostLike ? "Reason (required)" : "Comment (optional)"}><input className="input min-w-56" value={reason} onChange={(e) => setReason(e.target.value)} required={!!lostLike} list={lostLike ? `lb-reasons-${s!.category}` : undefined} autoComplete="off" placeholder={lostLike ? "Pick or type a reason" : undefined} /></Field>
       {open && (
         <Field label={requireNext ? "Next follow-up (needed if lead has none)" : "Next follow-up (optional)"}>
           <input className="input" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />

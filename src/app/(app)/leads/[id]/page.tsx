@@ -107,6 +107,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <div className="mt-2 flex justify-end gap-2">
             <CallButton phone={c.phone_e164} />
             <Link className="btn-ghost btn-sm" href={`/leads/new?repeat=${lead.id}`}>+ Repeat opportunity</Link>
+            {isAdmin(profile) && <Link className="btn-ghost btn-sm" href={`/admin/audit?id=${lead.id}`} title="Who changed what on this lead">Change history</Link>}
           </div>
         </div>
       </div>

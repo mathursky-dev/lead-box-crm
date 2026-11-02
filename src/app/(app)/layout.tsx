@@ -9,6 +9,7 @@ import Link from "next/link";
 import { fmtDateTime } from "@/lib/dates";
 import { isDemoCompany } from "@/lib/demo";
 import { settingsGroups } from "@/lib/settings-nav";
+import { LANG_COOKIE, parseLang, tr } from "@/lib/i18n";
 
 function istGreeting() {
   const now = new Date();
@@ -82,6 +83,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { section: "Insights", label: "Reports", icon: "chart", items: [
       { href: "/lead-reports", label: "Lead Reports" },
       ...it(reports, "/reports", "360 Reports"),
+      ...it(reports, "/report-builder", "Report Builder", "custom report excel export pivot chart"),
+      ...it(reports, "/win-loss", "Win / Loss", "lost reason won deal analysis"),
       { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
       ...it(admin, "/profit-loss", "Profit & Loss", "p&l pnl ad spend revenue roi"),
     ] },
@@ -113,7 +116,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(admin, "/whatsapp/flows/new", "New chatbot flow"),
     ...it(admin, "/admin/users", "Add user"),
   ];
+  // Hindi / English: menu labels are translated here; the English label stays searchable.
+  const jar = await cookies();
+  const lang = parseLang(jar.get(LANG_COOKIE)?.value);
+  const navT: NavGroup[] = lang === "en" ? nav : nav.map((g) => ({
+    ...g, label: tr(lang, g.label),
+    items: g.items?.map((i) => ({ ...i, label: tr(lang, i.label), keywords: `${i.label} ${i.keywords ?? ""}` })),
+  }));
+  const quickT = lang === "en" ? quick : quick.map((q) => ({ ...q, label: tr(lang, q.label), keywords: q.label }));
+
   const sb = await createClient();
+  // Lost / Invalid reasons master: offered as suggestions in every "Reason" box (empty until the SQL is applied).
+  const { data: reasonRows } = await sb.from("lb_lost_reasons").select("name,category").eq("company_id", profile.company_id).eq("is_active", true).order("sort_order").order("name");
+  const reasons = (reasonRows ?? []) as { name: string; category: string }[];
   const { data: wallet } = await sb.from("lb_wallets").select("balance").eq("company_id", profile.company_id).maybeSingle();
   // Admins always see the chip (it is where they add balance); others only once there is a wallet.
   const walletBalance = wallet ? Number(wallet.balance) : admin ? 0 : null;
@@ -128,12 +143,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   let brief: Brief | null = null;
-  if ((await cookies()).get("lb_brief")) {
+  if (jar.get("lb_brief")) {
     const { data } = await sb.rpc("lb_day_brief");
     brief = data as Brief | null;
   }
   return (
-    <Shell nav={nav} quick={quick} wallet={walletBalance} switcher={switcher} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
+    <Shell nav={navT} quick={quickT} lang={lang} wallet={walletBalance} switcher={switcher} user={{ id: profile.id, availability: (profile as { availability?: string }).availability ?? "available", name: profile.full_name, role: ROLE_LABEL[profile.role], company: company?.name ?? "" }}>
       {away && (
         <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 sm:px-4 sm:text-sm">
           <span><span className="font-semibold">Super Admin view</span> · You are working inside <span className="font-semibold">{company?.name}</span>. Everything you see and change here is this company&apos;s data.</span>
@@ -151,6 +166,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       )}
       {children}
+      {(["lost", "invalid"] as const).map((c) => (
+        <datalist key={c} id={`lb-reasons-${c}`}>
+          {reasons.filter((r) => r.category === c || r.category === "any").map((r) => <option key={r.name} value={r.name} />)}
+        </datalist>
+      ))}
       <CallSync userId={profile.id} />
       <OfflineSync userId={profile.id} />
       {brief && <DayBrief userId={profile.id} name={profile.full_name} brief={brief} {...istGreeting()} />}

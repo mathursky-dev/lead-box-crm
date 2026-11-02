@@ -165,6 +165,54 @@ export function Inbox(props: Props) {
   );
 }
 
+export type ChatContext = Omit<Props, "initialId">;
+
+// Customer chat as a right-side popup (used from the leads list). Same chat panel
+// as the inbox, loaded by conversation id, refreshed by realtime events.
+export function ChatPopup({ convId, ctx, onClose }: { convId: string; ctx: ChatContext; onClose: () => void }) {
+  const sb = getBrowserClient();
+  const [conv, setConv] = useState<Conv | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "missing">("loading");
+  const [tick, setTick] = useState(0);
+  const load = useCallback(async () => {
+    const { data: row } = await sb.from("lb_conversations").select("*, customer:lb_customers(name,wa_profile_name,phone_e164,wa_opted_out_at), number:lb_wa_numbers(label), lead:lb_leads(lead_no), assignee:lb_profiles!lb_conversations_assignee_id_fkey(full_name)").eq("id", convId).maybeSingle();
+    if (!row) { setState("missing"); return; }
+    setConv({
+      ...row, customer_name: row.customer?.name, wa_profile_name: row.customer?.wa_profile_name, phone_e164: row.customer?.phone_e164, wa_opted_out_at: row.customer?.wa_opted_out_at,
+      number_label: row.number?.label, lead_no: row.lead?.lead_no ?? null, lead_status: null, assignee_name: row.assignee?.full_name ?? null,
+    });
+    setState("ready");
+  }, [sb, convId]);
+  useEffect(() => { load(); }, [load, tick]);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const bump = () => { clearTimeout(t); t = setTimeout(() => setTick((x) => x + 1), 250); };
+    const ch = sb.channel(`chat-popup-${convId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lb_messages", filter: `conversation_id=eq.${convId}` }, bump)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "lb_conversations", filter: `id=eq.${convId}` }, bump)
+      .subscribe();
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => { clearTimeout(t); sb.removeChannel(ch); window.removeEventListener("keydown", esc); };
+  }, [sb, convId, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" aria-label="Close chat" className="absolute inset-0 bg-navy-900/20" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-label="Customer chat" className="relative flex h-full w-full max-w-[460px] flex-col bg-white shadow-2xl">
+        {state === "ready" && conv ? (
+          <Chat conv={conv} {...ctx} initialId={null} tick={tick} popup onBack={onClose} onDetails={() => {}} onChanged={load} />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-slate-500">
+            {state === "loading" ? "Loading chat…" : "This chat is not available."}
+            <button type="button" className="btn-ghost btn-sm" onClick={onClose}>Close</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Ticks({ m, onRetry }: { m: Msg; onRetry: () => void }) {
   if (m.direction === "in") return null;
   const map: Record<string, string> = { queued: "🕓", sending: "…", sent: "✓", delivered: "✓✓", read: "✓✓" };
@@ -174,7 +222,7 @@ function Ticks({ m, onRetry }: { m: Msg; onRetry: () => void }) {
   return <span className={m.status === "read" ? "text-sky-300" : ""} title={m.status}>{map[m.status] ?? m.status}</span>;
 }
 
-function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDetails, onChanged }: Props & { conv: Conv; tick: number; onBack: () => void; onDetails: () => void; onChanged: () => void }) {
+function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDetails, onChanged, popup = false }: Props & { conv: Conv; tick: number; onBack: () => void; onDetails: () => void; onChanged: () => void; popup?: boolean }) {
   const sb = getBrowserClient();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -258,7 +306,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   return (
     <section className="flex min-w-0 flex-1 flex-col">
       <header className="flex items-center gap-2 border-b px-3 py-2">
-        <button className="md:hidden" onClick={onBack} aria-label="Back">←</button>
+        {!popup && <button className="md:hidden" onClick={onBack} aria-label="Back">←</button>}
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-navy-900">{name(conv)}</div>
           <div className="truncate text-xs text-slate-500">{conv.phone_e164} · {conv.number_label} · {conv.assignee_name ?? "Unassigned"}
@@ -269,7 +317,12 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
           <option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option>
         </select>
         {me.canTransfer && <button className="btn-ghost btn-sm" onClick={() => setTransfer(true)}>Transfer</button>}
-        <button className="btn-ghost btn-sm lg:hidden" onClick={onDetails}>Details</button>
+        {popup ? (
+          <>
+            <Link className="btn-ghost btn-sm whitespace-nowrap" href={`/inbox?c=${conv.id}`}>Open in Inbox</Link>
+            <button className="grid h-8 w-8 place-items-center rounded-full text-lg text-slate-500 hover:bg-slate-100" onClick={onBack} aria-label="Close chat">×</button>
+          </>
+        ) : <button className="btn-ghost btn-sm lg:hidden" onClick={onDetails}>Details</button>}
       </header>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-auto bg-[#eef2f5] p-3">

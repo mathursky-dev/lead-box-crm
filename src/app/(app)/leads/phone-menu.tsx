@@ -1,12 +1,11 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { openLeadChat } from "@/lib/actions/leads";
+import { openChatPopup } from "./chat-popup-host";
 
-// ⋮ menu next to a lead's mobile number: Call, Chat (CRM inbox), WhatsApp, Copy.
+// ⋮ menu next to a lead's mobile number: Call, Chat (popup with the CRM chat), WhatsApp, Copy.
 // The menu is position:fixed so the table's horizontal scroll box cannot clip it.
 export function PhoneMenu({ leadId, phone }: { leadId: string; phone: string }) {
-  const router = useRouter();
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -35,7 +34,7 @@ export function PhoneMenu({ leadId, phone }: { leadId: string; phone: string }) 
     setBusy(true);
     const res = await openLeadChat(leadId);
     setBusy(false); setPos(null);
-    if (res.error) setNote(res.error); else router.push(`/inbox?c=${res.id}`);
+    if (res.error || !res.id) setNote(res.error ?? "Chat not found"); else openChatPopup(res.id);
   };
   const copy = async () => {
     try { await navigator.clipboard.writeText(phone); setNote("Number copied"); } catch { setNote(phone); }

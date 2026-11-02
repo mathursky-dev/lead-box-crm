@@ -39,3 +39,20 @@ export async function saveLeadCardsPref(pref: LeadCardsPref): Promise<{ error?: 
     .upsert({ user_id: profile.id, key: "leads.cards", value: parsed.data, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
   return error ? { error: error.message } : {};
 }
+
+// Saved filter tabs on the leads page ("Filter By Reports"): a name + the query string.
+const LeadViews = z.object({
+  v: z.literal(1),
+  views: z.array(z.object({ id: z.string().max(40), name: z.string().trim().min(1).max(40), qs: z.string().max(1500) })).max(20),
+});
+export type LeadViews = z.infer<typeof LeadViews>;
+
+export async function saveLeadViews(pref: LeadViews): Promise<{ error?: string }> {
+  const { profile } = await requireProfile();
+  const parsed = LeadViews.safeParse(pref);
+  if (!parsed.success) return { error: "Invalid saved filters" };
+  const sb = await createClient();
+  const { error } = await sb.from("lb_user_prefs")
+    .upsert({ user_id: profile.id, key: "leads.views", value: parsed.data, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
+  return error ? { error: error.message } : {};
+}

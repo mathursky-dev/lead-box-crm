@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Icon } from "@/components/kit";
 import { ActionForm, Field, Modal, Submit } from "@/components/ui";
-import { assignLeads } from "@/lib/actions/leads";
+import { assignLeads, deleteLeads, restoreLeads } from "@/lib/actions/leads";
 import { saveLeadTableLayout, type LeadTableLayout } from "@/lib/actions/prefs";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { PhoneMenu } from "./phone-menu";
@@ -14,7 +14,7 @@ type Row = {
   id: string; lead_no: number; customer_name: string | null; phone_e164: string; status_id?: string; status_name: string; status_category: string; sub_status_id?: string | null; sub_status_name?: string | null;
   priority: string; owner_id?: string | null; owner_name: string | null; owner_seen_at?: string | null; email?: string | null; assigned_at?: string | null;
   converted_at?: string | null; remark?: string | null; remark_at?: string | null; product_name: string | null; source_name: string | null;
-  expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null;
+  expected_value: number | null; won_value: number | null; created_at: string; last_activity_at: string; next_followup_at: string | null; deleted_at?: string | null;
 };
 
 
@@ -71,8 +71,8 @@ function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
   );
 }
 
-export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
-  rows: Row[]; canAssign: boolean; users: { id: string; name: string }[]; saved: LeadTableLayout | null; sortable: boolean; edit: EditRefs;
+export function LeadTable({ rows, canAssign, canDelete = false, deletedView = false, users, saved, sortable, edit }: {
+  rows: Row[]; canAssign: boolean; canDelete?: boolean; deletedView?: boolean; users: { id: string; name: string }[]; saved: LeadTableLayout | null; sortable: boolean; edit: EditRefs;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -81,6 +81,29 @@ export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const canSelect = deletedView ? canDelete : canAssign || canDelete;
+
+  // The page toolbar's "Customize Table" button opens the modal owned here.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener("leads:customize", show);
+    return () => window.removeEventListener("leads:customize", show);
+  }, []);
+  useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 4000); return () => clearTimeout(t); }, [note]);
+
+  const bulk = async (kind: "delete" | "restore") => {
+    const ids = [...sel];
+    if (kind === "delete" && !window.confirm(`Delete ${ids.length} lead${ids.length === 1 ? "" : "s"}? They move to Deleted and can be restored by an admin.`)) return;
+    setBusy(true);
+    const res = await (kind === "delete" ? deleteLeads(ids) : restoreLeads(ids));
+    setBusy(false);
+    if (res.error) { setNote(res.error); return; }
+    setNote(`${res.n ?? 0} lead${res.n === 1 ? "" : "s"} ${kind === "delete" ? "deleted" : "restored"}`);
+    setSel(new Set());
+    router.refresh();
+  };
 
   const visible = layout.filter((i) => i.on).map((i) => BY_KEY.get(i.k)!);
   const subInStatus = !layout.find((i) => i.k === "sub_status")?.on;
@@ -110,22 +133,36 @@ export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
 
   return (
     <InlineEditProvider refs={edit}>
-      {canAssign && sel.size > 0 && (
-        <div className="card mb-3 border-brand-100 bg-brand-50 p-3">
-          <ActionForm action={assignLeads} onOk={() => setSel(new Set())} className="flex flex-wrap items-end gap-2">
-            {[...sel].map((id) => <input key={id} type="hidden" name="lead_ids" value={id} />)}
-            <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
-            <Field label="Assign to">
-              <select className="input min-w-48" name="owner_id" required defaultValue="">
-                <option value="" disabled>Choose…</option>
-                <option value="__auto__">Round-robin (allocation rules)</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Reason (required when reassigning)"><input className="input min-w-64" name="reason" /></Field>
-            <Submit>Assign</Submit>
-            <button type="button" className="btn-ghost" onClick={() => setSel(new Set())}>Clear</button>
-          </ActionForm>
+      {canSelect && sel.size > 0 && (
+        <div className="card mb-3 flex flex-wrap items-end gap-3 border-brand-100 bg-brand-50 p-3">
+          {deletedView ? (
+            <>
+              <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
+              <button type="button" className="btn-primary" disabled={busy} onClick={() => bulk("restore")}><Icon name="refresh" className="h-3.5 w-3.5" />{busy ? "Restoring…" : "Restore"}</button>
+              <button type="button" className="btn-ghost" onClick={() => setSel(new Set())}>Clear</button>
+            </>
+          ) : canAssign ? (
+            <ActionForm action={assignLeads} onOk={() => setSel(new Set())} className="flex flex-wrap items-end gap-2">
+              {[...sel].map((id) => <input key={id} type="hidden" name="lead_ids" value={id} />)}
+              <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>
+              <Field label="Assign to">
+                <select className="input min-w-48" name="owner_id" required defaultValue="">
+                  <option value="" disabled>Choose…</option>
+                  <option value="__auto__">Round-robin (allocation rules)</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+              <Field label="Reason (required when reassigning)"><input className="input min-w-64" name="reason" /></Field>
+              <Submit>Assign</Submit>
+              <button type="button" className="btn-ghost" onClick={() => setSel(new Set())}>Clear</button>
+            </ActionForm>
+          ) : <div className="text-sm font-medium text-navy-900">{sel.size} selected</div>}
+          {!deletedView && canDelete && (
+            <button type="button" disabled={busy} onClick={() => bulk("delete")}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+              <Icon name="trash" className="h-3.5 w-3.5" />{busy ? "Deleting…" : "Delete"}
+            </button>
+          )}
         </div>
       )}
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -133,13 +170,12 @@ export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
           {unseenCount > 0 && <><span className="mr-1 inline-block h-2 w-2 rounded-full bg-sky-500 align-middle" />{unseenCount} unseen on this page</>}
           {pending && <span className="ml-2 text-slate-400">Sorting…</span>}
         </div>
-        <button type="button" className="btn-ghost btn-sm" onClick={() => setOpen(true)}><Icon name="sliders" className="h-3.5 w-3.5" />Customize Table</button>
       </div>
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[900px]">
           <thead className="border-b border-slate-200 bg-slate-50">
             <tr>
-              {canAssign && <th className="th w-8"><input type="checkbox" aria-label="Select all" checked={all} onChange={() => setSel(all ? new Set() : new Set(rows.map((r) => r.id)))} /></th>}
+              {canSelect && <th className="th w-8"><input type="checkbox" aria-label="Select all" checked={all} onChange={() => setSel(all ? new Set() : new Set(rows.map((r) => r.id)))} /></th>}
               {th("lead", "Lead")}
               {visible.map((c) => th(c.key, c.label))}
             </tr>
@@ -149,9 +185,14 @@ export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
               const u = unseen(r);
               return (
                 <tr key={r.id} className={u ? "bg-sky-50/40 hover:bg-sky-50" : "hover:bg-slate-50"}>
-                  {canAssign && <td className="td"><input type="checkbox" aria-label={`Select LB-${r.lead_no}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td>}
-                  <td className="td"><Link href={`/leads/${r.id}`} className={`whitespace-nowrap text-brand-700 hover:underline ${u ? "font-bold" : "font-medium"}`}>LB-{r.lead_no}</Link>
-                    <div className="text-xs capitalize text-slate-500">{r.priority}</div></td>
+                  {canSelect && <td className="td"><input type="checkbox" aria-label={`Select LB-${r.lead_no}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} /></td>}
+                  <td className="td">{deletedView ? (
+                    <><span className="whitespace-nowrap font-medium text-slate-500 line-through">LB-{r.lead_no}</span>
+                      <div className="whitespace-nowrap text-xs text-red-600">Deleted {r.deleted_at ? fmtDay(r.deleted_at) : ""}</div></>
+                  ) : (
+                    <><Link href={`/leads/${r.id}`} className={`whitespace-nowrap text-brand-700 hover:underline ${u ? "font-bold" : "font-medium"}`}>LB-{r.lead_no}</Link>
+                      <div className="text-xs capitalize text-slate-500">{r.priority}</div></>
+                  )}</td>
                   {visible.map((c) => <td key={c.key} className={`td ${c.td ?? ""}`}>{c.cell(r, { subInStatus })}</td>)}
                 </tr>
               );
@@ -159,6 +200,7 @@ export function LeadTable({ rows, canAssign, users, saved, sortable, edit }: {
           </tbody>
         </table>
       </div>
+      {note && <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-navy-900 px-4 py-2 text-sm text-white shadow-lg">{note}</div>}
       {open && <CustomizeTable initial={layout} onClose={() => setOpen(false)} onSaved={(l) => { setLayout(l); setOpen(false); }} />}
     </InlineEditProvider>
   );

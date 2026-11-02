@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireProfile, isManager, can } from "@/lib/auth";
+import { requireProfile, isManager, isAdmin, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { ListFooter } from "./list-footer";
@@ -9,8 +9,9 @@ import { METRICS, toRpcFilters, pickFilters } from "@/lib/metrics";
 import { PRESETS, rangeFrom } from "@/lib/dates";
 import { LeadTable } from "./lead-table";
 import { StatusCards, type Card } from "./status-cards";
-import { FilterBar } from "./filter-bar";
-import type { LeadTableLayout, LeadCardsPref } from "@/lib/actions/prefs";
+import { LeadsToolbar, CustomizeButton } from "./leads-toolbar";
+import { ChatPopupHost } from "./chat-popup-host";
+import type { LeadTableLayout, LeadCardsPref, LeadViews } from "@/lib/actions/prefs";
 import { Icon } from "@/components/kit";
 
 export const metadata = { title: "Leads" };
@@ -25,6 +26,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const LIMIT = PAGE_SIZES.includes(Number(sp.per)) ? Number(sp.per) : 50;
   const offset = Math.max(0, Number(sp.offset) || 0);
   const from = rangeFrom(sp.range);
+  const admin = isAdmin(profile);
+  const deleted = admin && sp.deleted === "1";
+  const untouched = sp.untouched === "1";
 
   // Dashboard drill-down: exactly the rows behind the card.
   const metric = sp.metric;
@@ -46,6 +50,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         q: sp.q, status_id: sp.status_id, sub_status_id: sp.sub_status_id, category: sp.category, owner_id: sp.owner_id, unassigned: sp.unassigned === "1", seen: sp.seen,
         open_only: sp.open === "1", product_id: sp.product_id, source_id: sp.source_id, team_id: sp.team_id, branch_id: sp.branch_id,
         number_id: sp.number_id, priority: sp.priority, stale: sp.stale === "1", tag_id: sp.tag_id, followup: sp.followup, from, sort: sp.sort, dir: sp.dir, limit: LIMIT, offset,
+        untouched, deleted: deleted ? "1" : undefined,
       },
     });
     if (e) error = e.message; else { rows = data.rows; total = data.total; }
@@ -53,14 +58,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   // Saved "Customize Table" layout for this user (null until they save one, or before the SQL is applied).
   const { data: company } = await sb.from("lb_companies").select("require_next_action").eq("id", profile.company_id).maybeSingle();
-  const { data: prefs } = await sb.from("lb_user_prefs").select("key,value").eq("user_id", profile.id).in("key", ["leads.table", "leads.cards"]);
+  const { data: prefs } = await sb.from("lb_user_prefs").select("key,value").eq("user_id", profile.id).in("key", ["leads.table", "leads.cards", "leads.views"]);
   const pref = prefs?.find((x) => x.key === "leads.table");
+  const views = ((prefs?.find((x) => x.key === "leads.views")?.value as LeadViews | undefined)?.views) ?? [];
   const cardsPref = (prefs?.find((x) => x.key === "leads.cards")?.value as LeadCardsPref | undefined) ?? null;
 
   // Status cards: one count per active status for the chosen period (RLS limits agents to their own leads).
   let cards: Card[] = [];
   let cardsTotal = 0;
-  if (!metric) {
+  if (!metric && !deleted) {
     const count = (statusId?: string) => {
       let qy = sb.from("lb_leads").select("id", { count: "exact", head: true }).eq("company_id", profile.company_id);
       if (statusId) qy = qy.eq("status_id", statusId);
@@ -78,22 +84,25 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const statusName = metric?.startsWith("status:") ? refs.statuses.find((s) => s.id === metric.slice(7))?.name : null;
   const mUser = sp.mu ? refs.users.find((u) => u.id === sp.mu)?.full_name : null;
   const preset = PRESETS.find((p) => p.value === (sp.preset || "today"))?.label;
+  const qsAll = new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString();
   const exportQs = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "offset") as [string, string][]).toString();
 
   return (
     <>
-      <PageHeader icon="target" tone="blue" title={metric ? `${statusName ? `Status: ${statusName}` : METRICS[metric]?.label ?? "Leads"}${mUser ? ` · ${mUser}` : ""}` : "Leads"}
+      {metric && <PageHeader icon="target" tone="blue" title={metric ? `${statusName ? `Status: ${statusName}` : METRICS[metric]?.label ?? "Leads"}${mUser ? ` · ${mUser}` : ""}` : "Leads"}
         sub={metric ? <>{statusName ? "Current leads in this status." : METRICS[metric]?.def} {METRICS[metric]?.kind === "period" && <b>Period: {preset}.</b>} <Link className="text-brand-700 hover:underline" href={`/dashboard?${new URLSearchParams(pickFilters(sp) as Record<string, string>)}`}>Back to dashboard</Link></> : `${total} lead${total === 1 ? "" : "s"}`}
         actions={<>
           {can(profile, "leads.export") && <a className="btn-ghost" href={`/api/export/leads?${exportQs}`}><Icon name="download" />Export CSV</a>}
-          {can(profile, "leads.create") && <Link className="btn-primary" href="/leads/new"><Icon name="plus" />New lead</Link>}
-        </>} />
+          <CustomizeButton />
+        </>} />}
 
       {!metric && (
         <>
-        <StatusCards cards={cards} total={cardsTotal} activeId={sp.status_id ?? null} range={sp.range ?? ""} pref={cardsPref}
-          baseQs={new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString()} />
-        <FilterBar q={sp.q} active={activeFilters}>
+        {!deleted && <StatusCards cards={cards} total={cardsTotal} activeId={sp.status_id ?? null} range={sp.range ?? ""} pref={cardsPref}
+          baseQs={qsAll} />}
+        <LeadsToolbar qs={qsAll} views={views} total={total} q={sp.q} activeFilters={activeFilters} untouched={untouched} deleted={deleted}
+          perm={{ create: can(profile, "leads.create"), import: can(profile, "leads.import"), export: can(profile, "leads.export"), admin }}
+          exportHref={`/api/export/leads?${exportQs}`}>
           {sp.range && <input type="hidden" name="range" value={sp.range} />}
           <select className="input" name="status_id" defaultValue={sp.status_id ?? ""}><option value="">All statuses</option>{refs.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
           {refs.subStatuses.length > 0 && (
@@ -119,19 +128,20 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
             {isManager(profile) && <label className="flex items-center gap-1"><input type="checkbox" className="accent-brand-600" name="unassigned" value="1" defaultChecked={sp.unassigned === "1"} /> Unassigned</label>}
             <label className="flex items-center gap-1" title="No activity for 14+ days"><input type="checkbox" className="accent-brand-600" name="stale" value="1" defaultChecked={sp.stale === "1"} /> Stale 14d+</label>
           </div>
-        </FilterBar>
+        </LeadsToolbar>
         </>
       )}
 
       {error ? <ErrorBox message={error} /> : rows.length === 0 ? (
-        <Empty icon="target" title="No leads found">{metric ? "Nothing matches this metric for the selected filters." : "Try different filters, create a lead, or import a CSV."}</Empty>
+        <Empty icon="target" title="No leads found">{metric ? "Nothing matches this metric for the selected filters." : deleted ? "No deleted leads. Deleted leads show here so an admin can restore them." : "Try different filters, create a lead, or import a CSV."}</Empty>
       ) : (
         <LeadTable rows={rows} edit={{
             statuses: refs.statuses, subStatuses: refs.subStatuses, products: refs.products,
-            canStatus: can(profile, "leads.status"), canEdit: can(profile, "leads.edit"), requireNext: company?.require_next_action ?? true,
-          }} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")}
+            canStatus: !deleted && can(profile, "leads.status"), canEdit: !deleted && can(profile, "leads.edit"), requireNext: company?.require_next_action ?? true,
+          }} saved={(pref?.value as LeadTableLayout | undefined) ?? null} sortable={!metric} canAssign={can(profile, "leads.assign")} canDelete={admin && !metric} deletedView={deleted}
           users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
       )}
+      <ChatPopupHost />
       {!error && <ListFooter total={total} per={LIMIT} offset={offset} qs={new URLSearchParams(Object.entries(sp).filter(([, v]) => v) as [string, string][]).toString()} />}
     </>
   );

@@ -182,3 +182,27 @@ export async function openLeadChat(leadId: string): Promise<{ error?: string; id
   if (error) return { error: errMsg(error) };
   return { id: data };
 }
+
+// Soft delete / restore (company admins only; enforced in lb_delete_leads / lb_restore_leads).
+const Ids = z.array(z.string().uuid()).min(1).max(500);
+export async function deleteLeads(ids: string[]): Promise<{ error?: string; n?: number }> {
+  await requireProfile();
+  const parsed = Ids.safeParse(ids);
+  if (!parsed.success) return { error: "Select at least one lead." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("lb_delete_leads", { p_leads: parsed.data });
+  if (error) return { error: errMsg(error) };
+  revalidatePath("/leads");
+  return { n: data as number };
+}
+
+export async function restoreLeads(ids: string[]): Promise<{ error?: string; n?: number }> {
+  await requireProfile();
+  const parsed = Ids.safeParse(ids);
+  if (!parsed.success) return { error: "Select at least one lead." };
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("lb_restore_leads", { p_leads: parsed.data });
+  if (error) return { error: errMsg(error) };
+  revalidatePath("/leads");
+  return { n: data as number };
+}

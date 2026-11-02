@@ -24,6 +24,8 @@ export const WA_TABS = [
     title: "Live chat", sub: "Open conversations, unread messages and who is handling them" },
   { href: "/whatsapp/chatbots", label: "Chatbots", icon: "bot", on: "bg-purple-600 text-white", off: "bg-purple-50 text-purple-700 border-purple-100",
     title: "Chatbots", sub: "Keyword auto-replies, opt-out handling, away messages and the questions nobody answered" },
+  { href: "/whatsapp/ai-bot", label: "AI FAQ bot", icon: "sparkle", on: "bg-fuchsia-600 text-white", off: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100",
+    title: "AI FAQ bot", sub: "Train it on your FAQs and price list: it answers customers on WhatsApp 24x7 and hands over to an agent when needed" },
   { href: "/whatsapp/flows", label: "Flows", icon: "flow", on: "bg-indigo-600 text-white", off: "bg-indigo-50 text-indigo-700 border-indigo-100",
     title: "Flows", sub: "Visual chatbot flows and multi-step follow-up journeys" },
   { href: "/whatsapp/commerce", label: "Commerce", icon: "cart", on: "bg-orange-600 text-white", off: "bg-orange-50 text-orange-700 border-orange-100",

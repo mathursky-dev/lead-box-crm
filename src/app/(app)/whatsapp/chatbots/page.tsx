@@ -9,7 +9,7 @@ import { agoIso } from "../data";
 import { BotForm, BotRowActions, TestMessage } from "./bots";
 
 export const metadata = { title: "Chatbots · WhatsApp" };
-const KIND: Record<string, string> = { reply: "bg-brand-100 text-brand-700", unmatched: "bg-amber-50 text-amber-800", optout: "bg-red-50 text-red-700", optin: "bg-sky-50 text-sky-700", away: "bg-violet-50 text-violet-700" };
+const KIND: Record<string, string> = { reply: "bg-brand-100 text-brand-700", unmatched: "bg-amber-50 text-amber-800", optout: "bg-red-50 text-red-700", optin: "bg-sky-50 text-sky-700", away: "bg-violet-50 text-violet-700", ai_reply: "bg-fuchsia-50 text-fuchsia-700", ai_handover: "bg-amber-100 text-amber-800" };
 
 export default async function Chatbots({ searchParams }: { searchParams: Promise<{ tab?: string; f?: string; q?: string }> }) {
   const sp = await searchParams;
@@ -84,7 +84,7 @@ export default async function Chatbots({ searchParams }: { searchParams: Promise
             </div>
           )}
           <p className="mt-4 flex items-start gap-1 text-xs text-slate-500"><Icon name="alert" className="mt-0.5 h-3.5 w-3.5" />
-            Order for every inbound text: <b>&nbsp;opt-out / opt-in keywords → keyword bots (lowest # first, first match wins) → away message</b>.
+            Order for every inbound text: <b>&nbsp;opt-out / opt-in keywords → chatbot flows → keyword bots (lowest # first, first match wins) → <Link href="/whatsapp/ai-bot" className="text-violet-700">AI FAQ bot</Link> (if on) → away message</b>.
             {p.pause_bots_when_assigned ? " Bots stay quiet for 2 hours after an assigned agent replies." : ""}</p>
         </Panel>
       )}

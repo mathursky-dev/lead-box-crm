@@ -3,6 +3,7 @@ import { createAdminClient } from "./supabase/server";
 import { downloadMedia, numberCredentials } from "./whatsapp";
 import { runAutoReplies } from "./wa-bots";
 import { applyGroupStatus, applyGroupWebhook, ingestGroupMessage } from "./wa-groups";
+import { companyTranscribes, transcribeMessage } from "./transcribe";
 
 type WaMessage = {
   id: string; from: string; timestamp: string; type: string;
@@ -115,8 +116,13 @@ export async function processWebhookEvent(eventId: string): Promise<string[]> {
       }
     }
     await db.from("lb_webhook_events").update({ processed_at: new Date().toISOString(), error: null, attempts: ev.attempts + 1 }).eq("id", ev.id);
-    for (const j of mediaJobs) await storeInboundMedia(j);
-    for (const j of botJobs) await runAutoReplies(j);
+    const voiceText = new Map<string, string>();
+    for (const j of mediaJobs) {
+      const r = await storeInboundMedia(j);
+      if (r?.transcript) voiceText.set(j.messageId, r.transcript);
+    }
+    // A transcribed voice note is answered like a typed message (flows, keyword bots, AI FAQ bot).
+    for (const j of botJobs) await runAutoReplies(voiceText.has(j.messageId) ? { ...j, body: voiceText.get(j.messageId)!, type: "text", voice: true } : j);
     // Conversations the customer just wrote in (the routes refresh their AI lead score after replying).
     return [...new Set(botJobs.map((j) => j.conversationId))];
   } catch (e) {
@@ -126,7 +132,7 @@ export async function processWebhookEvent(eventId: string): Promise<string[]> {
 }
 
 /** Copy inbound media into private storage; on failure the message keeps media_status 'pending' for retry. */
-export async function storeInboundMedia(j: { messageId: string; conversationId: string; companyId: string; numberId: string; mediaId: string; filename?: string }) {
+export async function storeInboundMedia(j: { messageId: string; conversationId: string; companyId: string; numberId: string; mediaId: string; filename?: string }): Promise<{ transcript?: string }> {
   const db = createAdminClient();
   try {
     const c = await numberCredentials(j.numberId);
@@ -138,8 +144,15 @@ export async function storeInboundMedia(j: { messageId: string; conversationId: 
     const up = await db.storage.from("lb-media").upload(path, r.data.bytes, { contentType: r.data.mime, upsert: true });
     if (up.error) throw new Error(up.error.message);
     await db.from("lb_messages").update({ media_path: path, media_mime: r.data.mime, media_status: "stored" }).eq("id", j.messageId);
+    // Voice notes → text (best effort; the audio is already saved).
+    if (r.data.mime.startsWith("audio/") && (await companyTranscribes(db, j.companyId).catch(() => false))) {
+      const t = await transcribeMessage(db, j.messageId, r.data.bytes, r.data.mime);
+      return { transcript: t.text || undefined };
+    }
+    return {};
   } catch (e) {
     await db.from("lb_messages").update({ media_status: "failed", error_message: `Media: ${(e as Error).message}`.slice(0, 300) }).eq("id", j.messageId);
+    return {};
   }
 }
 

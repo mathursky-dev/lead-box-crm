@@ -9,6 +9,7 @@ import { enqueue } from "@/lib/inbox-send";
 import { openLeadChat } from "@/lib/actions/leads";
 import { DAYS, fillTemplate, type WeekHours } from "@/lib/care";
 import { leadCareLinks } from "@/lib/care-server";
+import { ensureMeeting } from "@/lib/meetings";
 
 // Customer care (portal, appointments, feedback / NPS, referrals). Settings writes use the service role pinned
 // to the admin's active company; lead-level writes check (with the user's own RLS) that the lead is visible first,
@@ -190,13 +191,15 @@ export async function bookAppointment(_: FormState, form: FormData): Promise<For
   const { data: a, error } = await sb.rpc("lb_staff_book", { p_lead: p.data.lead_id, p_local: `${p.data.when}:00`, p_minutes: p.data.minutes, p_note: p.data.note, p_assign: p.data.assign });
   if (error) return fail(error);
   touch(p.data.lead_id);
-  if (!p.data.send) return { ok: "Appointment booked." };
+  const meet = await ensureMeeting((a as { id: string }).id).catch(() => null);
+  const meetNote = meet?.error ? ` Meeting link failed: ${meet.error}` : "";
+  if (!p.data.send) return { ok: `Appointment booked.${meet?.url ? " Meeting link created." : ""}${meetNote}` };
   if (!can(profile, "chats.send")) return { ok: "Appointment booked (you can't send WhatsApp messages, so the customer was not told)." };
   const when = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(new Date((a as { starts_at: string }).starts_at));
   const { data: s } = await sb.from("lb_care_settings").select("booking_location").eq("company_id", profile.company_id).maybeSingle();
-  const body = `✅ Your appointment is confirmed for ${when}.${s?.booking_location ? `\n📍 ${s.booking_location}` : ""}${p.data.note ? `\n${p.data.note}` : ""}`;
+  const body = `✅ Your appointment is confirmed for ${when}.${s?.booking_location ? `\n📍 ${s.booking_location}` : ""}${meet?.url ? `\n🎥 Join the video meeting: ${meet.url}` : ""}${p.data.note ? `\n${p.data.note}` : ""}`;
   const r = await sendText(p.data.lead_id, body);
-  return r.error ? { ok: `Appointment booked. WhatsApp not sent: ${r.error}` } : { ok: "Appointment booked and sent on WhatsApp." };
+  return r.error ? { ok: `Appointment booked. WhatsApp not sent: ${r.error}${meetNote}` } : { ok: `Appointment booked and sent on WhatsApp.${meetNote}` };
 }
 
 export async function setAppointmentStatus(id: string, status: string): Promise<FormState> {

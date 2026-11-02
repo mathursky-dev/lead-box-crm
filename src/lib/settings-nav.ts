@@ -35,6 +35,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     { href: "/admin/catalog", label: "Products · Quick replies", icon: "tag", desc: "Product list and saved replies", keywords: "catalog product price quick reply canned" },
     { href: "/store/settings", label: "Store settings", icon: "cart", desc: "Mini-store link and checkout", keywords: "shop store" },
     { href: "/care/settings", label: "Customer care settings", icon: "heart", desc: "Booking, feedback, referrals, portal", keywords: "appointment nps referral portal" },
+    { href: "/care/meetings", label: "Meeting links", icon: "calendar", desc: "Zoom / Google Meet link on appointments", keywords: "zoom google meet video call appointment link" },
   ] },
   { label: "WhatsApp", icon: "chat", tone: "green", links: [
     { href: "/admin/numbers", label: "WhatsApp numbers", icon: "phone", desc: "Numbers and who uses them", keywords: "number phone" },
@@ -46,6 +47,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     { href: "/admin/lead-sources", label: "Lead sources", icon: "globe", desc: "Google Ads, IndiaMART, JustDial, widget", keywords: "google ads indiamart justdial website chat widget zapier pabbly webhook sync" },
     { href: "/admin/fb-login", label: "Facebook Lead Ads", icon: "facebook", desc: "Pull leads from Facebook forms", keywords: "meta facebook instant form", feature: "fb_leads" },
     { href: "/admin/api", label: "API & webhooks", icon: "code", desc: "API keys and outgoing webhooks", keywords: "api key rest developer zapier webhook integration software" },
+    { href: "/admin/social", label: "Instagram & Messenger", icon: "chat", desc: "Instagram DMs and Messenger in the Inbox", keywords: "instagram dm direct message facebook messenger inbox social chat" },
+    { href: "/admin/ivr", label: "Cloud calling (IVR)", icon: "phone", desc: "Exotel / Knowlarity click-to-call + recording", keywords: "exotel knowlarity ivr click to call virtual number recording" },
   ] },
 ];
 

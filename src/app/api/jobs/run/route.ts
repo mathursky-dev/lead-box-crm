@@ -6,6 +6,8 @@ import { reprocessPendingWebhooks } from "@/lib/webhook";
 import { runQueuedJobs } from "@/lib/jobs";
 import { drainAlerts } from "@/lib/alerts";
 import { drainWebhooks, syncIndiamartDue } from "@/lib/lead-hooks";
+import { fillMissingMeetings } from "@/lib/meetings";
+import { fetchIvrRecordings } from "@/lib/ivr";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +37,9 @@ async function run(req: NextRequest) {
   const alerts = await drainAlerts(10000);
   // Outgoing CRM webhooks and IndiaMART CRM-key pulls (every 10 min per key).
   const [outgoing, indiamart] = await Promise.all([drainWebhooks(10000).catch(() => null), syncIndiamartDue(2).catch(() => null)]);
-  return NextResponse.json({ webhooks, outbox, jobs, alerts, outgoing, indiamart });
+  // Appointment meeting links that failed or were booked online, and IVR call recordings to copy.
+  const [meetings, recordings] = await Promise.all([fillMissingMeetings(3).catch(() => null), fetchIvrRecordings(3).catch(() => null)]);
+  return NextResponse.json({ webhooks, outbox, jobs, alerts, outgoing, indiamart, meetings, recordings });
 }
 
 export const GET = run;

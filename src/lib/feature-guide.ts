@@ -648,6 +648,31 @@ export const FEATURES: Feature[] = [
     ],
     keywords: "api key rest developer webhook integration zapier erp software" },
 
+  { id: "social-inbox", cat: "Integrations", icon: "chat", href: "/admin/social", access: "admin", title: "Instagram DM and Facebook Messenger in the Inbox",
+    what: "Instagram and Messenger chats come into the Inbox next to WhatsApp: reply, add internal notes, assign and turn a chat into a lead.",
+    steps: [
+      "Open [Instagram & Messenger](/admin/social) and click **Grant messaging permission** if asked.",
+      "Turn **Messenger** and/or **Instagram** on for your Facebook page (the Instagram professional account must be linked to the page).",
+      "New chats show in the [Inbox](/inbox) under the Instagram / Messenger tabs. Use **+ Lead** with the customer's mobile number to create the lead.",
+    ],
+    keywords: "instagram dm direct message facebook messenger social inbox chat" },
+  { id: "ivr", cat: "Integrations", icon: "phone", href: "/admin/ivr", access: "admin", title: "Cloud calling (Exotel / Knowlarity)",
+    what: "Click **IVR call** on a lead: your phone rings first, then the customer sees the company number. Calls and recordings are saved on the lead.",
+    steps: [
+      "Open [Cloud calling (IVR)](/admin/ivr), pick Exotel or Knowlarity, paste the keys and virtual number, tick **Cloud calling is on** and save.",
+      "Set each agent's calling mobile in the same page.",
+      "For incoming calls, paste the **Call events URL** in your provider's call flow / webhook settings.",
+    ],
+    keywords: "ivr exotel knowlarity click to call virtual number cloud telephony recording" },
+  { id: "meeting-links", cat: "Customer care & store", icon: "calendar", href: "/care/meetings", access: "admin", title: "Zoom / Google Meet link on appointments",
+    what: "Every appointment gets its own video meeting link, sent in the WhatsApp confirmation and shown on the booking page.",
+    steps: [
+      "Open [Meeting links](/care/meetings).",
+      "Connect Google or paste your Zoom app keys (or use one fixed link).",
+      "Pick the option and **Save**. Appointments list shows **Join** / **Create link**.",
+    ],
+    keywords: "zoom google meet video meeting appointment link online" },
+
   // ───────── Platform (super admin) ─────────
   { id: "platform", cat: "Platform", icon: "building", href: "/platform", access: "super", title: "Companies (SaaS console)",
     what: "Every company using Lead Box: plan, access, usage and billing.",

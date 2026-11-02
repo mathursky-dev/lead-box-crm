@@ -12,6 +12,7 @@ export function BookingForm({ code, open, days, thankYou, location }: { code: st
   const [form, setForm] = useState({ name: "", phone: "", note: "", website: "" });
   const [error, setError] = useState<string>();
   const [done, setDone] = useState<string | null>(null);
+  const [meeting, setMeeting] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const slots = days.find((d) => d.date === day)?.slots ?? [];
   const chosen = slots.find((s) => s.at === at);
@@ -22,6 +23,7 @@ export function BookingForm({ code, open, days, thankYou, location }: { code: st
         <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-3xl text-emerald-700">✓</div>
         <h2 className="text-lg font-bold text-slate-900">Booked{done ? ` for ${done}` : ""}</h2>
         {location && <p className="mt-1 text-sm text-slate-600">📍 {location}</p>}
+        {meeting && <p className="mt-2 text-sm"><a href={meeting} target="_blank" rel="noopener noreferrer" className="font-semibold text-emerald-700 underline">🎥 Video meeting link</a><span className="block text-xs text-slate-500">Save this link to join at your time.</span></p>}
         <p className="mt-3 text-sm text-slate-600">{thankYou}</p>
       </div>
     );
@@ -40,6 +42,7 @@ export function BookingForm({ code, open, days, thankYou, location }: { code: st
     start(async () => {
       const r = await bookSlot(code, { ...form, at });
       if (r.error) { setError(r.error); if (/taken/.test(r.error)) setAt(""); return; }
+      setMeeting(r.meeting ?? null);
       setDone(r.label ?? "");
     });
   }

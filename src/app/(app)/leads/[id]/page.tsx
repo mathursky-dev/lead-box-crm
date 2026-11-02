@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { orderStatus, paymentStatus, rupees } from "@/lib/store";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireProfile, isManager, isAdmin, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
@@ -27,7 +27,12 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   const { profile, features } = await requireProfile();
   const sb = await createClient();
   const { data: lead } = await sb.from("lb_leads").select("*, customer:lb_customers(*), status:lb_lead_statuses(name,category), owner:lb_profiles!lb_leads_owner_id_fkey(full_name,is_active)").eq("id", id).maybeSingle();
-  if (!lead) notFound();
+  if (!lead) {
+    // A lead merged into another one: old links open the kept lead.
+    const { data: target } = await sb.rpc("lb_merged_target", { p_lead: id });
+    if (target) redirect(`/leads/${target}`);
+    notFound();
+  }
   // First open by the owner flips the lead to "seen" in the leads list.
   let seenAt: string | null = lead.owner_seen_at ?? null;
   if (lead.owner_id === profile.id && !seenAt && !(await sb.rpc("lb_mark_lead_seen", { p_lead: id })).error) seenAt = new Date().toISOString();
@@ -64,6 +69,12 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   return (
     <div className="space-y-4">
       {created && <div className="rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-700">Lead created.</div>}
+      {isAdmin(profile) && (siblings?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          This number has {siblings!.length} more active lead{siblings!.length > 1 ? "s" : ""} ({siblings!.map((x) => `LB-${x.lead_no}`).join(", ")}).
+          <Link href={`/leads/duplicates?customer=${lead.customer_id}`} className="font-medium underline">Review &amp; merge duplicates</Link>
+        </div>
+      )}
       <div className="card flex flex-wrap items-start justify-between gap-3 p-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">

@@ -48,8 +48,12 @@ export default async function Commerce() {
         </Panel>
         <div className="space-y-4">
           {isAdmin(profile) && <OrgList table="lb_products" title="Products / Services" items={refs.products} />}
+          <Panel title="WhatsApp store" icon="cart">
+            <p className="text-sm text-slate-600">Share your products as a mini-store link on WhatsApp. Orders land in <Link href="/store" className="font-medium text-brand-700 underline">Store → Orders</Link> and on the customer&apos;s lead.</p>
+            <Link href="/store" className="btn-primary mt-3 inline-block">Open store</Link>
+          </Panel>
           <Panel title="Meta catalog" icon="link">
-            <p className="text-sm text-slate-600">Selling straight inside WhatsApp (catalog, cart, product messages) needs a Commerce Manager catalog linked to your WhatsApp Business Account in Meta. Once linked, cart orders customers send arrive in Live chat as <b>order</b> messages and are counted above.</p>
+            <p className="text-sm text-slate-600">Selling inside WhatsApp itself (catalog, cart) needs a Commerce Manager catalog linked to your WhatsApp Business Account in Meta. Cart orders customers send become store orders automatically; put each item&apos;s Content ID in the product&apos;s SKU so they map to your products.</p>
           </Panel>
         </div>
       </div>

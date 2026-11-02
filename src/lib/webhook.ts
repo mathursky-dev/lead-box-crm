@@ -11,6 +11,7 @@ type WaMessage = {
   image?: Media; video?: Media; audio?: Media; document?: Media & { filename?: string }; sticker?: Media;
   contacts?: { name?: { formatted_name?: string } }[];
   context?: { id?: string }; reaction?: { emoji?: string; message_id?: string };
+  order?: { catalog_id?: string; text?: string; product_items?: { product_retailer_id: string; quantity: number | string; item_price?: number | string; currency?: string }[] };
 };
 type Media = { id: string; mime_type?: string; caption?: string };
 type WaStatus = { id: string; status: string; timestamp: string; errors?: { code: number; title?: string; message?: string; error_data?: { details?: string } }[] };
@@ -24,6 +25,10 @@ function bodyOf(m: WaMessage): string | null {
   if (m.interactive) return m.interactive.button_reply?.title ?? m.interactive.list_reply?.title ?? null;
   if (m.reaction) return m.reaction.emoji ? `Reacted ${m.reaction.emoji}` : "Removed reaction";
   if (m.location) return `📍 ${[m.location.name, m.location.address].filter(Boolean).join(", ")} (${m.location.latitude}, ${m.location.longitude})`;
+  if (m.order) {
+    const n = (m.order.product_items ?? []).reduce((t, i) => t + (Number(i.quantity) || 1), 0);
+    return `🛒 Cart order: ${n} item${n === 1 ? "" : "s"}${m.order.text ? ` · ${m.order.text}` : ""}`;
+  }
   if (m.contacts) return `Shared contact: ${m.contacts.map((c) => c.name?.formatted_name).filter(Boolean).join(", ")}`;
   for (const t of MEDIA_TYPES) { const x = m[t] as Media | undefined; if (x) return x.caption ?? null; }
   return m.type === "unsupported" ? "[Unsupported message type]" : null;
@@ -67,6 +72,11 @@ export async function processWebhookEvent(eventId: string) {
           if (error) throw new Error(`ingest: ${error.message}`);
           if (data?.message_id) botJobs.push({ messageId: data.message_id, conversationId: data.conversation_id, companyId: data.company_id, body: bodyOf(m), type: m.type,
             replyId: m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? m.button?.payload ?? null });
+          // WhatsApp catalog cart → order on the customer's lead (idempotent per message).
+          if (data?.message_id && m.type === "order" && m.order) {
+            const r = await db.rpc("lb_ingest_wa_order", { p_message: data.message_id, p_order: m.order });
+            if (r.error && r.error.code !== "PGRST202") throw new Error(`order: ${r.error.message}`); // PGRST202: store SQL not applied yet
+          }
           if (data?.message_id && m.context?.id) {
             const r = await db.rpc("lb__link_reply", { p_msg: data.message_id, p_context_wamid: m.context.id });
             if (r.error) throw new Error(`reply link: ${r.error.message}`);

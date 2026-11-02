@@ -11,6 +11,8 @@ import { fmtClock, fmtDateTime, fmtDay } from "@/lib/dates";
 import { Modal } from "@/components/ui";
 import { searchDocuments, sendDocumentToChat, type Doc } from "@/lib/actions/documents";
 import { PayLinkButton } from "../quotes/actions-ui";
+import { addChatNote } from "@/lib/actions/inbox";
+import { NoteBubble, MentionsButton, NotesOnly, useMentionPicker, mentionedIds, type ChatNote } from "./team-notes";
 
 type Conv = {
   id: string; customer_id: string; customer_name: string | null; wa_profile_name: string | null; phone_e164: string; wa_opted_out_at: string | null;
@@ -66,10 +68,12 @@ export function Inbox(props: Props) {
   }, [sb, status, numberId, qDebounced, view, unreadOnly, tagId, limit]);
 
   // Selected conversation, fetched directly so it works even when filtered out of the list.
+  const [selMissing, setSelMissing] = useState(false);
   const loadSelected = useCallback(async () => {
+    setSelMissing(false);
     if (!selId) { setSelected(null); return; }
     const { data: row } = await sb.from("lb_conversations").select("*, customer:lb_customers(name,wa_profile_name,phone_e164,wa_opted_out_at), number:lb_wa_numbers(label), lead:lb_leads(lead_no), assignee:lb_profiles!lb_conversations_assignee_id_fkey(full_name)").eq("id", selId).maybeSingle();
-    if (!row) { setSelected(null); return; }
+    if (!row) { setSelected(null); setSelMissing(true); return; }
     setSelected({
       ...row, customer_name: row.customer?.name, wa_profile_name: row.customer?.wa_profile_name, phone_e164: row.customer?.phone_e164, wa_opted_out_at: row.customer?.wa_opted_out_at,
       number_label: row.number?.label, lead_no: row.lead?.lead_no ?? null, lead_status: null, assignee_name: row.assignee?.full_name ?? null,
@@ -87,6 +91,7 @@ export function Inbox(props: Props) {
     const ch = sb.channel("inbox")
       .on("postgres_changes", { event: "*", schema: "public", table: "lb_conversations" }, bump)
       .on("postgres_changes", { event: "*", schema: "public", table: "lb_messages" }, bump)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lb_notes" }, bump)
       .subscribe((s: string) => { setLive(s === "SUBSCRIBED"); if (s === "SUBSCRIBED") bump(); });
     const onFocus = () => bump();
     window.addEventListener("focus", onFocus);
@@ -107,6 +112,7 @@ export function Inbox(props: Props) {
         <div className="space-y-2 border-b p-3">
           <div className="flex items-center justify-between">
             <h1 className="font-semibold text-navy-900">Inbox {unreadTotal > 0 && <span className="badge ml-1 bg-brand-600 text-white">{unreadTotal}</span>}</h1>
+            <MentionsButton meId={props.me.id} users={props.users} onOpen={open} />
             <span className={`text-[11px] ${live ? "text-brand-600" : "text-amber-600"}`} title="Realtime connection">{live ? "● live" : "● reconnecting"}</span>
           </div>
           <input className="input" placeholder="Search name, number, message" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -160,6 +166,8 @@ export function Inbox(props: Props) {
             <Details conv={selected} {...props} tick={tick} onClose={() => setShowDetails(false)} onChanged={() => { loadList(); loadSelected(); }} />
           </aside>
         </>
+      ) : selId && selMissing ? (
+        <NotesOnly convId={selId} users={props.users} meId={props.me.id} tick={tick} onBack={() => { setSelId(null); window.history.replaceState(null, "", "/inbox"); }} />
       ) : (
         <div className="hidden flex-1 items-center justify-center text-sm text-slate-400 md:flex">{selId ? "Loading…" : "Select a conversation"}</div>
       )}
@@ -192,6 +200,7 @@ export function ChatPopup({ convId, ctx, onClose }: { convId: string; ctx: ChatC
     const ch = sb.channel(`chat-popup-${convId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lb_messages", filter: `conversation_id=eq.${convId}` }, bump)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "lb_conversations", filter: `id=eq.${convId}` }, bump)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "lb_notes", filter: `conversation_id=eq.${convId}` }, bump)
       .subscribe();
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", esc);
@@ -237,6 +246,9 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   const [tpl, setTpl] = useState(false);
   const [docs, setDocs] = useState(false);
   const [replyTo, setReplyTo] = useState<Msg | null>(null);
+  const [notes, setNotes] = useState<ChatNote[]>([]);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const mention = useMentionPicker({ enabled: noteMode, text, setText, users, meId: me.id, areaRef });
   const [picker, setPicker] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -271,9 +283,19 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
     setState("ready");
   }, [sb, conv.id]);
 
-  useEffect(() => { load(); }, [load, tick]);
+  const loadNotes = useCallback(async () => {
+    const { data } = await sb.from("lb_notes").select("id,body,created_at,author_id,mentions").eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(100);
+    setNotes(((data as ChatNote[]) ?? []).reverse());
+  }, [sb, conv.id]);
+  useEffect(() => { load(); loadNotes(); }, [load, loadNotes, tick]);
+  // Messages and team notes in one timeline (notes older than the loaded messages wait for "Load older").
+  const timeline = useMemo(() => {
+    const from = hasMore ? msgs[0]?.created_at : undefined;
+    const ns = notes.filter((n) => !from || n.created_at >= from).map((n) => ({ kind: "note" as const, at: n.created_at, n }));
+    return [...msgs.map((m) => ({ kind: "msg" as const, at: m.created_at, m })), ...ns].sort((a, b) => a.at.localeCompare(b.at));
+  }, [msgs, notes, hasMore]);
   useEffect(() => { if (conv.unread_count > 0) conversationAction(conv.id, "read").then(onChanged); }, [conv.id, conv.unread_count]); // eslint-disable-line react-hooks/exhaustive-deps
-  const lastId = msgs[msgs.length - 1]?.id;
+  const lastId = `${msgs[msgs.length - 1]?.id}:${notes.length}`;
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [lastId]);
 
   const isOpenWindow = windowOpen(conv);
@@ -283,12 +305,12 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
   const submit = async () => {
     if (!text.trim() || sending) return;
     setSending(true); setErr(undefined);
-    const r = noteMode ? await conversationAction(conv.id, "note", { body: text }) : await sendText(conv.id, clientId.current, text, replyTo?.id);
+    const r = noteMode ? await addChatNote(conv.id, text, mentionedIds(text, users, me.id)) : await sendText(conv.id, clientId.current, text, replyTo?.id);
     setSending(false);
     if (r.error && !r.ok) { setErr(r.error); return; }
     if (r.error) setErr(r.error);
     setText(""); setReplyTo(null); clientId.current = crypto.randomUUID();
-    load(); onChanged();
+    load(); loadNotes(); onChanged();
   };
 
   const upload = async (f: File) => {
@@ -315,35 +337,7 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
     }
   };
 
-  return (
-    <section className="flex min-w-0 flex-1 flex-col">
-      <header className="flex items-center gap-2 border-b px-3 py-2">
-        {!popup && <button className="md:hidden" onClick={onBack} aria-label="Back">←</button>}
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium text-navy-900">{name(conv)}</div>
-          <div className="truncate text-xs text-slate-500">{conv.phone_e164} · {conv.number_label} · {conv.assignee_name ?? "Unassigned"}
-            {conv.wa_opted_out_at && <span className="ml-1 text-red-600">· opted out</span>}</div>
-        </div>
-        <AiScoreChip convId={conv.id} leadId={conv.lead_id} canAi={me.canAi} />
-        <select className="input w-auto py-1 text-xs" value={conv.status} aria-label="Conversation status"
-          onChange={async (e) => { const r = await conversationAction(conv.id, "status", { status: e.target.value }); if (r.error) setErr(r.error); onChanged(); }}>
-          <option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option>
-        </select>
-        {me.canTransfer && <button className="btn-ghost btn-sm" onClick={() => setTransfer(true)}>Transfer</button>}
-        {popup ? (
-          <>
-            <Link className="btn-ghost btn-sm whitespace-nowrap" href={`/inbox?c=${conv.id}`}>Open in Inbox</Link>
-            <button className="grid h-8 w-8 place-items-center rounded-full text-lg text-slate-500 hover:bg-slate-100" onClick={onBack} aria-label="Close chat">×</button>
-          </>
-        ) : <button className="btn-ghost btn-sm lg:hidden" onClick={onDetails}>Details</button>}
-      </header>
-
-      <div className="min-h-0 flex-1 space-y-2 overflow-auto bg-[#eef2f5] p-3">
-        {hasMore && <div className="text-center"><button className="text-xs text-brand-700" onClick={() => load(msgs[0]?.created_at)}>Load older messages</button></div>}
-        {state === "loading" && <div className="text-center text-sm text-slate-500">Loading…</div>}
-        {state === "error" && <div className="text-center text-sm text-red-600">Couldn&apos;t load messages. <button className="underline" onClick={() => load()}>Retry</button></div>}
-        {state === "ready" && msgs.length === 0 && <div className="text-center text-sm text-slate-500">No messages yet.</div>}
-        {msgs.map((m) => (
+  const renderMsg = (m: Msg) => (
           <div key={m.id} className={`group flex items-center gap-1 ${m.direction === "out" ? "flex-row-reverse" : ""}`}>
             <div className={`relative max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm ${m.direction === "out" ? (m.status === "failed" ? "bg-red-600 text-white" : "bg-navy-800 text-white") : "bg-white text-slate-900"}`}>
               {(m.reply_to_id || m.reply_to_wa_id) && (
@@ -380,7 +374,37 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
               </div>
             )}
           </div>
-        ))}
+  );
+
+  return (
+    <section className="flex min-w-0 flex-1 flex-col">
+      <header className="flex items-center gap-2 border-b px-3 py-2">
+        {!popup && <button className="md:hidden" onClick={onBack} aria-label="Back">←</button>}
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-navy-900">{name(conv)}</div>
+          <div className="truncate text-xs text-slate-500">{conv.phone_e164} · {conv.number_label} · {conv.assignee_name ?? "Unassigned"}
+            {conv.wa_opted_out_at && <span className="ml-1 text-red-600">· opted out</span>}</div>
+        </div>
+        <AiScoreChip convId={conv.id} leadId={conv.lead_id} canAi={me.canAi} />
+        <select className="input w-auto py-1 text-xs" value={conv.status} aria-label="Conversation status"
+          onChange={async (e) => { const r = await conversationAction(conv.id, "status", { status: e.target.value }); if (r.error) setErr(r.error); onChanged(); }}>
+          <option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option>
+        </select>
+        {me.canTransfer && <button className="btn-ghost btn-sm" onClick={() => setTransfer(true)}>Transfer</button>}
+        {popup ? (
+          <>
+            <Link className="btn-ghost btn-sm whitespace-nowrap" href={`/inbox?c=${conv.id}`}>Open in Inbox</Link>
+            <button className="grid h-8 w-8 place-items-center rounded-full text-lg text-slate-500 hover:bg-slate-100" onClick={onBack} aria-label="Close chat">×</button>
+          </>
+        ) : <button className="btn-ghost btn-sm lg:hidden" onClick={onDetails}>Details</button>}
+      </header>
+
+      <div className="min-h-0 flex-1 space-y-2 overflow-auto bg-[#eef2f5] p-3">
+        {hasMore && <div className="text-center"><button className="text-xs text-brand-700" onClick={() => load(msgs[0]?.created_at)}>Load older messages</button></div>}
+        {state === "loading" && <div className="text-center text-sm text-slate-500">Loading…</div>}
+        {state === "error" && <div className="text-center text-sm text-red-600">Couldn&apos;t load messages. <button className="underline" onClick={() => load()}>Retry</button></div>}
+        {state === "ready" && msgs.length === 0 && <div className="text-center text-sm text-slate-500">No messages yet.</div>}
+        {timeline.map((t) => t.kind === "note" ? <NoteBubble key={`n-${t.n.id}`} n={t.n} users={users} meId={me.id} /> : renderMsg(t.m))}
         <div ref={endRef} />
       </div>
 
@@ -398,7 +422,8 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
           </div>
         ) : (
           <div className="relative">
-            {qr.length > 0 && (
+            {mention.dropdown}
+            {qr.length > 0 && !noteMode && (
               <div className="absolute bottom-full mb-1 max-h-48 w-full overflow-auto rounded border bg-white shadow">
                 {qr.map((x) => <button key={x.shortcut} className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50" onClick={() => setText(x.body)}><span className="font-mono text-brand-700">/{x.shortcut}</span> {x.title}</button>)}
               </div>
@@ -432,14 +457,15 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
               {!noteMode && <button className="px-1 py-1 text-lg text-slate-500" title="Select from Documents" aria-label="Select from Documents" onClick={() => setDocs(true)} disabled={sending}>📁</button>}
               {!noteMode && conv.lead_id && <PayLinkButton leadId={conv.lead_id} canSend className="px-1 py-1 text-lg text-slate-500" label={<span title="Send Razorpay payment link" aria-label="Send payment link">💳</span>} onDone={() => { load(); onChanged(); }} />}
               <input ref={fileRef} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }} />
-              <textarea className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none" rows={1} value={text}
-                placeholder={noteMode ? "Internal note (not sent to customer)" : "Type a message — “/” for quick replies"}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }} />
+              {noteMode && <button type="button" className="px-2 py-1 font-bold text-amber-700" title="Mention a teammate" aria-label="Mention a teammate" onClick={mention.insertAt}>@</button>}
+              <textarea ref={areaRef} className="max-h-40 min-h-[38px] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none" rows={1} value={text}
+                placeholder={noteMode ? "Team note (not sent to customer) — type @ to mention a teammate" : "Type a message — “/” for quick replies"}
+                onChange={(e) => { setText(e.target.value); mention.track(); }} onSelect={mention.track} onClick={mention.track}
+                onKeyDown={(e) => { if (mention.onKeyDown(e)) return; if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }} />
               <button className={noteMode ? "btn btn-sm bg-amber-500 text-white" : "btn-primary btn-sm"} disabled={sending || !text.trim()} onClick={submit}>{sending ? "…" : noteMode ? "Add note" : "Send"}</button>
             </div>
             <div className="mt-1 flex gap-3 text-[11px] text-slate-500">
-              <label className="flex items-center gap-1"><input type="checkbox" checked={noteMode} onChange={(e) => setNoteMode(e.target.checked)} /> Internal note</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={noteMode} onChange={(e) => setNoteMode(e.target.checked)} /> Team note (@mention)</label>
               {me.canAi && !noteMode && <button className="font-medium text-violet-700 hover:underline" disabled={sugBusy} onClick={loadSugs}>{sugBusy ? "✨ Thinking…" : "✨ AI replies"}</button>}
               {isOpenWindow && <span>Window open until {fmtDateTime(new Date(new Date(conv.last_inbound_at!).getTime() + 86400000).toISOString())}</span>}
               {!isOpenWindow && <button className="text-brand-700" onClick={() => setTpl(true)}>Send template</button>}
@@ -648,10 +674,10 @@ function Details({ conv, me, users, tags, statuses, tick, onClose, onChanged }: 
       {me.canAi && <AiPanel convId={conv.id} />}
       <CustomerControls conv={conv} canComplaints={me.canComplaints} canPause={me.canPause} onDone={() => { load(); onChanged(); }} tick={tick} />
       <section>
-        <h3 className="label">Internal notes</h3>
+        <h3 className="label">Team notes</h3>
         <ul className="space-y-2">
           {notes.map((n) => <li key={n.id} className="rounded bg-amber-50 p-2"><div className="whitespace-pre-wrap">{n.body}</div><div className="text-[11px] text-slate-500">{n.author_id ? uName.get(n.author_id) : ""} · {fmtDateTime(n.created_at)}</div></li>)}
-          {notes.length === 0 && <li className="text-xs text-slate-400">No notes. Use “Internal note” in the composer.</li>}
+          {notes.length === 0 && <li className="text-xs text-slate-400">No notes. Tick “Team note” in the composer (type @ to mention someone).</li>}
         </ul>
       </section>
     </div>

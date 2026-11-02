@@ -72,6 +72,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(nurture, "/nurture/journeys", "Journeys", "drip sequence"),
       ...it(nurture && can(profile, "journeys.manage"), "/nurture/logs", "Execution log"),
       ...it(nurture && can(profile, "knowledge.manage"), "/nurture/knowledge", "AI knowledge"),
+      ...(can(profile, "reports.view") ? [{ href: "/forecast", label: "AI sales forecast", keywords: "prediction next month product sales projection target" }] : []),
     ] },
     { section: "Grow", label: "Store", icon: "cart", items: [
       { href: "/store", label: "Orders", keywords: "shop catalog mini-store order" },

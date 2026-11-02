@@ -1,18 +1,8 @@
 import { requireAdmin } from "@/lib/auth";
-import { SectionTabs } from "@/components/section-tabs";
-
-const TABS = [
-  ["/admin/quick-setup", "Quick Setup", "bolt"], ["/admin/users", "Users", "contacts"], ["/admin/roles", "Roles & permissions", "shield"], ["/admin/org", "Organisation", "building"], ["/admin/integrations", "Integrations", "link"], ["/admin/lead-sources", "Lead sources", "globe"], ["/admin/api", "API & webhooks", "code"], ["/admin/numbers", "WhatsApp numbers", "phone"], ["/admin/templates", "Templates", "template"],
-  ["/admin/allocation", "Allocation", "refresh"], ["/settings", "Lead settings", "list"], ["/admin/catalog", "Products · Quick replies", "tag"],
-  ["/admin/settings", "Settings", "gear"], ["/admin/audit", "Audit log", "clock"],
-] as const;
+import { SettingsFrame } from "@/components/settings-frame";
+import { settingsGroups } from "@/lib/settings-nav";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requireAdmin();
-  return (
-    <div>
-      <SectionTabs label="Admin sections" tabs={TABS.map(([href, label, icon]) => ({ href, label, icon }))} />
-      {children}
-    </div>
-  );
+  const { features } = await requireAdmin();
+  return <SettingsFrame groups={settingsGroups(features)}>{children}</SettingsFrame>;
 }

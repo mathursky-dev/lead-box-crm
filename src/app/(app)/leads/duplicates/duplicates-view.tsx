@@ -28,7 +28,7 @@ function suggestKeep(leads: DupLead[]) {
 const MOVE_LABEL: Record<string, string> = {
   lb_lead_events: "history entries", lb_notes: "notes", lb_followups: "follow-ups", lb_tasks: "tasks", lb_conversations: "WhatsApp chats",
   lb_journey_enrollments: "journey runs", lb_campaign_recipients: "campaign sends", lb_attributions: "attribution records",
-  lb_complaints: "complaints", lb_signals: "signals", lb_ai_outputs: "AI results", lb_fb_lead_events: "Facebook lead records", new_tags: "new tags",
+  lb_complaints: "complaints", lb_signals: "signals", lb_ai_outputs: "AI results", lb_fb_lead_events: "Facebook lead records", lb_calls: "calls", new_tags: "new tags",
 };
 
 export function DuplicatesView({ groups }: { groups: DupGroup[] }) {

@@ -25,21 +25,45 @@ export function Importer() {
 
   const mapped = () => data.map((r) => Object.fromEntries(FIELDS.filter(([f]) => map[f]).map(([f]) => [f, (r[map[f]!] ?? "").toString()])));
 
-  const onFile = (f: File) => {
-    setErr(undefined); setPreview(null); setResult(null); setFile(f.name);
+  const loaded = (hs: string[], rows: Record<string, string>[]) => {
+    if (!hs.length) { setErr("No header row found."); return; }
+    setHeaders(hs); setData(rows);
+    const guess: Partial<Record<ImportField, string>> = {};
+    const used = new Set<string>();
+    for (const [f, , re] of FIELDS) { const h = hs.find((x) => re.test(x) && !used.has(x)); if (h) { guess[f] = h; used.add(h); } }
+    setMap(guess);
+  };
+
+  const onFile = async (f: File) => {
+    setErr(undefined); setPreview(null); setResult(null); setFile(f.name); setHeaders([]); setData([]);
+    if (/\.xlsx$/i.test(f.name)) {
+      // Excel: first sheet, first non-empty row = headers. Loaded on demand so the CSV path stays light.
+      try {
+        const { readSheet } = await import("read-excel-file/browser");
+        const sheet = await readSheet(f);
+        const cellText = (v: unknown) => (v == null ? "" : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim());
+        const nonEmpty = sheet.filter((r) => r.some((c) => cellText(c) !== ""));
+        const hs = (nonEmpty[0] ?? []).map(cellText);
+        const keep = hs.map((h, i) => [h, i] as const).filter(([h]) => h);
+        loaded(keep.map(([h]) => h), nonEmpty.slice(1).map((r) => Object.fromEntries(keep.map(([h, i]) => [h, cellText(r[i])]))));
+      } catch (e) {
+        setErr(`Could not read the Excel file: ${(e as Error).message}`);
+      }
+      return;
+    }
+    if (/\.xls$/i.test(f.name)) { setErr("Old .xls files are not supported. In Excel use Save As → .xlsx or CSV."); return; }
     Papa.parse<Record<string, string>>(f, {
       header: true, skipEmptyLines: "greedy",
-      complete: (res) => {
-        const hs = (res.meta.fields ?? []).filter(Boolean);
-        if (!hs.length) { setErr("No header row found."); return; }
-        setHeaders(hs); setData(res.data);
-        const guess: Partial<Record<ImportField, string>> = {};
-        const used = new Set<string>();
-        for (const [f, , re] of FIELDS) { const h = hs.find((x) => re.test(x) && !used.has(x)); if (h) { guess[f] = h; used.add(h); } }
-        setMap(guess);
-      },
+      complete: (res) => loaded((res.meta.fields ?? []).filter(Boolean), res.data),
       error: (e) => setErr(e.message),
     });
+  };
+
+  const sample = () => {
+    const csv = "Mobile,Name,Email,City,Product,Source,Owner email,Priority,Expected value,Notes,Tags\n+919876543210,Rahul Sharma,rahul@example.com,Jaipur,,Website,,normal,25000,Interested in demo,\n";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "leadbox-import-sample.csv"; a.click(); URL.revokeObjectURL(a.href);
   };
 
   const counts = preview?.reduce((a, r) => ({ ...a, [r.status]: (a[r.status] ?? 0) + 1 }), {} as Record<string, number>);
@@ -47,8 +71,11 @@ export function Importer() {
   return (
     <div className="space-y-4">
       <div className="card p-4">
-        <input type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
-        <p className="mt-2 text-xs text-slate-500">UTF-8 CSV with a header row, up to 2000 rows. Indian numbers may omit +91.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <input type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+          <button type="button" className="btn-ghost btn-sm" onClick={sample}>Download sample file</button>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">Excel (.xlsx, first sheet) or UTF-8 CSV with a header row, up to 2000 rows. Indian numbers may omit +91. Numbers already in the CRM are flagged as duplicates before import.</p>
         {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
       </div>
 

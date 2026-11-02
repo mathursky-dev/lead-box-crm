@@ -5,6 +5,7 @@ import { drainOutbox } from "@/lib/outbox";
 import { reprocessPendingWebhooks } from "@/lib/webhook";
 import { runQueuedJobs } from "@/lib/jobs";
 import { drainAlerts } from "@/lib/alerts";
+import { drainWebhooks, syncIndiamartDue } from "@/lib/lead-hooks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,9 @@ async function run(req: NextRequest) {
   const outbox = await drainOutbox(25000);
   const jobs = await runQueuedJobs();
   const alerts = await drainAlerts(10000);
-  return NextResponse.json({ webhooks, outbox, jobs, alerts });
+  // Outgoing CRM webhooks and IndiaMART CRM-key pulls (every 10 min per key).
+  const [outgoing, indiamart] = await Promise.all([drainWebhooks(10000).catch(() => null), syncIndiamartDue(2).catch(() => null)]);
+  return NextResponse.json({ webhooks, outbox, jobs, alerts, outgoing, indiamart });
 }
 
 export const GET = run;

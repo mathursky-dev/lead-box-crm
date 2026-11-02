@@ -19,6 +19,7 @@ import type { CustomField } from "@/lib/settings-shared";
 import { companyRazorpay } from "@/lib/quotes-server";
 import { KIND_LABEL, QUOTE_STATUS, inr, type PayLink, type QuoteKind, type QuoteStatus } from "@/lib/quotes";
 import { PayLinkButton, PayLinkRow } from "../../quotes/actions-ui";
+import { LeadCare } from "../../care/lead-care";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
 export const metadata = { title: "Lead" };
@@ -126,6 +127,8 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <LeadTasks leadId={lead.id} />
           <LeadOrders leadId={lead.id} />
           <LeadQuotes leadId={lead.id} companyId={lead.company_id} canSend={can(profile, "chats.send")} />
+          <LeadCare leadId={lead.id} companyId={lead.company_id} customerId={lead.customer_id} canSend={can(profile, "chats.send")} canEdit={can(profile, "leads.edit")}
+            users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
           {can(profile, "leads.assign") && (
             <AssignPanel leadId={lead.id} ownerId={lead.owner_id} users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
           )}

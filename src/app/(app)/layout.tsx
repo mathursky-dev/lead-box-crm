@@ -45,6 +45,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(admin, "/store/products", "Store products"), ...it(admin, "/store/settings", "Store settings"),
     ] },
     { label: "Quotes & Invoices", icon: "rupee", href: "/quotes" },
+    { label: "Customer care", icon: "heart", items: [
+      { href: "/care/appointments", label: "Appointments", keywords: "booking calendar slot meeting visit" },
+      { href: "/care/feedback", label: "Feedback & NPS", keywords: "rating review survey" },
+      { href: "/care/referrals", label: "Referrals", keywords: "refer friend reward" },
+      ...it(admin, "/care/settings", "Care settings"),
+    ] },
     { label: "WhatsApp", icon: "chat", items: [
       { href: "/whatsapp", label: "Overview" }, { href: "/whatsapp/connections", label: "Connections" }, { href: "/whatsapp/templates", label: "Templates" },
       { href: "/whatsapp/send", label: "Send" }, { href: "/whatsapp/campaigns", label: "Campaigns" }, { href: "/whatsapp/commerce", label: "Commerce" },

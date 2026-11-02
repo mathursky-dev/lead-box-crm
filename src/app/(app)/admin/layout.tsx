@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { SectionTabs } from "@/components/section-tabs";
 
 const TABS = [
-  ["/admin/quick-setup", "Quick Setup", "bolt"], ["/admin/users", "Users", "contacts"], ["/admin/roles", "Roles & permissions", "shield"], ["/admin/org", "Organisation", "building"], ["/admin/integrations", "Integrations", "link"], ["/admin/numbers", "WhatsApp numbers", "phone"], ["/admin/templates", "Templates", "template"],
+  ["/admin/quick-setup", "Quick Setup", "bolt"], ["/admin/users", "Users", "contacts"], ["/admin/roles", "Roles & permissions", "shield"], ["/admin/org", "Organisation", "building"], ["/admin/integrations", "Integrations", "link"], ["/admin/lead-sources", "Lead sources", "globe"], ["/admin/api", "API & webhooks", "code"], ["/admin/numbers", "WhatsApp numbers", "phone"], ["/admin/templates", "Templates", "template"],
   ["/admin/allocation", "Allocation", "refresh"], ["/settings", "Lead settings", "list"], ["/admin/catalog", "Products · Quick replies", "tag"],
   ["/admin/settings", "Settings", "gear"], ["/admin/audit", "Audit log", "clock"],
 ] as const;

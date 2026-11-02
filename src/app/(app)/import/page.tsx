@@ -13,7 +13,7 @@ export default async function ImportPage() {
   const { data: jobs } = await (await createClient()).from("lb_import_jobs").select("id,filename,total_rows,created_count,duplicate_count,error_count,created_at").order("created_at", { ascending: false }).limit(10);
   return (
     <>
-      <PageHeader icon="upload" title="Import leads (CSV)" sub="Map columns, preview validation and duplicates, then import. Product, source, branch, department and tags are matched by name; owner by email." />
+      <PageHeader icon="upload" title="Import leads (Excel / CSV)" sub="Map columns, preview validation and duplicates, then import. Product, source, branch, department and tags are matched by name; owner by email." />
       <Importer />
       {!!jobs?.length && (
         <section className="card mt-6 overflow-x-auto">

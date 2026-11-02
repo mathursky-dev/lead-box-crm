@@ -110,7 +110,7 @@ export function LeadsToolbar({ qs, views: initialViews, total, q, activeFilters,
             {menu === "add" && (
               <div role="menu" className="absolute left-0 z-30 mt-1 w-48 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
                 {perm.create && <Link role="menuitem" className={item} href="/leads/new"><Icon name="plus" className="h-4 w-4 text-brand-600" />New lead</Link>}
-                {perm.import && <Link role="menuitem" className={item} href="/import"><Icon name="upload" className="h-4 w-4 text-sky-600" />Import leads (CSV)</Link>}
+                {perm.import && <Link role="menuitem" className={item} href="/import"><Icon name="upload" className="h-4 w-4 text-sky-600" />Import leads (Excel / CSV)</Link>}
               </div>
             )}
           </div>

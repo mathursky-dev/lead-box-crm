@@ -86,6 +86,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ] },
       { label: "Integrations", icon: "link", items: [
         { href: "/admin/integrations", label: "WhatsApp Cloud API" }, ...it(features.includes("fb_leads"), "/admin/fb-login", "Facebook Lead Ads"),
+        { href: "/admin/lead-sources", label: "Lead sources", keywords: "google ads indiamart justdial website chat widget zapier pabbly webhook sync" },
+        { href: "/admin/api", label: "API & webhooks", keywords: "api key rest developer zapier webhook integration software" },
       ] },
     ] : []),
     // SaaS owner console (companies, plans, billing) — platform Super Admin only.
@@ -96,7 +98,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Quick Create: shortcuts to existing "new" screens, same permission checks as those pages.
   const quick = [
     ...it(can(profile, "leads.create"), "/leads/new", "New lead"),
-    ...it(can(profile, "leads.import"), "/import", "Import leads (CSV)"),
+    ...it(can(profile, "leads.import"), "/import", "Import leads (Excel / CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
     { href: "/tasks?new=1", label: "New task" },
     { href: "/field", label: "Check in / field visit" },

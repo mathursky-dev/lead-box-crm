@@ -2,6 +2,7 @@
 import { ActionForm, Field, Submit } from "@/components/ui";
 import { saveQuoteSettings, saveRazorpayKeys } from "@/lib/actions/quotes";
 import type { QuoteSettings } from "@/lib/quotes-server";
+import { STATES } from "@/lib/gst";
 
 export function QuoteSettingsForm({ st, statuses }: { st: QuoteSettings; statuses: { id: string; name: string }[] }) {
   return (
@@ -15,6 +16,14 @@ export function QuoteSettingsForm({ st, statuses }: { st: QuoteSettings; statuse
           <Field label="GSTIN"><input className="input uppercase" name="gstin" defaultValue={st.gstin} maxLength={20} /></Field>
           <Field label="Phone"><input className="input" name="phone" defaultValue={st.phone} maxLength={40} /></Field>
           <Field label="Email"><input className="input" type="email" name="email" defaultValue={st.email} maxLength={120} /></Field>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="State (for GST)" hint="Empty = taken from your GSTIN. Decides CGST+SGST vs IGST.">
+            <select className="input" name="state_code" defaultValue={st.state_code}>
+              <option value="">From GSTIN</option>
+              {Object.entries(STATES).map(([c, n]) => <option key={c} value={c}>{c} · {n}</option>)}
+            </select></Field>
+          <Field label="PIN code" hint="Needed for e-invoice."><input className="input" name="pincode" inputMode="numeric" pattern="[1-9][0-9]{5}" defaultValue={st.pincode} maxLength={6} /></Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
           <Field label="Quote prefix"><input className="input" name="quote_prefix" defaultValue={st.quote_prefix} maxLength={12} /></Field>
@@ -36,6 +45,14 @@ export function QuoteSettingsForm({ st, statuses }: { st: QuoteSettings; statuse
             {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <label className="flex items-center gap-2"><input type="checkbox" name="won_on_payment" defaultChecked={st.won_on_payment} /> When a payment link is fully paid, mark the lead <b>Won</b></label>
+        </div>
+        <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" name="esign_enabled" defaultChecked={st.esign_enabled} /> Let customers <b>accept &amp; sign quotations online</b> (link is added to the WhatsApp message)</label>
+          <span className="block text-xs text-slate-500">After the customer signs, move the lead to:</span>
+          <select className="input" name="esign_status_id" defaultValue={st.esign_status_id ?? ""} aria-label="Status after the customer signs">
+            <option value="">Don&apos;t change the status</option>
+            {statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
         </div>
         <Submit>Save</Submit>
       </ActionForm>

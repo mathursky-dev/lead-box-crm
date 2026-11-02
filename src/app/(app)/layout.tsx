@@ -40,7 +40,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/tasks", label: "Tasks", keywords: "todo to-do reminder" },
       { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"),
-      { href: "/quotes", label: "Quotes & Invoices", keywords: "quotation invoice estimate bill gst payment link" },
+      { href: "/quotes", label: "Quotes & Invoices", keywords: "quotation invoice estimate bill gst payment link e-sign signature" },
+      { href: "/commissions", label: "Commissions", keywords: "incentive payout agent earning deal" },
       { href: "/documents", label: "Documents", keywords: "files brochure pdf library" },
       ...it(can(profile, "leads.import"), "/import", "Import", "excel csv upload bulk"),
       ...it(admin, "/leads/duplicates", "Duplicate leads", "merge same number dedupe"),
@@ -90,6 +91,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(reports, "/win-loss", "Win / Loss", "lost reason won deal analysis"),
       { href: "/leaderboard", label: "Leaderboard", keywords: "targets ranking performance agents" },
       ...it(admin, "/profit-loss", "Profit & Loss", "p&l pnl ad spend revenue roi"),
+      ...it(admin, "/gst", "GST reports", "gstr-1 gstr1 e-invoice irn hsn tax return accountant"),
     ] },
     { section: "Help", label: "Features & Guide", icon: "book", href: "/guide" },
     ...(admin ? [{ section: "Admin", label: "Settings", icon: "gear", items: [

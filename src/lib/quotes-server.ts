@@ -1,9 +1,10 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { decryptSecret } from "./util";
 import { quotePdf, type PdfCompany } from "./quote-pdf";
 import { cleanItems, type Quote } from "./quotes";
+import { stateOfGstin, type Seller } from "./gst";
 
 // Server side of quotations / invoices / payment links. Every lookup filters by
 // company_id explicitly (the service role bypasses RLS).
@@ -13,12 +14,14 @@ export type QuoteSettings = PdfCompany & {
   default_tax_pct: number; quote_validity_days: number; terms: string;
   quote_status_id: string | null; auto_status_on_send: boolean; won_on_payment: boolean;
   rzp_key_id: string | null; has_rzp_secret: boolean; has_webhook_secret: boolean;
+  state_code: string; pincode: string; esign_enabled: boolean; esign_status_id: string | null;
 };
 
 const DEFAULTS = {
   business_name: "", address: "", gstin: "", phone: "", email: "", bank_details: "", footer_note: "Thank you for your business!",
   quote_prefix: "QT-", invoice_prefix: "INV-", next_quote_no: 1, next_invoice_no: 1, default_tax_pct: 18, quote_validity_days: 15,
   terms: "", quote_status_id: null, auto_status_on_send: true, won_on_payment: true,
+  state_code: "", pincode: "", esign_enabled: true,
 };
 
 /** Settings without secrets. Falls back to the company name when no business name is set. */
@@ -37,8 +40,37 @@ export async function quoteSettings(companyId: string): Promise<QuoteSettings> {
     quote_validity_days: Number(pick("quote_validity_days")), terms: pick("terms"), quote_status_id: (r.quote_status_id as string | null) ?? null,
     auto_status_on_send: pick("auto_status_on_send"), won_on_payment: pick("won_on_payment"),
     rzp_key_id: (r.rzp_key_id as string | null) ?? null, has_rzp_secret: Boolean(r.rzp_key_secret_enc), has_webhook_secret: Boolean(r.rzp_webhook_secret_enc),
+    state_code: pick("state_code") ?? "", pincode: pick("pincode") ?? "", esign_enabled: pick("esign_enabled") !== false,
+    esign_status_id: (r.esign_status_id as string | null) ?? null,
   };
 }
+
+/** HSN / unit last used per item name (lower-case), so the editor can pre-fill them. */
+export async function hsnMemory(companyId: string) {
+  const { data } = await createAdminClient().from("lb_quotes").select("items").eq("company_id", companyId).order("created_at", { ascending: false }).limit(300);
+  const out: Record<string, { hsn?: string; unit?: string }> = {};
+  for (const r of data ?? []) for (const i of cleanItems(r.items)) {
+    const k = i.name.trim().toLowerCase();
+    if (!out[k] && (i.hsn || i.unit)) out[k] = { hsn: i.hsn, unit: i.unit };
+  }
+  return out;
+}
+
+/** The seller block used by GST returns and e-invoices. */
+export const sellerOf = (s: QuoteSettings): Seller => ({
+  gstin: s.gstin.trim().toUpperCase(), state: (/^\d{2}$/.test(s.state_code) ? s.state_code : null) ?? stateOfGstin(s.gstin),
+  name: s.business_name, address: s.address, pincode: s.pincode, phone: s.phone, email: s.email,
+});
+
+/**
+ * Fingerprint of what the customer agrees to: number, dates, buyer, items, totals and
+ * terms. Stored with the signature so a later edit of the quotation is detectable.
+ */
+export const quoteFingerprint = (q: Quote) => createHash("sha256").update(JSON.stringify({
+  doc_no: q.doc_no, kind: q.kind, issue_date: q.issue_date, valid_until: q.valid_until, items: q.items,
+  subtotal: q.subtotal, discount: q.discount, tax_total: q.tax_total, total: q.total, notes: q.notes, terms: q.terms,
+  buyer_gstin: q.buyer_gstin ?? null, place_of_supply: q.place_of_supply ?? null,
+})).digest("hex");
 
 export const normQuote = (q: Record<string, unknown>): Quote => ({
   ...(q as unknown as Quote),
@@ -54,7 +86,12 @@ export async function renderQuote(quoteId: string, companyId: string) {
   const { data: lead } = await db.from("lb_leads").select("lead_no, customer:lb_customers(name,phone_e164,email,location)").eq("id", q.lead_id).maybeSingle();
   const c = (lead?.customer ?? {}) as unknown as { name: string | null; phone_e164: string; email: string | null; location: string | null };
   const quote = normQuote(q);
-  const bytes = await quotePdf(quote, await quoteSettings(companyId), { name: c.name, phone: c.phone_e164 ?? "", email: c.email, location: c.location }, lead?.lead_no ?? "");
+  const sig = quote.signed_at
+    ? (await db.from("lb_quote_signatures").select("signer_name,signature_png,doc_hash,ip,signed_at").eq("quote_id", quote.id).eq("company_id", companyId).maybeSingle()).data
+    : null;
+  const settings = await quoteSettings(companyId);
+  const bytes = await quotePdf(quote, settings, { name: c.name, phone: c.phone_e164 ?? "", email: c.email, location: c.location }, lead?.lead_no ?? "",
+    { seller: sellerOf(settings), signature: sig ? { ...sig, current_hash: quoteFingerprint(quote) } : null });
   return { bytes, fileName: `${quote.doc_no.replace(/[^\w.-]/g, "_")}.pdf`, quote };
 }
 

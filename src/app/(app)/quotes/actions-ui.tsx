@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/kit";
 import { Modal, type FormState } from "@/components/ui";
 import {
-  cancelPaymentLink, convertToInvoice, createPaymentLink, deleteQuote, markQuoteSent, refreshPaymentLink,
+  cancelIrn, saveIrn, cancelPaymentLink, convertToInvoice, createPaymentLink, deleteQuote, markQuoteSent, refreshPaymentLink,
   sendPaymentLink, sendQuoteOnWhatsApp, setQuoteStatus,
 } from "@/lib/actions/quotes";
 import { inr, LINK_STATUS, type PayLink } from "@/lib/quotes";
@@ -28,9 +28,9 @@ async function copy(text: string) {
 }
 
 /** Buttons on a quotation/invoice page. */
-export function QuoteActions({ q, leadId, canSend, admin, payReady, shareUrl, hasInvoice }: {
+export function QuoteActions({ q, leadId, canSend, admin, payReady, shareUrl, hasInvoice, signUrl = null }: {
   q: { id: string; kind: string; status: string; total: number; amount_paid: number; doc_no: string };
-  leadId: string; canSend: boolean; admin: boolean; payReady: boolean; shareUrl: string; hasInvoice: string | null;
+  leadId: string; canSend: boolean; admin: boolean; payReady: boolean; shareUrl: string; hasInvoice: string | null; signUrl?: string | null;
 }) {
   const { pending, msg, setMsg, run } = useRun();
   const router = useRouter();
@@ -43,6 +43,7 @@ export function QuoteActions({ q, leadId, canSend, admin, payReady, shareUrl, ha
         )}
         <a className="btn-ghost" href={`/api/quotes/${q.id}/pdf?download=1`}><Icon name="download" /> Download PDF</a>
         <button className="btn-ghost" onClick={async () => setMsg({ ok: (await copy(shareUrl)) ? "Share link copied." : "Share link shown." })}><Icon name="link" /> Copy share link</button>
+        {signUrl && <button className="btn-ghost" onClick={async () => setMsg({ ok: (await copy(signUrl)) ? "Sign link copied. Send it to the customer to accept & sign online." : "Sign link shown." })}><Icon name="pencil" /> Copy sign link</button>}
         {!closed && <Link className="btn-ghost" href={`/quotes/${q.id}/edit`}><Icon name="pencil" /> Edit</Link>}
         {!closed && payReady && q.total > q.amount_paid && (
           <PayLinkButton leadId={leadId} quoteId={q.id} amount={Math.round((q.total - q.amount_paid) * 100) / 100} description={`Payment for ${q.doc_no}`} canSend={canSend} />
@@ -149,5 +150,47 @@ export function PayLinkRow({ l, canSend }: { l: PayLink; canSend: boolean }) {
       </div>
       <Msg m={msg} />
     </li>
+  );
+}
+
+/** e-Invoice box on an invoice: paste IRN / Ack / signed QR after registering on the IRP. */
+export function IrnBox({ id, irn, ackNo, ackDate, cancelled, problems, admin }: {
+  id: string; irn: string | null; ackNo: string | null; ackDate: string | null; cancelled: boolean; problems: string[]; admin: boolean;
+}) {
+  const { pending, msg, run } = useRun();
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ irn: "", ack_no: "", ack_date: "", signed_qr: "" });
+  return (
+    <section className="card space-y-2 p-4 text-sm">
+      <h2 className="text-sm font-semibold text-navy-900">e-Invoice (IRN)</h2>
+      {irn && !cancelled ? (
+        <>
+          <div className="break-all font-mono text-xs text-slate-700">{irn}</div>
+          {ackNo && <div className="text-xs text-slate-500">Ack {ackNo}{ackDate ? ` · ${new Date(ackDate).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}` : ""}</div>}
+          {admin && <button className="btn-ghost btn-sm text-red-600" disabled={pending} onClick={() => confirm("Mark this IRN cancelled? Cancel it on the e-invoice portal first (allowed within 24 hours).") && run(() => cancelIrn(id))}>Mark IRN cancelled</button>}
+        </>
+      ) : (
+        <>
+          {cancelled && irn && <p className="text-xs text-amber-700">IRN {irn.slice(0, 12)}… was cancelled.</p>}
+          {problems.length ? (
+            <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-900"><b>Not ready for e-invoice:</b><ul className="list-disc pl-4">{problems.map((p) => <li key={p}>{p}</li>)}</ul></div>
+          ) : admin && (
+            <a className="btn-ghost btn-sm" href={`/api/gst/einvoice?id=${id}`}><Icon name="download" /> e-Invoice JSON</a>
+          )}
+          {admin && (open ? (
+            <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); run(() => saveIrn(id, f)); }}>
+              <input className="input font-mono text-xs" placeholder="IRN (64 characters)" required value={f.irn} onChange={(e) => setF({ ...f, irn: e.target.value })} />
+              <div className="grid grid-cols-2 gap-2">
+                <input className="input text-xs" placeholder="Ack no." value={f.ack_no} onChange={(e) => setF({ ...f, ack_no: e.target.value })} />
+                <input className="input text-xs" type="datetime-local" aria-label="Ack date" value={f.ack_date} onChange={(e) => setF({ ...f, ack_date: e.target.value })} />
+              </div>
+              <textarea className="input min-h-16 font-mono text-[11px]" placeholder="Signed QR code text (optional, prints the QR on the PDF)" value={f.signed_qr} onChange={(e) => setF({ ...f, signed_qr: e.target.value })} />
+              <button className="btn-primary btn-sm" disabled={pending}>{pending ? "Saving…" : "Save IRN"}</button>
+            </form>
+          ) : <button className="btn-ghost btn-sm" onClick={() => setOpen(true)}>Enter IRN details</button>)}
+        </>
+      )}
+      <Msg m={msg} />
+    </section>
   );
 }

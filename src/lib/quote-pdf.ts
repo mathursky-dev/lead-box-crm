@@ -1,6 +1,8 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import QRCode from "qrcode";
 import { KIND_LABEL, lineAmount, type Quote } from "./quotes";
+import { posLabel, posOf, validGstin, type Seller } from "./gst";
 
 export type PdfCompany = { business_name: string; address: string; gstin: string; phone: string; email: string; bank_details: string; footer_note: string };
 export type PdfCustomer = { name: string | null; phone: string; email: string | null; location: string | null };
@@ -37,7 +39,17 @@ function wrap(text: string, font: PDFFont, size: number, width: number): string[
   return out;
 }
 
-export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo: number | string): Promise<Uint8Array> {
+export type PdfSignature = { signer_name: string; signature_png: string; doc_hash: string; ip: string | null; signed_at: string; current_hash: string };
+export type PdfExtra = { seller?: Seller; signature?: PdfSignature | null };
+
+const istStamp = (iso: string) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo: number | string, extra: PdfExtra = {}): Promise<Uint8Array> {
+  const seller = extra.seller;
+  const pos = seller ? posOf({ place_of_supply: q.place_of_supply ?? null, buyer_gstin: q.buyer_gstin ?? null }, seller) : "";
+  const inter = Boolean(seller?.state && pos && pos !== seller.state);
+  const taxInvoice = q.kind === "invoice" && validGstin(co.gstin);
+  const title = taxInvoice ? "TAX INVOICE" : KIND_LABEL[q.kind].toUpperCase();
   const doc = await PDFDocument.create();
   doc.setTitle(`${KIND_LABEL[q.kind]} ${q.doc_no}`);
   doc.setProducer("Lead Box CRM");
@@ -60,7 +72,7 @@ export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo
   // Header band
   page.drawRectangle({ x: 0, y: H - 6, width: W, height: 6, color: GREEN });
   text(co.business_name || "Your business", M, y - 8, { size: 16, f: bold });
-  text(KIND_LABEL[q.kind].toUpperCase(), W - M, y - 8, { size: 18, f: bold, color: GREEN, right: true });
+  text(title, W - M, y - 8, { size: 18, f: bold, color: GREEN, right: true });
   y -= 24;
   const coLines = [...wrap(co.address, font, 9, 260), [co.phone && `Phone: ${co.phone}`, co.email].filter(Boolean).join("  |  "), co.gstin && `GSTIN: ${co.gstin}`].filter(Boolean) as string[];
   let ly = y;
@@ -70,18 +82,25 @@ export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo
     ["Date", fmtDate(q.issue_date)],
     ...(q.valid_until ? [[q.kind === "quotation" ? "Valid till" : "Due date", fmtDate(q.valid_until)] as [string, string]] : []),
     ["Lead", `LB-${leadNo}`],
+    ...(pos && (q.buyer_gstin || q.kind === "invoice") ? [["Place of supply", posLabel(pos)] as [string, string]] : []),
+    ...(q.reverse_charge ? [["Reverse charge", "Yes"] as [string, string]] : []),
   ];
   let my = y;
   for (const [k, v] of meta) { text(k, W - M - 150, my, { color: GREY }); text(v, W - M, my, { f: bold, right: true }); my -= 13; }
   y = Math.min(ly, my) - 12;
 
   // Bill to
-  page.drawRectangle({ x: M, y: y - 58, width: W - 2 * M, height: 62, color: BAND });
+  const billLines = [
+    [cu.phone, cu.email].filter(Boolean).join("  |  "),
+    ...(q.buyer_address || cu.location ? wrap(`${q.buyer_address || cu.location}${q.buyer_pincode ? ` - ${q.buyer_pincode}` : ""}`, font, 9, W - 2 * M - 20).slice(0, 2) : []),
+    ...(q.buyer_gstin ? [`GSTIN: ${q.buyer_gstin}`] : []),
+  ].filter(Boolean);
+  const billH = 34 + billLines.length * 12;
+  page.drawRectangle({ x: M, y: y - billH + 4, width: W - 2 * M, height: billH, color: BAND });
   text(q.kind === "quotation" ? "QUOTATION FOR" : "BILL TO", M + 10, y - 12, { size: 8, f: bold, color: GREEN });
-  text(cu.name || "Customer", M + 10, y - 26, { size: 11, f: bold });
-  text([cu.phone, cu.email].filter(Boolean).join("  |  "), M + 10, y - 39, { color: GREY });
-  if (cu.location) text(wrap(cu.location, font, 9, W - 2 * M - 20)[0] ?? "", M + 10, y - 51, { color: GREY });
-  y -= 76;
+  text(q.buyer_legal_name || cu.name || "Customer", M + 10, y - 26, { size: 11, f: bold });
+  billLines.forEach((l, i) => text(l, M + 10, y - 39 - i * 12, { color: GREY }));
+  y -= billH + 14;
 
   // Items table
   const cols = { no: M + 6, item: M + 28, qty: W - M - 250, rate: W - M - 175, tax: W - M - 105, amt: W - M - 6 };
@@ -96,7 +115,7 @@ export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo
   head();
   q.items.forEach((it, i) => {
     const nameL = wrap(it.name, bold, 9, cols.qty - cols.item - 40);
-    const descL = it.description ? wrap(it.description, font, 8, cols.qty - cols.item - 40) : [];
+    const descL = [...(it.description ? wrap(it.description, font, 8, cols.qty - cols.item - 40) : []), ...(it.hsn ? [`HSN/SAC: ${it.hsn}${it.unit ? ` · ${it.unit}` : ""}`] : [])];
     const h = nameL.length * 11 + descL.length * 10 + 8;
     if (newPageIfNeeded(h)) head();
     text(String(i + 1), cols.no, y - 10);
@@ -117,7 +136,10 @@ export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo
   const tot: [string, string, boolean][] = [
     ["Subtotal", money(q.subtotal), false],
     ...(q.discount > 0 ? [["Discount", `- ${money(q.discount)}`, false] as [string, string, boolean]] : []),
-    ["GST", money(q.tax_total), false],
+    ...(q.tax_total > 0 && seller?.state && pos
+      ? (inter ? [[`IGST`, money(q.tax_total), false] as [string, string, boolean]]
+        : [["CGST", money(Math.round(q.tax_total * 50) / 100), false] as [string, string, boolean], ["SGST", money(q.tax_total - Math.round(q.tax_total * 50) / 100), false] as [string, string, boolean]])
+      : [["GST", money(q.tax_total), false] as [string, string, boolean]]),
     ["Total (INR)", `Rs. ${money(q.total)}`, true],
     ...(q.amount_paid > 0 ? [["Paid", money(q.amount_paid), false] as [string, string, boolean], ["Balance due", `Rs. ${money(Math.max(0, q.total - q.amount_paid))}`, true] as [string, string, boolean]] : []),
   ];
@@ -141,6 +163,43 @@ export async function quotePdf(q: Quote, co: PdfCompany, cu: PdfCustomer, leadNo
   block("Notes", q.notes);
   block("Terms & conditions", q.terms);
   block("Bank details", co.bank_details);
+
+  // e-invoice: IRN, acknowledgement and the IRP's signed QR code
+  if (q.irn && !q.irn_cancelled_at) {
+    newPageIfNeeded(120);
+    let qrImg = null;
+    if (q.irn_signed_qr) {
+      try { qrImg = await doc.embedPng(await QRCode.toBuffer(q.irn_signed_qr, { errorCorrectionLevel: "M", margin: 1, width: 300 })); } catch { qrImg = null; }
+    }
+    text("E-INVOICE", M, y, { f: bold, size: 9, color: GREEN }); y -= 13;
+    const irnLines = [`IRN: ${q.irn}`, ...(q.irn_ack_no ? [`Ack No: ${q.irn_ack_no}${q.irn_ack_date ? `   Ack Date: ${istStamp(q.irn_ack_date)}` : ""}`] : [])];
+    const top = y;
+    for (const l of irnLines) for (const w of wrap(l, font, 8.5, W - 2 * M - 110)) { text(w, M, y, { size: 8.5, color: GREY }); y -= 11; }
+    if (qrImg) { page.drawImage(qrImg, { x: W - M - 95, y: top - 90, width: 95, height: 95 }); y = Math.min(y, top - 98); }
+    y -= 6;
+  }
+
+  // Online acceptance + signature (quotations signed on /q/<token>/sign)
+  const sg = extra.signature;
+  if (sg) {
+    newPageIfNeeded(150);
+    page.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.5, color: LINE });
+    y -= 8;
+    text("ACCEPTED & SIGNED ONLINE", M, y, { f: bold, size: 9, color: GREEN }); y -= 8;
+    try {
+      const png = await doc.embedPng(Buffer.from(sg.signature_png.split(",")[1] ?? "", "base64"));
+      const h = 60, w = Math.min(220, (png.width / png.height) * h);
+      page.drawImage(png, { x: M, y: y - h, width: w, height: h });
+    } catch { /* unreadable image: keep the text record */ }
+    y -= 66;
+    const rec = [
+      `Signed by: ${sg.signer_name}`,
+      `Date & time: ${istStamp(sg.signed_at)} IST${sg.ip ? `   IP: ${sg.ip}` : ""}`,
+      `Document fingerprint (SHA-256): ${sg.doc_hash}`,
+      ...(sg.doc_hash !== sg.current_hash ? ["Note: this quotation was edited after it was signed."] : []),
+    ];
+    for (const l of rec) for (const w of wrap(l, font, 8, W - 2 * M)) { text(w, M, y, { size: 8, color: GREY }); y -= 10; }
+  }
 
   // Footer on every page
   const pages = doc.getPages();

@@ -5,7 +5,7 @@ import { createUser, updateUser, setUserActive, sendPasswordReset, setUserPasswo
 import type { Refs } from "@/lib/data";
 
 import { PERMISSIONS as PERMS } from "@/lib/permissions";
-type U = { id: string; full_name: string; email: string; username?: string | null; backup_user_id?: string | null; working_hours?: Record<string, [string, string]> | null; phone: string | null; role: string; branch_id: string | null; department_id: string | null; team_id: string | null; permissions: string[]; is_active: boolean; accepts_auto_allocation: boolean; allocation_limit: number | null };
+type U = { id: string; full_name: string; email: string; username?: string | null; backup_user_id?: string | null; working_hours?: Record<string, [string, string]> | null; phone: string | null; role: string; branch_id: string | null; department_id: string | null; team_id: string | null; permissions: string[]; is_active: boolean; accepts_auto_allocation: boolean; allocation_limit: number | null; branch_scope?: boolean };
 
 function Fields({ refs, u, meRole, teamAccess }: { refs: Refs; u?: U; meRole: string; teamAccess?: string[] }) {
   const [role, setRole] = useState(u?.role ?? "agent");
@@ -25,6 +25,8 @@ function Fields({ refs, u, meRole, teamAccess }: { refs: Refs; u?: U; meRole: st
       <Field label="Department"><select className="input" name="department_id" defaultValue={u?.department_id ?? ""}><option value="">—</option>{refs.departments.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
       <Field label="Team"><select className="input" name="team_id" defaultValue={u?.team_id ?? ""}><option value="">—</option>{refs.teams.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
       <Field label="Allocation limit (open leads)" hint="Blank = no limit"><input className="input" type="number" min={0} name="allocation_limit" defaultValue={u?.allocation_limit ?? ""} /></Field>
+      <label className="flex items-start gap-2 text-sm sm:col-span-2"><input type="checkbox" name="branch_scope" className="mt-0.5" defaultChecked={u?.branch_scope ?? false} />
+        <span><span className="font-medium">Branch access</span> — works on their branch only: sees all leads, chats and reports of the branch above, and nothing of other branches. For branch managers.</span></label>
       <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="accepts_auto_allocation" defaultChecked={u?.accepts_auto_allocation ?? true} /> Eligible for automatic round-robin allocation</label>
       {u && <Field label="Backup assignee" hint="Gets leads and SLA alerts when this user is away or outside working hours.">
         <select className="input" name="backup_user_id" defaultValue={u.backup_user_id ?? ""}><option value="">None</option>{refs.users.filter((x) => x.is_active && x.id !== u.id).map((x) => <option key={x.id} value={x.id}>{x.full_name}</option>)}</select>

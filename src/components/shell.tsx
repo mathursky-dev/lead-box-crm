@@ -9,7 +9,7 @@ import { switchCompany } from "@/lib/actions/company-switch";
 import { fmtDateTime } from "@/lib/dates";
 import { Mascot } from "./mascot";
 import { Icon } from "./kit";
-import { Logo } from "./logo";
+import { Logo, type BrandLogo } from "./logo";
 import { HelpDrawer } from "./help-drawer";
 import { fmtNum } from "@/lib/wa";
 import { clearOfflineData } from "@/lib/offline/queue";
@@ -29,7 +29,7 @@ const COLLAPSE_KEY = "lb_nav_collapsed";
 const leaves = (nav: NavGroup[]) => nav.flatMap((g) => (g.href ? [{ href: g.href, label: g.label, group: "" }] : (g.items ?? []).map((i) => ({ ...i, group: g.label }))));
 const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName));
 
-export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; switcher?: CompanySwitch | null; lang?: Lang; children: React.ReactNode }) {
+export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", brand = null, children }: { nav: NavGroup[]; quick: NavItem[]; user: User; wallet: number | null; switcher?: CompanySwitch | null; lang?: Lang; brand?: BrandLogo; children: React.ReactNode }) {
   const t = (x: string) => tr(lang, x);
   const path = usePathname();
   const router = useRouter();
@@ -71,7 +71,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", 
     <div className="flex h-full">
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] transform flex-col bg-navy-900 text-slate-300 transition md:static md:w-60 md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:hidden" : ""}`}>
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 bg-white px-4">
-          <Logo className="h-8" />
+          <Logo className="h-8" brand={brand} />
           <button className="grid h-8 w-8 place-items-center rounded-lg text-navy-900 hover:bg-slate-100 md:hidden" aria-label="Close menu" onClick={() => setOpen(false)}><Icon name="x" className="h-5 w-5" /></button>
         </div>
         <div className="shrink-0 px-3 pt-3">
@@ -142,7 +142,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", 
           </span>
         </header>
         <main className={`min-h-0 flex-1 ${fullBleed ? "overflow-hidden" : "overflow-auto p-4 md:p-6"}`}>{children}</main>
-        {!fullBleed && <Mascot name={user.name} />}
+        {!fullBleed && !brand && <Mascot name={user.name} />}
       </div>
       {search && <SearchPalette items={all} onClose={() => setSearch(false)} />}
       {help && <HelpDrawer allowed={[...all.map((n) => n.href), ...quick.map((q) => q.href)]} onClose={() => setHelp(false)} />}

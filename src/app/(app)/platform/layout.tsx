@@ -6,6 +6,7 @@ const TABS = [
   { href: "/platform", label: "Companies", icon: "building" },
   { href: "/platform/plans", label: "Plans & pricing", icon: "rupee" },
   { href: "/platform/wallet", label: "Wallet payments", icon: "wallet" },
+  { href: "/platform/brands", label: "White-label", icon: "sparkle" },
 ];
 
 /** SaaS owner console: only the platform Super Admin sees it. */

@@ -2,7 +2,7 @@
 // Used by the Settings hub (/settings), the left list on every settings page,
 // and the side menu search, so a page added here shows up everywhere.
 
-export type SettingsLink = { href: string; label: string; icon: string; desc: string; keywords?: string; feature?: string };
+export type SettingsLink = { href: string; label: string; icon: string; desc: string; keywords?: string; feature?: string; reseller?: boolean };
 export type SettingsGroup = { label: string; icon: string; tone: string; links: SettingsLink[] };
 
 export const SETTINGS_GROUPS: SettingsGroup[] = [
@@ -13,6 +13,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     { href: "/admin/users", label: "Users", icon: "contacts", desc: "Add team members, reset passwords", keywords: "team agent staff login" },
     { href: "/admin/roles", label: "Roles & permissions", icon: "shield", desc: "Who can see and do what", keywords: "access rights" },
     { href: "/admin/org", label: "Organisation", icon: "building", desc: "Branches, departments, teams", keywords: "branch hierarchy manager team leader" },
+    { href: "/admin/branches", label: "Branches", icon: "pin", desc: "Branch details and branch-wise numbers", keywords: "branch office location multi-branch city report manager" },
+    { href: "/admin/white-label", label: "White-label", icon: "sparkle", desc: "Your logo, colours and client companies", keywords: "reseller partner brand logo domain clients", reseller: true },
     { href: "/billing", label: "Billing & plan", icon: "wallet", desc: "Your plan, renew, payments", keywords: "subscription payment renew upi razorpay invoice" },
     { href: "/admin/security", label: "Security & logins", icon: "key", desc: "OTP two-factor login, login history", keywords: "otp two factor 2fa authenticator login history sign in password" },
     { href: "/admin/export", label: "Data export / backup", icon: "download", desc: "Download all company data (ZIP)", keywords: "backup download all data excel csv zip" },
@@ -53,8 +55,8 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
 ];
 
 /** Groups with links the company's plan allows (empty groups dropped). */
-export function settingsGroups(features: string[]): SettingsGroup[] {
+export function settingsGroups(features: string[], opts: { reseller?: boolean } = {}): SettingsGroup[] {
   return SETTINGS_GROUPS
-    .map((g) => ({ ...g, links: g.links.filter((l) => !l.feature || features.includes(l.feature)) }))
+    .map((g) => ({ ...g, links: g.links.filter((l) => (!l.feature || features.includes(l.feature)) && (!l.reseller || opts.reseller)) }))
     .filter((g) => g.links.length);
 }

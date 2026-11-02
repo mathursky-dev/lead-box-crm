@@ -1,5 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/server";
 import { requireProfile, isAdmin } from "@/lib/auth";
 import { activeSeats, createPaymentLink, razorpayConfigured } from "@/lib/billing";
 import { getPlan, priceFor } from "@/lib/plans";
@@ -31,4 +33,19 @@ export async function startCheckout(_?: FormState, form?: FormData): Promise<For
     return { error: "Could not start the payment. Try again in a minute." };
   }
   redirect(url);
+}
+
+/** Plan paid over UPI: admin submits the UTR; the platform Super Admin approves it in /platform/billing. */
+export async function submitPlanUpi(_: FormState, form: FormData): Promise<FormState> {
+  const { profile } = await requireProfile({ allowUnpaid: true });
+  { const demo = await demoBlocked(profile.company_id); if (demo) return { error: demo }; }
+  if (!isAdmin(profile)) return { error: "Only an admin can pay for the workspace." };
+  const planId = String(form.get("plan_id") ?? "");
+  const utr = String(form.get("utr") ?? "").replace(/\s/g, "");
+  if (!/^[0-9a-f-]{36}$/i.test(planId)) return { error: "Pick a plan." };
+  if (!/^[0-9]{12}$/.test(utr)) return { error: "Enter the 12-digit UTR / UPI reference number from your UPI app." };
+  const { error } = await createAdminClient().rpc("lb_plan_request", { p_company: profile.company_id, p_actor: profile.id, p_plan: planId, p_utr: utr });
+  if (error) return { error: error.code === "PGRST202" ? "UPI plan payment is not switched on yet. Contact us." : error.message };
+  revalidatePath("/billing");
+  return { ok: "Payment submitted. Your plan is activated as soon as we verify it (usually within a few hours)." };
 }

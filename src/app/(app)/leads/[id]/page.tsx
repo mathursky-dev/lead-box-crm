@@ -20,6 +20,7 @@ import { companyRazorpay } from "@/lib/quotes-server";
 import { KIND_LABEL, QUOTE_STATUS, inr, type PayLink, type QuoteKind, type QuoteStatus } from "@/lib/quotes";
 import { PayLinkButton, PayLinkRow } from "../../quotes/actions-ui";
 import { LeadCare } from "../../care/lead-care";
+import { EmailCompose } from "../../email/forms";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
 export const metadata = { title: "Lead" };
@@ -117,6 +118,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
             nextAction={pending ? { note: pending.note, due_at: pending.due_at, action_type: (pending as { action_type?: string }).action_type ?? "call" } : null} />}
           <ActivityPanel leadId={lead.id} />
           <LeadCalls leadId={lead.id} meId={profile.id} admin={isAdmin(profile)} />
+          <LeadEmails leadId={lead.id} customerId={c.id} email={c.email} meId={profile.id} canSend={can(profile, "chats.send")} />
           <section className="card p-4">
             <h2 className="mb-3 text-sm font-semibold text-navy-900">History</h2>
             <Timeline events={evs} />
@@ -189,6 +191,45 @@ async function LeadTasks({ leadId }: { leadId: string }) {
 }
 
 // Store / WhatsApp catalog orders on this lead.
+// Gmail mails with this customer (Email page connects each user's Gmail).
+async function LeadEmails({ leadId, customerId, email, meId, canSend }: { leadId: string; customerId: string; email: string | null; meId: string; canSend: boolean }) {
+  const sb = await createClient();
+  const [{ data, error }, acc] = await Promise.all([
+    sb.from("lb_emails").select("id,direction,from_email,subject,snippet,body_text,sent_at,thread_id").or(`lead_id.eq.${leadId},customer_id.eq.${customerId}`).order("sent_at", { ascending: false }).limit(20),
+    sb.from("lb_google_accounts").select("id,is_active").eq("user_id", meId).maybeSingle(),
+  ]);
+  if (error) return null; // Gmail SQL not applied yet
+  const connected = Boolean(acc.data?.is_active);
+  if (!data?.length && !connected) return null;
+  const last = data?.[0];
+  return (
+    <section className="card p-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-navy-900">Emails</h2>
+        {connected && canSend && email ? <EmailCompose leadId={leadId} to={email} reply={last ? { subject: last.subject, threadId: last.thread_id } : undefined} />
+          : !connected ? <Link href="/email" className="text-xs text-brand-700 hover:underline">Connect Gmail to reply</Link>
+          : !email ? <span className="text-xs text-slate-500">Add the customer&apos;s email to send mail</span> : null}
+      </div>
+      {!data?.length ? <p className="text-sm text-slate-500">No emails with {email ?? "this customer"} yet.</p> : (
+        <ul className="space-y-2">
+          {data.map((m) => (
+            <li key={m.id} className={`rounded-md border px-3 py-2 text-sm ${m.direction === "in" ? "border-slate-200" : "border-brand-100 bg-brand-50/40"}`}>
+              <details>
+                <summary className="cursor-pointer list-none">
+                  <div className="flex flex-wrap justify-between gap-2 text-xs text-slate-500"><span>{m.direction === "in" ? `From ${m.from_email}` : `Sent by ${m.from_email}`}</span><span>{fmtDateTime(m.sent_at)}</span></div>
+                  <div className="font-medium text-navy-900">{m.subject || "(no subject)"}</div>
+                  <div className="truncate text-xs text-slate-500">{m.snippet}</div>
+                </summary>
+                <div className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap border-t border-slate-100 pt-2 text-slate-700">{m.body_text || m.snippet}</div>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 async function LeadOrders({ leadId }: { leadId: string }) {
   const sb = await createClient();
   const { data, error } = await sb.from("lb_orders").select("id,order_no,total,status,payment_status,created_at,items")

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC = ["/login", "/forgot-password", "/auth/confirm", "/api/whatsapp/webhook", "/api/whatsapp/gateway", "/api/facebook/webhook", "/api/jobs/run", "/signup", "/f", "/s", "/api/billing/razorpay/webhook", "/api/billing/razorpay/callback", "/sw.js", "/q", "/api/pay/razorpay", "/paid", "/p", "/b", "/r", "/ref", "/api/hooks", "/api/widget", "/api/v1"];
+const PUBLIC = ["/login", "/forgot-password", "/auth/confirm", "/api/whatsapp/webhook", "/api/whatsapp/gateway", "/api/facebook/webhook", "/api/jobs/run", "/api/jobs/email", "/signup", "/f", "/s", "/api/billing/razorpay/webhook", "/api/billing/razorpay/callback", "/sw.js", "/q", "/api/pay/razorpay", "/paid", "/p", "/b", "/r", "/ref", "/api/hooks", "/api/widget", "/api/v1"];
 
 // Refreshes the Supabase session cookie and redirects anonymous users.
 // Authorization itself is enforced by RLS and server checks, not here.

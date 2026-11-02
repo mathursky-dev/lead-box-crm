@@ -290,3 +290,21 @@ export async function saveUpiSettings(_: FormState, form: FormData): Promise<For
     return { error: errMsg(e) };
   }
 }
+
+/** Plan paid over UPI (lb_plan_requests): approve records the payment and switches the plan; reject tells the company why. */
+export async function reviewPlanPayment(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    const { me, db } = await requireSuper();
+    const p = z.object({
+      id: z.uuid(), approve: z.enum(["1", "0"]), note: z.string().trim().max(300).optional(),
+    }).safeParse(Object.fromEntries(form));
+    if (!p.success) return { error: "Invalid request." };
+    if (p.data.approve === "0" && !p.data.note) return { error: "Write why it is rejected (the company sees this)." };
+    const { error } = await db.rpc("lb_plan_review", { p_actor: me.id, p_id: p.data.id, p_approve: p.data.approve === "1", p_note: p.data.note || null });
+    if (error) return { error: error.message };
+    revalidatePath("/platform/billing");
+    return done(p.data.approve === "1" ? "Approved. The plan is active and the company has been told." : "Rejected. The company has been told.");
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
+}

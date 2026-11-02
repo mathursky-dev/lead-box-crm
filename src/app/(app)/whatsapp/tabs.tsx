@@ -16,6 +16,8 @@ export const WA_TABS = [
     title: "Send a message", sub: "One-off send to any number: template, or free text inside the 24-hour window" },
   { href: "/whatsapp/broadcast", label: "Broadcast", icon: "megaphone", on: "bg-rose-600 text-white", off: "bg-rose-50 text-rose-700 border-rose-100",
     title: "Broadcast", sub: "Send a template to leads picked by status, tag, source and more, with a delivery and read report" },
+  { href: "/whatsapp/groups", label: "Groups", icon: "contacts", on: "bg-lime-700 text-white", off: "bg-lime-50 text-lime-800 border-lime-100",
+    title: "WhatsApp groups", sub: "Small official groups (up to 8 people) on your Cloud API number: create, share the invite link, send updates" },
   { href: "/whatsapp/campaigns", label: "Campaigns", icon: "megaphone", on: "bg-amber-500 text-white", off: "bg-amber-50 text-amber-800 border-amber-100",
     title: "Campaigns", sub: "Every broadcast and campaign with sent, delivered, read and reply counts" },
   { href: "/whatsapp/live-chat", label: "Live Chat", icon: "chat", on: "bg-blue-600 text-white", off: "bg-blue-50 text-blue-700 border-blue-100",

@@ -28,7 +28,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const it = (ok: boolean, href: string, label: string) => (ok ? [{ href, label }] : []);
   const nav: NavGroup[] = [
     { label: "Dashboard", icon: "grid", href: "/dashboard" },
-    { label: "Analytics", icon: "activity", href: "/analytics" },
+    { label: "Lead Reports", icon: "chart", href: "/lead-reports" },
+    ...(admin ? [{ label: "Profit & Loss", icon: "rupee", href: "/profit-loss" }] : []),
     { label: "Sales", icon: "target", items: [
       { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" }, { href: "/calls", label: "Calls", keywords: "call log recording mobile app" },
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"), ...it(can(profile, "leads.import"), "/import", "Import"),

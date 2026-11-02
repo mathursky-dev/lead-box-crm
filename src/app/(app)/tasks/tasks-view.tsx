@@ -334,6 +334,7 @@ function TaskModal({ task, users, me, canDelete, newLead, onClose, onDeleted }: 
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<LeadHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [focus, setFocus] = useState(false);
   const [delErr, setDelErr] = useState<string | null>(null);
   const [deleting, startDelete] = useTransition();
 
@@ -388,11 +389,12 @@ function TaskModal({ task, users, me, canDelete, newLead, onClose, onDeleted }: 
             </div>
           ) : (
             <div className="relative">
-              <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, mobile or LB-123" />
-              {(hits.length > 0 || (q.trim().length >= 2 && !searching)) && (
+              <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, mobile or LB-123"
+                onFocus={() => setFocus(true)} onBlur={() => setTimeout(() => setFocus(false), 150)} />
+              {focus && (hits.length > 0 || (q.trim().length >= 2 && !searching)) && (
                 <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
                   {hits.length === 0 ? <div className="px-2.5 py-2 text-sm text-slate-500">No lead found</div> : hits.map((h) => (
-                    <button key={h.id} type="button" className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-slate-100" onClick={() => { setLead(h); setQ(""); setHits([]); }}>
+                    <button key={h.id} type="button" className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-slate-100" onMouseDown={(e) => e.preventDefault()} onClick={() => { setLead(h); setQ(""); setHits([]); }}>
                       <span className="font-medium text-brand-700">LB-{h.lead_no}</span><span className="text-navy-900">{h.name || "—"}</span><span className="ml-auto text-xs text-slate-500">{h.phone}</span>
                     </button>
                   ))}

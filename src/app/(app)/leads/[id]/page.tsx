@@ -22,11 +22,8 @@ import { companyRazorpay } from "@/lib/quotes-server";
 import { KIND_LABEL, QUOTE_STATUS, inr, type PayLink, type QuoteKind, type QuoteStatus } from "@/lib/quotes";
 import { PayLinkButton, PayLinkRow } from "../../quotes/actions-ui";
 import { LeadCare } from "../../care/lead-care";
-<<<<<<< HEAD
 import { EmailCompose } from "../../email/forms";
-=======
 import { LeadRetention } from "../../care/lead-retention";
->>>>>>> c9d02b0 (Customer care: loyalty points, service tickets with SLA, AMC/renewal reminders, birthday & anniversary wishes)
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
 export const metadata = { title: "Lead" };

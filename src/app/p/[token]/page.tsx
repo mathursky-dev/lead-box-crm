@@ -4,6 +4,9 @@ import { KIND_LABEL, QUOTE_STATUS, inr, type QuoteKind, type QuoteStatus } from 
 import { orderStatus, paymentStatus } from "@/lib/store";
 import { apptStatus, careUrl, nowMs } from "@/lib/care";
 import { appOrigin, careSettings } from "@/lib/care-server";
+import { retentionSettings } from "@/lib/retention-server";
+import { ticketStatus } from "@/lib/retention";
+import { RaiseTicket, TicketReplyBox } from "./tickets";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "My account", robots: { index: false } };
@@ -16,7 +19,7 @@ const fmt = (v: string, withTime = false) => new Intl.DateTimeFormat("en-IN", {
 async function load(token: string) {
   if (!/^[0-9a-f]{64}$/.test(token)) return null;
   const db = createAdminClient();
-  const { data: c } = await db.from("lb_customers").select("id,company_id,name,phone_e164,referral_code").eq("portal_token", token).maybeSingle();
+  const { data: c } = await db.from("lb_customers").select("id,company_id,name,phone_e164,referral_code,portal_token").eq("portal_token", token).maybeSingle();
   if (!c) return null;
   const s = await careSettings(db, c.company_id);
   if (!s?.portal_enabled) return null;
@@ -38,7 +41,21 @@ async function load(token: string) {
     db.from("lb_referrals").select("id", { count: "exact", head: true }).eq("company_id", c.company_id).eq("referrer_customer_id", c.id),
   ]);
   const origin = await appOrigin();
+  // Loyalty points + service tickets (null when that SQL is not applied yet).
+  const rs = await retentionSettings(db, c.company_id);
+  let points: number | null = null;
+  let tickets: { id: string; ticket_no: number; subject: string; status: string; created_at: string; resolved_at: string | null; comments: { kind: string; body: string; created_at: string }[] }[] = [];
+  if (rs) {
+    const [{ data: bal }, { data: tk }] = await Promise.all([
+      db.rpc("lb_loyalty_balance", { p_customer: c.id }),
+      db.from("lb_tickets").select("id,ticket_no,subject,status,created_at,resolved_at,comments:lb_ticket_comments(kind,body,created_at)").eq("company_id", c.company_id).eq("customer_id", c.id)
+        .order("created_at", { ascending: false }).limit(10),
+    ]);
+    points = Number(bal ?? 0);
+    tickets = ((tk ?? []) as typeof tickets).map((t) => ({ ...t, comments: (t.comments ?? []).filter((m) => m.kind === "reply" || m.kind === "customer").sort((a, b) => a.created_at.localeCompare(b.created_at)) }));
+  }
   return {
+    rs, points, tickets, token: c.portal_token as string,
     c, s, origin, company: (qs?.business_name as string) || (co?.name as string) || "", contact: qs,
     quotes: quotes ?? [], links: links ?? [], orders: orders ?? [], appts: appts ?? [], referred: referred ?? 0,
     feedbackUrl: fb ? careUrl(origin, "feedback", fb.token as string) : null,
@@ -60,7 +77,7 @@ const Badge = ({ cls, children }: { cls: string; children: React.ReactNode }) =>
 export default async function PortalPage({ params }: { params: Promise<{ token: string }> }) {
   const r = await load((await params).token);
   if (!r) notFound();
-  const { c, s, company, contact, quotes, links, orders, appts, feedbackUrl, bookingUrl, referralUrl, referred } = r;
+  const { c, s, company, contact, quotes, links, orders, appts, feedbackUrl, bookingUrl, referralUrl, referred, rs, points, tickets, token } = r;
   const now = nowMs();
   const upcoming = appts.filter((a) => new Date(a.starts_at as string).getTime() > now && ["booked", "confirmed"].includes(a.status as string));
   const due = quotes.filter((q) => q.kind === "invoice" && !["paid"].includes(q.status as string) && Number(q.total) > Number(q.amount_paid));
@@ -138,6 +155,39 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
                 </li>
               ); })}
             </ul>
+          </Section>
+        )}
+        {rs && (rs.loyalty_enabled || (points ?? 0) > 0) && (
+          <Section title="My reward points">
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 px-3 py-3">
+              <div><div className="text-2xl font-bold text-slate-900">{(points ?? 0).toLocaleString("en-IN")} <span className="text-sm font-medium text-slate-600">points</span></div>
+                <div className="text-xs text-slate-600">Worth {inr((points ?? 0) * rs.point_value)} off on your next purchase{rs.min_redeem ? ` (use ${rs.min_redeem}+ points at a time)` : ""}.</div></div>
+              <span className="text-3xl" aria-hidden>🎁</span>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Earn {rs.points_per_100} point{Number(rs.points_per_100) === 1 ? "" : "s"} on every ₹100 you spend.</p>
+          </Section>
+        )}
+        {rs && (rs.portal_tickets || tickets.length > 0) && (
+          <Section title="Service & complaints" count={tickets.filter((t) => ["open", "in_progress", "waiting"].includes(t.status)).length || undefined}>
+            {tickets.length > 0 && (
+              <ul className="mb-3 space-y-2">
+                {tickets.map((t) => { const st = ticketStatus(t.status); return (
+                  <li key={t.id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0"><div className="font-medium text-slate-900">TK-{t.ticket_no} · {t.subject}</div><div className="text-xs text-slate-500">{fmt(t.created_at)}</div></div>
+                      <Badge cls={st.cls}>{st.label}</Badge>
+                    </div>
+                    {t.comments.slice(-3).map((m, i) => (
+                      <p key={i} className={`mt-1.5 whitespace-pre-line rounded-lg px-2 py-1 text-xs ${m.kind === "customer" ? "bg-white text-slate-700" : "bg-emerald-50 text-emerald-900"}`}>
+                        <b>{m.kind === "customer" ? "You" : company}:</b> {m.body}
+                      </p>
+                    ))}
+                    {t.status !== "closed" && rs.portal_tickets && <div className="mt-1"><TicketReplyBox token={token} ticketId={t.id} /></div>}
+                  </li>
+                ); })}
+              </ul>
+            )}
+            {rs.portal_tickets && <RaiseTicket token={token} categories={rs.ticket_categories} />}
           </Section>
         )}
         {empty && <Section title="Nothing here yet"><p className="text-sm text-slate-600">Your quotations, invoices and orders will appear here.</p></Section>}

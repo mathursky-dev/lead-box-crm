@@ -67,3 +67,29 @@ export async function submitReferral(code: string, input: { name: string; phone:
   if (error) return { error: clean(error.message, "Could not save. Please try again.") };
   return { ok: true };
 }
+
+// ------------------------------------------------- portal: service tickets
+const TICKET_SAFE = /not found|please|already have|too many|closed|right now/i;
+
+export async function portalTicket(token: string, input: { subject: string; description: string; category: string; website?: string }): Promise<{ error?: string; no?: number }> {
+  if (input.website) return { no: 0 }; // honeypot
+  if (await tooMany("tk", 5)) return { error: "Too many tries. Please wait a minute and try again." };
+  if (!/^[0-9a-f]{64}$/.test(token)) return { error: "Link not found." };
+  const subject = String(input.subject ?? "").trim().slice(0, 200);
+  if (!subject) return { error: "Please write what the problem is." };
+  const { data, error } = await createAdminClient().rpc("lb_portal_ticket", {
+    p_token: token, p: { subject, description: String(input.description ?? "").trim().slice(0, 4000), category: String(input.category ?? "").slice(0, 60) },
+  });
+  if (error) return { error: error.message && TICKET_SAFE.test(error.message) ? error.message : "Could not save. Please try again." };
+  return { no: Number((data as { ticket_no?: number })?.ticket_no ?? 0) };
+}
+
+export async function portalTicketReply(token: string, ticketId: string, body: string): Promise<{ error?: string; ok?: boolean }> {
+  if (await tooMany("tkr", 10)) return { error: "Too many tries. Please wait a minute and try again." };
+  if (!/^[0-9a-f]{64}$/.test(token) || !/^[0-9a-f-]{36}$/i.test(ticketId)) return { error: "Link not found." };
+  const text = String(body ?? "").trim().slice(0, 4000);
+  if (!text) return { error: "Please write a message." };
+  const { error } = await createAdminClient().rpc("lb_portal_ticket_reply", { p_token: token, p_ticket: ticketId, p_body: text });
+  if (error) return { error: error.message && TICKET_SAFE.test(error.message) ? error.message : "Could not send. Please try again." };
+  return { ok: true };
+}

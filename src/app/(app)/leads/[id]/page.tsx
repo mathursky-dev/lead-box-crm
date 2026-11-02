@@ -4,7 +4,8 @@ import { requireProfile, isManager, can } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { loadRefs } from "@/lib/data";
 import { StatusBadge, PRIORITY_STYLE } from "@/components/static";
-import { fmtDateTime, money } from "@/lib/dates";
+import { fmtDateTime, fmtDay, money } from "@/lib/dates";
+import { statusOf } from "@/lib/tasks";
 import { Timeline, type Ev } from "@/components/timeline";
 import { CustomFieldsPanel } from "./custom-fields";
 import type { CustomField } from "@/lib/settings-shared";
@@ -92,6 +93,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           </section>
         </div>
         <div className="space-y-4">
+          <LeadTasks leadId={lead.id} />
           {can(profile, "leads.assign") && (
             <AssignPanel leadId={lead.id} ownerId={lead.owner_id} users={refs.users.filter((u) => u.is_active).map((u) => ({ id: u.id, name: u.full_name }))} />
           )}
@@ -113,5 +115,40 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
         </div>
       </div>
     </div>
+  );
+}
+
+// Tasks linked to this lead (the ones the user can see), with a shortcut to add one.
+async function LeadTasks({ leadId }: { leadId: string }) {
+  const sb = await createClient();
+  const { data, error } = await sb.from("lb_tasks").select("id,title,status,due_at,assignee:lb_profiles!lb_tasks_assigned_to_fkey(full_name)")
+    .eq("lead_id", leadId).order("created_at", { ascending: false }).limit(8);
+  if (error) return null; // Tasks SQL not applied yet.
+  return (
+    <section className="card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-navy-900">Tasks</h2>
+        <Link className="btn-ghost btn-sm" href={`/tasks?new=1&lead=${leadId}`}>+ Add task</Link>
+      </div>
+      {!data?.length ? <p className="text-xs text-slate-500">No tasks for this lead yet.</p> : (
+        <ul className="divide-y divide-slate-100">
+          {data.map((t) => {
+            const s = statusOf(t.status as string);
+            const overdue = t.due_at && ["created", "in_progress", "on_hold"].includes(t.status as string) && new Date(t.due_at as string) < new Date();
+            return (
+              <li key={t.id as string} className="py-1.5 text-sm">
+                <Link href={`/tasks?task=${t.id}`} className="font-medium text-navy-900 hover:text-violet-700">{t.title as string}</Link>
+                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className={`rounded px-1.5 text-[10px] font-bold uppercase ${s.cls}`}>{s.label}</span>
+                  {(t.assignee as unknown as { full_name: string } | null)?.full_name}
+                  {t.due_at && <span className={overdue ? "font-semibold text-red-600" : ""}>· {fmtDay(t.due_at as string)}</span>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <Link href={`/tasks?lead=${leadId}`} className="mt-2 inline-block text-xs text-brand-700 hover:underline">All tasks of this lead</Link>
+    </section>
   );
 }

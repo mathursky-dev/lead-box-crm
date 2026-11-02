@@ -32,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" },
       ...it(can(profile, "customers.view"), "/customers", "Customers 360"), ...it(can(profile, "leads.import"), "/import", "Import"),
     ] },
+    { label: "Tasks", icon: "check", href: "/tasks" },
     { label: "Conversations", icon: "inbox", items: [
       { href: "/inbox", label: "Inbox" }, { href: "/whatsapp/live-chat", label: "Live chat" }, { href: "/whatsapp/contacts", label: "Contacts" },
     ] },
@@ -76,6 +77,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ...it(can(profile, "leads.create"), "/leads/new", "New lead"),
     ...it(can(profile, "leads.import"), "/import", "Import leads (CSV)"),
     ...it(can(profile, "chats.send"), "/whatsapp/send", "Send WhatsApp message"),
+    { href: "/tasks?new=1", label: "New task" },
     { href: "/documents", label: "Upload document" },
     ...it(nurture && can(profile, "campaigns.manage"), "/nurture/campaigns", "New campaign"),
     ...it(nurture && can(profile, "journeys.manage"), "/nurture/journeys/new", "New journey"),

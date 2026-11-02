@@ -13,16 +13,25 @@ const LeadTable = z.object({
 export type LeadTableLayout = z.infer<typeof LeadTable>;
 
 export async function saveLeadTableLayout(layout: LeadTableLayout | null): Promise<{ error?: string }> {
+  return saveTableLayout("leads.table", layout);
+}
+
+// Every list that has a "Customize Table" button saves its layout under one of these keys.
+const TABLE_KEYS = ["leads.table", "tasks.table"] as const;
+export type TableKey = (typeof TABLE_KEYS)[number];
+
+export async function saveTableLayout(key: TableKey, layout: LeadTableLayout | null): Promise<{ error?: string }> {
   const { profile } = await requireProfile();
+  if (!TABLE_KEYS.includes(key)) return { error: "Invalid table" };
   const sb = await createClient();
   if (layout === null) {
-    const { error } = await sb.from("lb_user_prefs").delete().eq("user_id", profile.id).eq("key", "leads.table");
+    const { error } = await sb.from("lb_user_prefs").delete().eq("user_id", profile.id).eq("key", key);
     return error ? { error: error.message } : {};
   }
   const parsed = LeadTable.safeParse(layout);
   if (!parsed.success) return { error: "Invalid layout" };
   const { error } = await sb.from("lb_user_prefs")
-    .upsert({ user_id: profile.id, key: "leads.table", value: parsed.data, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
+    .upsert({ user_id: profile.id, key, value: parsed.data, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
   return error ? { error: error.message } : {};
 }
 

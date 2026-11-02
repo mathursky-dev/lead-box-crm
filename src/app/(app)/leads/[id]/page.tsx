@@ -7,6 +7,8 @@ import { StatusBadge, PRIORITY_STYLE } from "@/components/static";
 import { fmtDateTime, fmtDay, money } from "@/lib/dates";
 import { statusOf } from "@/lib/tasks";
 import { Timeline, type Ev } from "@/components/timeline";
+import { CustomFieldsPanel } from "./custom-fields";
+import type { CustomField } from "@/lib/settings-shared";
 import { StatusPanel, AssignPanel, EditPanel, FollowupPanel, ActivityPanel, ChatPanel, PaymentPanel, JourneyPanel } from "./panels";
 
 export const metadata = { title: "Lead" };
@@ -23,7 +25,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
   let seenAt: string | null = lead.owner_seen_at ?? null;
   if (lead.owner_id === profile.id && !seenAt && !(await sb.rpc("lb_mark_lead_seen", { p_lead: id })).error) seenAt = new Date().toISOString();
   const refs = await loadRefs();
-  const [{ data: events }, { data: followups }, { data: tags }, { data: convs }, { data: siblings }, { data: enr }, { data: journeys }] = await Promise.all([
+  const [{ data: events }, { data: followups }, { data: tags }, { data: convs }, { data: siblings }, { data: enr }, { data: journeys }, { data: cfs }] = await Promise.all([
     sb.from("lb_lead_events").select("id,type,is_work,reason,data,created_at,to_category,actor_id,from_user_id,to_user_id,from_status_id,to_status_id").eq("lead_id", id).order("created_at", { ascending: false }).limit(200),
     sb.from("lb_followups").select("id,due_at,note,status,assigned_to,completed_at,action_type").eq("lead_id", id).order("due_at", { ascending: false }),
     sb.from("lb_lead_tags").select("tag_id").eq("lead_id", id),
@@ -31,6 +33,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
     sb.from("lb_leads").select("id,lead_no,status_category,created_at,status:lb_lead_statuses(name)").eq("customer_id", lead.customer_id).neq("id", id).order("created_at", { ascending: false }),
     sb.from("lb_journey_enrollments").select("id,status,status_reason,current_step,next_run_at,journey:lb_journeys(name)").eq("lead_id", id).in("status", ["active", "paused", "failed"]).order("enrolled_at", { ascending: false }).limit(1),
     sb.from("lb_journeys").select("id,name").eq("status", "active").order("priority"),
+    sb.from("lb_custom_fields").select("id,key,label,field_type,options,is_required,sort_order,is_active").eq("company_id", lead.company_id).eq("entity", "lead").eq("is_active", true).order("sort_order"),
   ]);
   const pending = (followups ?? []).filter((f) => f.status === "pending").sort((a, b) => a.due_at.localeCompare(b.due_at))[0];
   const enrollment = enr?.[0] ? { ...enr[0], journey: (enr[0].journey as unknown as { name: string }).name } : null;
@@ -99,6 +102,7 @@ export default async function LeadPage({ params, searchParams }: { params: Promi
           <FollowupPanel leadId={lead.id} items={(followups ?? []).map((f) => ({ ...f, who: f.assigned_to ? userName.get(f.assigned_to) : undefined }))} />
           <ChatPanel leadId={lead.id} convs={(convs ?? []).map((v) => ({ id: v.id, status: v.status, unread: v.unread_count, last: v.last_message_at, number: (v.number as unknown as { label: string } | null)?.label ?? "" }))}
             numbers={refs.numbers.filter((n) => n.is_active)} />
+          <CustomFieldsPanel leadId={lead.id} fields={(cfs ?? []) as CustomField[]} values={((lead as { custom?: Record<string, unknown> }).custom) ?? {}} canEdit={can(profile, "leads.edit")} />
           {can(profile, "leads.edit") && <EditPanel lead={{ ...lead, name: c.name, email: c.email, location: c.location }} refs={refs} tagIds={tagIds} />}
           {(siblings?.length ?? 0) > 0 && (
             <section className="card p-4">

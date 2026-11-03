@@ -72,8 +72,43 @@ async function sendPush(db: Db, a: Alert): Promise<{ ok: boolean; error?: string
   return delivered ? { ok: true } : { ok: false, error: lastErr || "Push failed", retry: false };
 }
 
+/** Number for the nightly owner summary: its own setting, else the alert number, else the first connected number. */
+async function summaryNumber(db: Db, companyId: string, own: string | null) {
+  if (own) return own;
+  const { data: s } = await db.from("lb_alert_settings").select("wa_number_id").eq("company_id", companyId).maybeSingle();
+  if (s?.wa_number_id) return s.wa_number_id as string;
+  const { data: n } = await db.from("lb_wa_numbers").select("id").eq("company_id", companyId).eq("is_active", true).order("created_at").limit(1).maybeSingle();
+  return (n?.id as string | undefined) ?? null;
+}
+
+/** Nightly owner summary (kind owner_summary): multi-line text, or the summary template with a one-line body. */
+async function sendSummaryWhatsApp(db: Db, a: Alert): Promise<{ ok: boolean; error?: string; retry?: boolean }> {
+  const [{ data: s }, { data: u }] = await Promise.all([
+    db.from("lb_owner_summary_settings").select("wa_number_id,wa_template,wa_template_lang").eq("company_id", a.company_id).maybeSingle(),
+    db.from("lb_profiles").select("full_name,phone").eq("id", a.user_id).maybeSingle(),
+  ]);
+  const to = u?.phone ? normalizePhone(u.phone)?.replace(/^\+/, "") : null;
+  if (!to) return { ok: false, error: "User has no valid mobile number" };
+  const numberId = await summaryNumber(db, a.company_id, s?.wa_number_id ?? null);
+  if (!numberId) return { ok: false, error: "No WhatsApp number connected" };
+  const c = await numberCredentials(numberId).catch(() => null);
+  if (!c || !c.is_active) return { ok: false, error: "Summary WhatsApp number is disconnected" };
+  const body = a.body ?? a.title;
+  const line = oneLine(body.replace(/\*/g, "").split("\n").slice(1).join(" · "), 900);
+  const base = { messaging_product: "whatsapp", recipient_type: "individual", to };
+  const payload = s?.wa_template && c.provider !== "qr"
+    ? { ...base, type: "template", template: { name: s.wa_template, language: { code: s.wa_template_lang || "en" },
+        components: [{ type: "body", parameters: [{ type: "text", text: oneLine(u?.full_name || "there", 60) }, { type: "text", text: line || a.title }] }] } }
+    : { ...base, type: "text", text: { body: `${body}\n\n${APP_URL}${a.link ?? ""}`, preview_url: false } };
+  const r = await graph<{ messages?: { id: string }[] }>(c.token, `${c.endpoint}/messages`, { method: "POST", body: JSON.stringify(payload) });
+  if (r.ok) return { ok: true };
+  const hint = r.code === 131047 || r.code === 131026 ? " (outside the 24h window: set an approved summary template on the Daily summary page)" : "";
+  return { ok: false, error: `${r.message}${hint}`, retry: !r.ambiguous && (r.status === 0 || r.status === 429 || r.status >= 500) };
+}
+
 async function sendWhatsApp(db: Db, a: Alert): Promise<{ ok: boolean; error?: string; retry?: boolean }> {
   if (await isDemoCompany(a.company_id)) return { ok: false, error: "Demo company: WhatsApp is off" };
+  if (a.kind === "owner_summary") return sendSummaryWhatsApp(db, a);
   const [{ data: s }, { data: u }] = await Promise.all([
     db.from("lb_alert_settings").select("wa_enabled,wa_number_id,wa_template,wa_template_lang").eq("company_id", a.company_id).maybeSingle(),
     db.from("lb_profiles").select("full_name,phone").eq("id", a.user_id).maybeSingle(),

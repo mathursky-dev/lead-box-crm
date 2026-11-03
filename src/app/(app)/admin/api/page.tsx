@@ -13,7 +13,7 @@ export default async function ApiPage() {
   const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? "wacrm.leadboxs.in"}`;
   const db = createAdminClient();
   const [keys, hooks, del] = await Promise.all([
-    db.from("lb_api_keys").select("id,name,prefix,scopes,created_at,last_used_at,revoked_at").eq("company_id", profile.company_id).order("created_at", { ascending: false }).limit(50),
+    db.from("lb_api_keys").select("id,name,prefix,scopes,created_at,last_used_at,revoked_at,expires_at").eq("company_id", profile.company_id).order("created_at", { ascending: false }).limit(50),
     db.from("lb_webhooks").select("id,name,url,events,is_active,last_status,last_error,last_sent_at,created_at").eq("company_id", profile.company_id).order("created_at"),
     db.from("lb_webhook_deliveries").select("id,webhook_id,event,status,attempts,response_code,error,created_at,sent_at").eq("company_id", profile.company_id).order("id", { ascending: false }).limit(30),
   ]);

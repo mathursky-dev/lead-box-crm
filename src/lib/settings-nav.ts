@@ -31,6 +31,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     { href: "/admin/allocation", label: "Lead allocation", icon: "refresh", desc: "Auto-assign by source, city, ratio", keywords: "assign round robin distribute city" },
     { href: "/leads/duplicates", label: "Duplicate leads", icon: "layers", desc: "Find and merge same numbers", keywords: "merge same number dedupe" },
     { href: "/admin/alerts", label: "Follow-up alerts", icon: "alert", desc: "Reminders for missed follow-ups", keywords: "reminder missed push whatsapp notification" },
+    { href: "/admin/daily-summary", label: "Daily summary", icon: "chart", desc: "Nightly WhatsApp report to the owner", keywords: "daily summary night report owner whatsapp sales payments digest" },
   ] },
   { label: "Sales & store", icon: "rupee", tone: "amber", links: [
     { href: "/settings/quotes", label: "Quotes & Payments", icon: "rupee", desc: "Quote format, GST, Razorpay", keywords: "quotation invoice gst razorpay payment link" },

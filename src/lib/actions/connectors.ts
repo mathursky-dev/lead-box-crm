@@ -132,20 +132,22 @@ export async function testConnectorKind(kind: ConnectorKind): Promise<TestResult
 }
 
 // --------------------------------------------------------------- API keys
-export async function createApiKey(name: string, scopes: string[]): Promise<{ error?: string; key?: string }> {
+export async function createApiKey(name: string, scopes: string[], expiresDays = 0): Promise<{ error?: string; key?: string }> {
   const { profile: me } = await requireAdmin();
   if (ready()) return { error: ready()! };
-  const p = z.object({ name: z.string().trim().min(1, "Give the key a name").max(80), scopes: z.array(z.enum(["leads.read", "leads.write"])).min(1, "Pick at least one permission") })
-    .safeParse({ name, scopes });
+  const p = z.object({ name: z.string().trim().min(1, "Give the key a name").max(80), scopes: z.array(z.enum(["leads.read", "leads.write", "leads.update"])).min(1, "Pick at least one permission"),
+    expiresDays: z.union([z.literal(0), z.literal(30), z.literal(90), z.literal(180), z.literal(365)]) })
+    .safeParse({ name, scopes, expiresDays });
   if (!p.success) return { error: p.error.issues[0]?.message };
   const db = createAdminClient();
   const { count } = await db.from("lb_api_keys").select("id", { count: "exact", head: true }).eq("company_id", me.company_id).is("revoked_at", null);
   if ((count ?? 0) >= 20) return { error: "Max 20 active keys. Revoke an old one first." };
   const key = `lbk_${randomBytes(20).toString("hex")}`;
-  const { data, error } = await db.from("lb_api_keys").insert({ company_id: me.company_id, name: p.data.name, prefix: key.slice(0, 12), key_hash: hashKey(key), scopes: p.data.scopes, created_by: me.id })
+  const expires_at = p.data.expiresDays ? new Date(Date.now() + p.data.expiresDays * 864e5).toISOString() : null;
+  const { data, error } = await db.from("lb_api_keys").insert({ company_id: me.company_id, name: p.data.name, prefix: key.slice(0, 12), key_hash: hashKey(key), scopes: p.data.scopes, created_by: me.id, ...(expires_at ? { expires_at } : {}) })
     .select("id").single();
   if (error) return { error: errMsg(error) };
-  await audit(db, me, "api_key.create", data.id, { name: p.data.name, scopes: p.data.scopes });
+  await audit(db, me, "api_key.create", data.id, { name: p.data.name, scopes: p.data.scopes, expires_at });
   revalidatePath("/admin/api");
   return { key };
 }

@@ -12,8 +12,17 @@ export type MemberRow = { id: string; allocId: string; userId: string; ratio: nu
 export type UserLite = { id: string; name: string; active: boolean; open: number; block: string | null };
 type Res = { error?: string; ok?: string };
 
+/** Member actions for one list. Source / city lists use the allocation actions; routing rules pass their own. */
+export type MemberApi = {
+  add: (listId: string, input: { userId: string; ratio: string; maxPerDay: string }) => Promise<Res>;
+  update: (memberId: string, input: { ratio: string; maxPerDay: string }) => Promise<Res>;
+  setActive: (memberId: string, active: boolean) => Promise<Res>;
+  remove: (memberId: string) => Promise<Res>;
+};
+const ALLOC_API: MemberApi = { add: addAllocMember, update: updateAllocMember, setActive: setAllocMemberActive, remove: deleteAllocMember };
+
 /** Runs a server action, refreshes the page and keeps the last message for display. */
-function useRun() {
+export function useRun() {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<Res>();
   const router = useRouter();
@@ -25,12 +34,12 @@ function useRun() {
   return { pending, msg, setMsg, run };
 }
 
-function Msg({ msg }: { msg?: Res }) {
+export function Msg({ msg }: { msg?: Res }) {
   if (!msg?.error && !msg?.ok) return null;
   return <div role={msg.error ? "alert" : "status"} className={`rounded-lg px-3 py-2 text-sm ${msg.error ? "bg-red-50 text-red-700" : "bg-brand-50 text-brand-700"}`}>{msg.error ?? msg.ok}</div>;
 }
 
-function Switch({ on, label, disabled, onChange }: { on: boolean; label: string; disabled?: boolean; onChange: (v: boolean) => void }) {
+export function Switch({ on, label, disabled, onChange }: { on: boolean; label: string; disabled?: boolean; onChange: (v: boolean) => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} title={label} disabled={disabled} onClick={() => onChange(!on)}
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${on ? "bg-brand-600" : "bg-slate-300"}`}>
@@ -39,7 +48,7 @@ function Switch({ on, label, disabled, onChange }: { on: boolean; label: string;
   );
 }
 
-function IconBtn({ icon, label, tone, onClick, disabled }: { icon: string; label: string; tone: "sky" | "red" | "violet" | "slate"; onClick: () => void; disabled?: boolean }) {
+export function IconBtn({ icon, label, tone, onClick, disabled }: { icon: string; label: string; tone: "sky" | "red" | "violet" | "slate"; onClick: () => void; disabled?: boolean }) {
   const c = { sky: "bg-sky-500 hover:bg-sky-600", red: "bg-red-500 hover:bg-red-600", violet: "bg-violet-500 hover:bg-violet-600", slate: "bg-slate-400 hover:bg-slate-500" }[tone];
   return (
     <button type="button" aria-label={label} title={label} disabled={disabled} onClick={onClick}
@@ -291,7 +300,7 @@ function UserPicker({ users, value, onChange }: { users: UserLite[]; value: stri
   );
 }
 
-function MemberLine({ m, user, share, pending, run }: { m: MemberRow; user?: UserLite; share: number | null; pending: boolean; run: ReturnType<typeof useRun>["run"] }) {
+function MemberLine({ m, user, share, pending, run, api }: { m: MemberRow; user?: UserLite; share: number | null; pending: boolean; run: ReturnType<typeof useRun>["run"]; api: MemberApi }) {
   const [edit, setEdit] = useState(false);
   const [ratio, setRatio] = useState(String(m.ratio));
   const [max, setMax] = useState(m.maxPerDay ? String(m.maxPerDay) : "");
@@ -311,15 +320,15 @@ function MemberLine({ m, user, share, pending, run }: { m: MemberRow; user?: Use
         <div className="flex items-center gap-1.5">
           {edit ? (
             <>
-              <button type="button" className="btn-primary btn-sm" disabled={pending} onClick={() => run(() => updateAllocMember(m.id, { ratio, maxPerDay: max }), () => setEdit(false))}>Save</button>
+              <button type="button" className="btn-primary btn-sm" disabled={pending} onClick={() => run(() => api.update(m.id, { ratio, maxPerDay: max }), () => setEdit(false))}>Save</button>
               <button type="button" className="btn-ghost btn-sm" onClick={() => { setEdit(false); setRatio(String(m.ratio)); setMax(m.maxPerDay ? String(m.maxPerDay) : ""); }}>Cancel</button>
             </>
           ) : (
             <>
-              <Switch on={m.active} label={`${user?.name ?? "User"} ${m.active ? "on" : "off"}`} disabled={pending} onChange={(v) => run(() => setAllocMemberActive(m.id, v))} />
+              <Switch on={m.active} label={`${user?.name ?? "User"} ${m.active ? "on" : "off"}`} disabled={pending} onChange={(v) => run(() => api.setActive(m.id, v))} />
               <IconBtn icon="pencil" tone="sky" label="Edit ratio and max per day" onClick={() => setEdit(true)} />
               <IconBtn icon="trash" tone="red" label="Remove user" disabled={pending}
-                onClick={() => window.confirm(`Remove ${user?.name ?? "this user"} from this source?`) && run(() => deleteAllocMember(m.id))} />
+                onClick={() => window.confirm(`Remove ${user?.name ?? "this user"} from this list?`) && run(() => api.remove(m.id))} />
             </>
           )}
         </div>
@@ -328,7 +337,7 @@ function MemberLine({ m, user, share, pending, run }: { m: MemberRow; user?: Use
   );
 }
 
-function DetailsModal({ row, members, users, onClose }: { row: AllocRow; members: MemberRow[]; users: UserLite[]; onClose: () => void }) {
+export function DetailsModal({ row, members, users, onClose, api = ALLOC_API, hint, empty }: { row: AllocRow; members: MemberRow[]; users: UserLite[]; onClose: () => void; api?: MemberApi; hint?: string; empty?: string }) {
   const [userId, setUserId] = useState("");
   const [ratio, setRatio] = useState("1");
   const [max, setMax] = useState("");
@@ -371,7 +380,7 @@ function DetailsModal({ row, members, users, onClose }: { row: AllocRow; members
             <label className="block"><span className="label">Max / day</span><input className="input" type="number" min={1} placeholder="No limit" value={max} onChange={(e) => setMax(e.target.value)} /></label>
             <div className="flex gap-2">
               <button type="button" className="btn-primary" disabled={!userId || pending}
-                onClick={() => run(() => addAllocMember(row.id, { userId, ratio, maxPerDay: max }), () => { setUserId(""); setRatio("1"); setMax(""); })}>
+                onClick={() => run(() => api.add(row.id, { userId, ratio, maxPerDay: max }), () => { setUserId(""); setRatio("1"); setMax(""); })}>
                 <Icon name="plus" className="h-4 w-4" /> Add
               </button>
               <button type="button" className="btn-navy px-2.5" aria-label="Refresh" title="Refresh" disabled={refreshing} onClick={() => startRefresh(() => router.refresh())}>
@@ -387,18 +396,18 @@ function DetailsModal({ row, members, users, onClose }: { row: AllocRow; members
               <tbody className="divide-y">
                 {members.map((m) => {
                   const ok = canTake(m);
-                  return <MemberLine key={`${m.id}-${m.ratio}-${m.maxPerDay}`} m={m} user={byId.get(m.userId)} share={ok && sum ? Math.round((m.ratio / sum) * 100) : null} pending={pending} run={run} />;
+                  return <MemberLine key={`${m.id}-${m.ratio}-${m.maxPerDay}`} m={m} user={byId.get(m.userId)} share={ok && sum ? Math.round((m.ratio / sum) * 100) : null} pending={pending} run={run} api={api} />;
                 })}
               </tbody>
             </table>
-            {!members.length && <div className="px-4 py-6 text-center text-sm text-slate-500">{row.cities ? "No users yet. Until you add one, these cities fall back to the source list." : `No users yet. Until you add one, ${row.name} leads stay unassigned.`}</div>}
+            {!members.length && <div className="px-4 py-6 text-center text-sm text-slate-500">{empty ?? (row.cities ? "No users yet. Until you add one, these cities fall back to the source list." : `No users yet. Until you add one, ${row.name} leads stay unassigned.`)}</div>}
           </div>
 
-          <p className="text-xs text-slate-500">
+          {hint ? <p className="text-xs text-slate-500">{hint}</p> : <p className="text-xs text-slate-500">
             New {row.cities ? `leads from ${row.cities.join(", ")}${row.sourceName ? ` (${row.sourceName})` : ""}` : `${row.name} leads`} go to these users in turns by ratio{example ? ` (${example}: out of every ${sum} leads each gets their ratio)` : ""}.
             A user who reaches their max for the day is skipped until tomorrow (IST). Users who are switched off, away, outside working hours,
             opted out of auto-allocation or at their open-lead limit are skipped too. If nobody can take a lead, it stays unassigned.
-          </p>
+          </p>}
         </div>
       </div>
     </div>

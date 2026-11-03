@@ -499,6 +499,16 @@ export const FEATURES: Feature[] = [
       "Manage orders in [Orders](/store): change order, payment and delivery status and click **Update customer on WhatsApp**.",
     ],
     keywords: "store shop catalog order ecommerce products mini store link" },
+  { id: "purchases", cat: "Customer care & store", icon: "list", href: "/store/purchases", title: "Purchase orders and vendors",
+    what: "Buy stock from suppliers. Receiving a purchase order adds the quantity to store stock, and the cost shows in Profit & Loss.",
+    steps: [
+      "Admin: add your suppliers in [Vendors](/store/vendors) (name, phone, GSTIN, payment terms).",
+      "Create a [purchase order](/store/purchases/new): pick the vendor, add products with quantity, cost and GST, and click **Save & mark ordered**.",
+      "Send it to the vendor with **Send on WhatsApp** or **Print**.",
+      "When goods arrive, open the PO and click **Receive goods**. Part deliveries are fine; receive the rest later.",
+      "Record what you paid with **Record payment**. Vendors shows how much you still owe each supplier.",
+    ],
+    keywords: "purchase order po vendor supplier buy stock inward goods receive inventory cost" },
   { id: "appointments", cat: "Customer care & store", icon: "calendar", href: "/care/appointments", title: "Appointment booking",
     what: "Customers pick a free slot from a link. Each booking lands on their lead and in the owner's follow-ups.",
     steps: [

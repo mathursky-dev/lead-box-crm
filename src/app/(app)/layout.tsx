@@ -84,7 +84,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ] },
     { section: "Grow", label: "Store", icon: "cart", items: [
       { href: "/store", label: "Orders", keywords: "shop catalog mini-store order" },
-      ...it(admin, "/store/products", "Store products"), ...it(admin, "/store/settings", "Store settings"),
+      ...it(admin, "/store/products", "Store products"),
+      ...it(admin, "/store/purchases", "Purchase orders", "po purchase buy stock supplier vendor inward goods receive"),
+      ...it(admin, "/store/vendors", "Vendors", "supplier vendor party purchase"),
+      ...it(admin, "/store/settings", "Store settings"),
     ] },
     { section: "Grow", label: "Customer care", icon: "heart", items: [
       { href: "/care/appointments", label: "Appointments", keywords: "booking calendar slot meeting visit" },

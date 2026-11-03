@@ -6,7 +6,7 @@ export default async function StoreLayout({ children }: { children: React.ReactN
   const { profile } = await requireProfile();
   const tabs = [
     { href: "/store", label: "Orders", icon: "cart" },
-    ...(isAdmin(profile) ? [{ href: "/store/products", label: "Products", icon: "tag" }, { href: "/store/settings", label: "Store settings", icon: "gear" }] : []),
+    ...(isAdmin(profile) ? [{ href: "/store/products", label: "Products", icon: "tag" }, { href: "/store/purchases", label: "Purchase orders", icon: "list" }, { href: "/store/vendors", label: "Vendors", icon: "building" }, { href: "/store/settings", label: "Store settings", icon: "gear" }] : []),
   ];
   return (
     <div>

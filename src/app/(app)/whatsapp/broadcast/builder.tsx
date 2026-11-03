@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { BroadcastForm } from "@/components/broadcast-form";
 import type { BroadcastRules } from "@/lib/actions/broadcast";
+import { SMART, SMART_KEYS, type SmartKey } from "@/lib/segments";
 import { Panel } from "../ui";
 
 type O = { id: string; name: string };
@@ -26,10 +28,10 @@ function Chips({ label, opts, value, onChange }: { label: string; opts: (O & { h
   );
 }
 
-export function BroadcastBuilder({ statuses, subStatuses, tags, sources, products, owners }: {
-  statuses: (O & { category: string })[]; subStatuses: (O & { status_id: string | null })[]; tags: O[]; sources: O[]; products: O[]; owners: O[];
+export function BroadcastBuilder({ statuses, subStatuses, tags, sources, products, owners, smart = [] }: {
+  statuses: (O & { category: string })[]; subStatuses: (O & { status_id: string | null })[]; tags: O[]; sources: O[]; products: O[]; owners: O[]; smart?: SmartKey[];
 }) {
-  const [r, setR] = useState<BroadcastRules>({ status_ids: [], sub_status_ids: [], tag_ids: [], source_ids: [], product_ids: [], owner_ids: [], include_closed: false, created_within_days: "" });
+  const [r, setR] = useState<BroadcastRules>({ smart, status_ids: [], sub_status_ids: [], tag_ids: [], source_ids: [], product_ids: [], owner_ids: [], include_closed: false, created_within_days: "" });
   const set = (k: keyof BroadcastRules) => (v: unknown) => setR((x) => ({ ...x, [k]: v }));
   const pickedClosed = (r.status_ids ?? []).some((id) => CLOSED.has(statuses.find((s) => s.id === id)?.category ?? ""));
   const subs = subStatuses.filter((s) => !s.status_id || !(r.status_ids ?? []).length || (r.status_ids ?? []).includes(s.status_id));
@@ -40,6 +42,8 @@ export function BroadcastBuilder({ statuses, subStatuses, tags, sources, product
     <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
       <Panel title="1. Who should get it" icon="filter">
         <div className="space-y-3">
+          <Chips label="Customer group" opts={SMART_KEYS.map((k) => ({ id: k, name: SMART[k].label }))} value={r.smart ?? []} onChange={set("smart")} />
+          {(r.smart ?? []).length > 0 && <p className="-mt-1 text-[11px] text-slate-500">Groups are automatic (see <Link className="text-brand-700 hover:underline" href="/whatsapp/segments">Segments</Link>). Won and lost leads are included for these customers.</p>}
           <Chips label="Lead status" opts={statuses} value={r.status_ids ?? []} onChange={set("status_ids")} />
           <Chips label="Sub-status" opts={subs} value={r.sub_status_ids ?? []} onChange={set("sub_status_ids")} />
           <Chips label="Tag" opts={tags} value={r.tag_ids ?? []} onChange={set("tag_ids")} />

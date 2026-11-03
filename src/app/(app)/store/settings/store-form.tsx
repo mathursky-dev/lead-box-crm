@@ -9,8 +9,10 @@ type Store = {
   free_delivery_above: number | null; ask_address: boolean; checkout_note: string; thank_you: string; source_id: string | null; is_active: boolean;
 };
 
-export function StoreSettingsForm({ store, defaults, sources, autoReply }: {
-  store: Store | null; defaults: { code: string; name: string; wa: string }; sources: { id: string; name: string }[]; autoReply: boolean;
+type Pay = { upi_id: string | null; upi_name: string | null; wa_catalog_id: string | null; wa_pay_config: string | null };
+
+export function StoreSettingsForm({ store, defaults, sources, autoReply, pay }: {
+  store: Store | null; defaults: { code: string; name: string; wa: string }; sources: { id: string; name: string }[]; autoReply: boolean; pay: Pay | null;
 }) {
   const [code, setCode] = useState(store?.code ?? defaults.code);
   const [color, setColor] = useState(store?.color ?? "#16a34a");
@@ -56,6 +58,19 @@ export function StoreSettingsForm({ store, defaults, sources, autoReply }: {
         <label className="flex items-start gap-2"><input type="checkbox" name="auto_reply" defaultChecked={store ? autoReply : true} className="mt-0.5" />
           <span>Auto-reply the store link on WhatsApp when a customer writes <i>{STORE_KEYWORDS.slice(0, 4).join(", ")}</i>…</span></label>
       </div>
+      <fieldset className="space-y-3 rounded-lg border border-slate-200 p-3">
+        <legend className="px-1 text-sm font-semibold text-navy-900">Payment & catalog in WhatsApp chat</legend>
+        <p className="text-xs text-slate-500">Used by the 🛍️ button in the Inbox: agents send products and take payment inside the chat. Razorpay keys are in Settings → Quotes &amp; Payments.</p>
+        {pay ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="pay_fields" value="1" />
+            <Field label="Your UPI ID" hint="e.g. shopname@okhdfcbank. Customer gets a pay page with QR."><input className="input" name="upi_id" maxLength={100} defaultValue={pay.upi_id ?? ""} placeholder="yourname@upi" /></Field>
+            <Field label="Name on UPI"><input className="input" name="upi_name" maxLength={60} defaultValue={pay.upi_name ?? ""} placeholder={defaults.name} /></Field>
+            <Field label="Meta catalog ID (optional)" hint="Commerce Manager → Catalog → Settings. Product SKU must match the catalog Content ID."><input className="input" name="wa_catalog_id" inputMode="numeric" maxLength={30} defaultValue={pay.wa_catalog_id ?? ""} /></Field>
+            <Field label="WhatsApp Pay configuration (optional)" hint="Name of the payment configuration in WhatsApp Manager → Payments (India)."><input className="input" name="wa_pay_config" maxLength={60} defaultValue={pay.wa_pay_config ?? ""} /></Field>
+          </div>
+        ) : <p className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">Run the chat payments database update (Supabase SQL 20261102140000) once to set these.</p>}
+      </fieldset>
       <Submit>Save store</Submit>
     </ActionForm>
   );

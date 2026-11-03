@@ -17,7 +17,7 @@ type WaMessage = {
   order?: { catalog_id?: string; text?: string; product_items?: { product_retailer_id: string; quantity: number | string; item_price?: number | string; currency?: string }[] };
 };
 type Media = { id: string; mime_type?: string; caption?: string };
-type WaStatus = { id: string; status: string; timestamp: string; recipient_type?: string; errors?: { code: number; title?: string; message?: string; error_data?: { details?: string } }[] };
+type WaStatus = { id: string; status: string; timestamp: string; recipient_type?: string; type?: string; payment?: { reference_id?: string; transaction?: { id?: string; status?: string } }; errors?: { code: number; title?: string; message?: string; error_data?: { details?: string } }[] };
 type Change = { field: string; value: { metadata?: { phone_number_id: string }; contacts?: { wa_id: string; profile?: { name?: string } }[]; messages?: WaMessage[]; statuses?: WaStatus[] } };
 
 const MEDIA_TYPES = ["image", "video", "audio", "document", "sticker"] as const;
@@ -103,6 +103,15 @@ export async function processWebhookEvent(eventId: string): Promise<string[]> {
         }
         for (const s of v.statuses ?? []) {
           const err = s.errors?.[0];
+          // WhatsApp Pay (order_details sent from the inbox 🛍️ button): payment result for an order.
+          if (s.type === "payment") {
+            const ref = s.payment?.reference_id;
+            if (ref && (s.status === "captured" || s.payment?.transaction?.status === "success")) {
+              const r = await db.rpc("lb_order_paid", { p_token: ref, p_method: "whatsapp_pay", p_ref: s.payment?.transaction?.id ?? null });
+              if (r.error) console.error("wa pay status", r.error.message);
+            }
+            continue;
+          }
           if (s.recipient_type === "group") {
             await applyGroupStatus(db, s.id, s.status, err ? err.title ?? err.message : null).catch((e) => console.error("group status", e));
             continue;

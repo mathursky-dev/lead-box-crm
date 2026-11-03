@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { requireProfile, can } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient, hasServiceRole } from "@/lib/supabase/server";
 import { summarizeConversation, suggestReply, suggestReplies, scoreLead, pickKnowledge, aiConfigured, AiError } from "@/lib/ai";
 import { leadFacts, recentMessages } from "@/lib/lead-score";
 import { rateLimit } from "./auth";
@@ -11,7 +11,7 @@ export type ScoreOut = { error?: string; score?: "hot" | "warm" | "cold"; points
 export type RepliesOut = { error?: string; replies?: { label: string; text: string }[]; knowledge?: { id: string; title: string }[] };
 
 /** Plan, permission, company switch, server key and per-user rate limit checks shared by every AI action. */
-async function gate() {
+async function gate(opts: { limit?: boolean } = {}) {
   const { profile, company, features } = await requireProfile();
   if (!features.includes("ai")) throw new AiError("AI is not included in your plan. Upgrade from the Billing page.", false);
   if (!can(profile, "ai.use")) throw new AiError("You do not have permission to use AI.", false);
@@ -19,8 +19,8 @@ async function gate() {
   const { data: co } = await sb.from("lb_companies").select("ai_enabled").eq("id", company.id).single();
   if (!co?.ai_enabled) throw new AiError("AI is turned off for this company (Admin → Settings).", false);
   if (!aiConfigured()) throw new AiError("AI is not configured on the server (ANTHROPIC_API_KEY).", false);
-  if (!(await rateLimit(`ai:${profile.id}`, 30, 3600))) throw new AiError("AI limit reached (30 per hour).", false);
-  return { sb, business: (company as { name?: string }).name || "the business" };
+  if (opts.limit !== false && !(await rateLimit(`ai:${profile.id}`, 30, 3600))) throw new AiError("AI limit reached (30 per hour).", false);
+  return { sb, profile, business: (company as { name?: string }).name || "the business" };
 }
 
 async function load(convId: string) {
@@ -61,22 +61,72 @@ export async function aiSuggestReply(convId: string): Promise<Out> {
   }
 }
 
-/** Three ready replies (different approaches) for the composer. Still drafts: the agent picks, edits and sends. */
-export async function aiSuggestReplies(convId: string): Promise<RepliesOut> {
+type Cached = { upto_message_id: string; replies: { label: string; text: string }[] };
+
+/** Saved AI replies for the chat's latest customer message (null before the SQL is applied). */
+async function cachedReplies(convId: string): Promise<Cached | null> {
+  if (!hasServiceRole()) return null;
+  const { data, error } = await createAdminClient().from("lb_ai_reply_cache").select("upto_message_id,replies").eq("conversation_id", convId).maybeSingle();
+  return error ? null : (data as Cached | null);
+}
+
+/**
+ * Three ready replies (different approaches) for the composer. The agent sends one with a click, or edits it first.
+ * auto = the inbox asked on its own because the customer just wrote: answered from the shared cache when another
+ * agent already drafted for this customer message, and silently skipped when auto drafts are off.
+ */
+export async function aiSuggestReplies(convId: string, auto = false): Promise<RepliesOut & { skipped?: boolean; upto?: string }> {
   try {
-    const { sb, business, name, messages } = await load(convId);
-    if (!messages.some((m: { direction: string }) => m.direction === "in")) return { error: "The customer hasn't written anything yet." };
+    // RLS: the user must be able to see the chat.
+    const sb0 = await createClient();
+    const { data: last } = await sb0.from("lb_messages").select("id,direction").eq("conversation_id", convId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (auto) {
+      if (!last || last.direction !== "in") return { skipped: true };
+      const { company } = await requireProfile();
+      const { data: co, error: coErr } = await sb0.from("lb_companies").select("ai_auto_suggest").eq("id", company.id).maybeSingle();
+      // Column missing (SQL not applied yet) or switched off: no automatic AI calls.
+      if (coErr || !co || co.ai_auto_suggest === false) return { skipped: true };
+      const hit = await cachedReplies(convId);
+      if (hit && hit.upto_message_id === last.id) {
+        await gate({ limit: false });
+        return { replies: hit.replies, upto: last.id };
+      }
+    }
+    const { sb, profile, business } = await gate({ limit: true });
+    const { data: conv } = await sb.from("lb_conversations").select("id, company_id, customer:lb_customers(name, wa_profile_name)").eq("id", convId).maybeSingle();
+    if (!conv) return { error: "Conversation not found." };
+    const cu = conv.customer as unknown as { name: string | null; wa_profile_name: string | null };
+    const messages = (await recentMessages(sb, convId)) as never[];
+    if (!messages.some((m: { direction: string }) => m.direction === "in")) return auto ? { skipped: true } : { error: "The customer hasn't written anything yet." };
     const { data: kb } = await sb.from("lb_knowledge").select("id,title,content").eq("status", "approved");
     const picked = pickKnowledge(kb ?? [], messages);
-    const r = await suggestReplies(name, messages, picked, business);
+    const r = await suggestReplies(cu.name || cu.wa_profile_name || "Customer", messages, picked, business);
     const { error } = await sb.rpc("lb_record_ai_output", {
       p_conv: convId, p_kind: "suggestion", p_content: r.replies.map((x) => `[${x.label}] ${x.text}`).join("\n\n"), p_model: r.model, p_knowledge: picked.map((a) => a.id),
     });
     if (error) return { error: error.message };
-    return { replies: r.replies, knowledge: picked.map((a) => ({ id: a.id, title: a.title })) };
+    if (last && hasServiceRole()) {
+      await createAdminClient().from("lb_ai_reply_cache").upsert({
+        conversation_id: convId, company_id: conv.company_id ?? profile.company_id, upto_message_id: last.id, replies: r.replies, model: r.model,
+        used_label: null, used_at: null, used_by: null, created_at: new Date().toISOString(),
+      }, { onConflict: "conversation_id" }).then(() => undefined, () => undefined);
+    }
+    return { replies: r.replies, knowledge: picked.map((a) => ({ id: a.id, title: a.title })), upto: last?.id };
   } catch (e) {
+    if (auto) return { skipped: true };
     return { error: (e as Error).message };
   }
+}
+
+/** Notes which AI reply the agent sent (for AI usage numbers). Never blocks sending. */
+export async function aiReplyUsed(convId: string, label: string) {
+  try {
+    const { profile } = await requireProfile();
+    const { data: conv } = await (await createClient()).from("lb_conversations").select("id").eq("id", convId).maybeSingle();
+    if (!conv || !hasServiceRole()) return;
+    await createAdminClient().from("lb_ai_reply_cache").update({ used_label: String(label).slice(0, 40) || "reply", used_at: new Date().toISOString(), used_by: profile.id })
+      .eq("conversation_id", convId);
+  } catch { /* ignore */ }
 }
 
 /** Hot / Warm / Cold rating of a lead from its latest WhatsApp chat. Saved on the lead. */

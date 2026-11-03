@@ -49,9 +49,16 @@ export async function saveAutomationSettings(_: R | undefined, form: FormData): 
   if ([...complaint, ...buying].some((w) => !/^[\p{L}\p{N} ]{2,40}$/u.test(w))) return { error: "Keywords may only contain letters, numbers and spaces." };
   const v = { ai_enabled: form.get("ai_enabled") === "on", ai_auto_score: form.get("ai_auto_score") === "on", complaint_keywords: complaint, buying_keywords: buying, digest_hour: Number(s(form.get("digest_hour")) || 9) };
   const sb = await createClient();
-  let { error } = await sb.from("lb_companies").update(form.get("has_voice") ? { ...v, voice_transcribe: form.get("voice_transcribe") === "on" } : v).eq("id", me.company_id);
-  // Before the AI FAQ bot SQL is applied the column is missing: save the rest.
-  if (error && /voice_transcribe/.test(error.message)) ({ error } = await sb.from("lb_companies").update(v).eq("id", me.company_id));
+  // Columns from later SQL (AI replies 20261102140000, AI FAQ bot) may be missing: drop each one Postgres rejects and save the rest.
+  const extra: Record<string, boolean> = { ai_auto_suggest: form.get("ai_auto_suggest") === "on" };
+  if (form.get("has_voice")) extra.voice_transcribe = form.get("voice_transcribe") === "on";
+  let { error } = await sb.from("lb_companies").update({ ...v, ...extra }).eq("id", me.company_id);
+  for (let i = 0; error && i < 2; i++) {
+    const col = Object.keys(extra).find((k) => error!.message.includes(k));
+    if (!col) break;
+    delete extra[col];
+    ({ error } = await sb.from("lb_companies").update({ ...v, ...extra }).eq("id", me.company_id));
+  }
   if (error) return { error: error.message };
   await createAdminClient().from("lb_audit_log").insert({ company_id: me.company_id, actor_id: me.id, action: "company.automation_settings", entity: "company", entity_id: me.company_id, data: v });
   revalidatePath("/admin/settings");

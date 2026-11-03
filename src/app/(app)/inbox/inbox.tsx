@@ -5,6 +5,7 @@ import { getBrowserClient } from "@/lib/supabase/client";
 import { sendText, startUpload, sendUploaded, sendTemplate, retryMessage, conversationAction, sendReaction } from "@/lib/actions/inbox";
 import { changeStatus, addFollowup } from "@/lib/actions/leads";
 import { aiSummary, aiSuggestReply, aiSuggestReplies } from "@/lib/actions/ai";
+import { transcribeVoice, resumeAiBot } from "@/lib/actions/ai-bot";
 import { AiScoreChip } from "@/components/ai-score";
 import { complaintAction, customerPause } from "@/lib/actions/automation";
 import { fmtClock, fmtDateTime, fmtDay } from "@/lib/dates";
@@ -18,12 +19,16 @@ type Conv = {
   id: string; customer_id: string; customer_name: string | null; wa_profile_name: string | null; phone_e164: string; wa_opted_out_at: string | null;
   assignee_id: string | null; assignee_name: string | null; number_id: string; number_label: string; lead_id: string | null; lead_no: number | null;
   lead_status: string | null; status: "open" | "pending" | "resolved"; unread_count: number; last_message_at: string | null; last_message_preview: string | null; last_inbound_at: string | null;
+  ai_handover_at?: string | null; ai_handover_reason?: string | null;
 };
 type Msg = {
   id: string; direction: "in" | "out"; type: string; body: string | null; media_path: string | null; media_mime: string | null; media_filename: string | null; media_status: string | null;
   template_name: string | null; status: string; error_code: string | null; error_message: string | null; created_at: string; wa_timestamp: string | null; sent_by: string | null;
   wa_message_id: string | null; reply_to_id: string | null; reply_to_wa_id: string | null; customer_reaction: string | null; agent_reaction: string | null;
+  transcript?: string | null; transcript_status?: string | null;
 };
+const MSG_COLS = "id,direction,type,body,media_path,media_mime,media_filename,media_status,template_name,status,error_code,error_message,created_at,wa_timestamp,sent_by,wa_message_id,reply_to_id,reply_to_wa_id,customer_reaction,agent_reaction";
+const isVoice = (m: Pick<Msg, "type" | "media_mime">) => m.type === "audio" || (m.media_mime ?? "").startsWith("audio/");
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const snippet = (m?: Msg) => (m ? m.body ?? (m.template_name ? `Template: ${m.template_name}` : `[${m.type}]`) : "An earlier message");
 type Template = { name: string; language: string; category: string | null; waba_id: string; body: string };
@@ -36,6 +41,7 @@ type Props = {
 
 const PAGE = 30;
 const name = (c: Pick<Conv, "customer_name" | "wa_profile_name" | "phone_e164">) => c.customer_name || c.wa_profile_name || c.phone_e164;
+const recentHandover = (c: Conv) => !!c.ai_handover_at && Date.now() - new Date(c.ai_handover_at).getTime() < 7 * 86400000;
 const windowOpen = (c?: Conv | null) => !!c?.last_inbound_at && Date.now() - new Date(c.last_inbound_at).getTime() < 24 * 3600 * 1000;
 
 export function Inbox(props: Props) {
@@ -271,13 +277,20 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
     return () => window.removeEventListener("lb:draft", h);
   }, [conv.id]);
 
+  const withTranscript = useRef(true); // false until the voice-to-text SQL is applied
   const load = useCallback(async (older?: string) => {
-    let qy = sb.from("lb_messages").select("id,direction,type,body,media_path,media_mime,media_filename,media_status,template_name,status,error_code,error_message,created_at,wa_timestamp,sent_by,wa_message_id,reply_to_id,reply_to_wa_id,customer_reaction,agent_reaction")
-      .eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(50);
-    if (older) qy = qy.lt("created_at", older);
-    const { data, error } = await qy;
-    if (error) { setState("error"); return; }
-    const rows = (data as Msg[]).reverse();
+    const run = (cols: string) => {
+      let qy = sb.from("lb_messages").select(cols).eq("conversation_id", conv.id).order("created_at", { ascending: false }).limit(50);
+      if (older) qy = qy.lt("created_at", older);
+      return qy;
+    };
+    let { data, error } = await run(withTranscript.current ? `${MSG_COLS},transcript,transcript_status` : MSG_COLS);
+    if (error && withTranscript.current && /transcript/.test(error.message)) {
+      withTranscript.current = false;
+      ({ data, error } = await run(MSG_COLS));
+    }
+    if (error || !data) { setState("error"); return; }
+    const rows = (data as unknown as Msg[]).reverse();
     setHasMore(data.length === 50);
     setMsgs((cur) => (older ? [...rows, ...cur] : rows));
     setState("ready");
@@ -345,7 +358,8 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
               )}
               {m.template_name && <div className="mb-1 text-[11px] opacity-70">Template: {m.template_name}</div>}
               {m.media_path && m.type === "image" && <a href={`/api/media/${m.id}`} target="_blank" rel="noreferrer"><img src={`/api/media/${m.id}`} alt={m.media_filename ?? "image"} className="mb-1 max-h-64 rounded" /></a>}
-              {m.media_path && m.type !== "image" && <a className="mb-1 block underline" href={`/api/media/${m.id}?download=1`}>📎 {m.media_filename ?? m.type}</a>}
+              {m.media_path && isVoice(m) && <VoiceNote m={m} out={m.direction === "out"} />}
+              {m.media_path && m.type !== "image" && !isVoice(m) && <a className="mb-1 block underline" href={`/api/media/${m.id}?download=1`}>📎 {m.media_filename ?? m.type}</a>}
               {!m.media_path && m.media_status === "pending" && <div className="text-xs italic opacity-70">Downloading attachment…</div>}
               {m.media_status === "failed" && m.direction === "in" && <div className="text-xs italic text-red-600">Attachment could not be downloaded (will retry).</div>}
               {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
@@ -399,6 +413,13 @@ function Chat({ conv, me, quick, templates, users, numbers, tick, onBack, onDeta
         ) : <button className="btn-ghost btn-sm lg:hidden" onClick={onDetails}>Details</button>}
       </header>
 
+      {conv.ai_handover_at && recentHandover(conv) && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-900">
+          <span>🤖 AI bot handed this chat to the team {fmtDateTime(conv.ai_handover_at)}{conv.ai_handover_reason ? ` · ${conv.ai_handover_reason}` : ""}</span>
+          <button className="ml-auto rounded border border-amber-300 bg-white px-2 py-0.5 hover:bg-amber-100"
+            onClick={async () => { const r = await resumeAiBot(conv.id); if (r?.error) setErr(r.error); onChanged(); }}>Let AI answer again</button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 space-y-2 overflow-auto bg-[#eef2f5] p-3">
         {hasMore && <div className="text-center"><button className="text-xs text-brand-700" onClick={() => load(msgs[0]?.created_at)}>Load older messages</button></div>}
         {state === "loading" && <div className="text-center text-sm text-slate-500">Loading…</div>}
@@ -755,5 +776,38 @@ function CustomerControls({ conv, canComplaints, canPause, onDone, tick }: { con
       )}
       {msg && <p className="text-xs text-slate-600">{msg}</p>}
     </section>
+  );
+}
+
+/** Voice note: player + text (auto from the webhook, or on demand). */
+function VoiceNote({ m, out }: { m: Msg; out: boolean }) {
+  const [text, setText] = useState<string | null>(m.transcript ?? null);
+  const [status, setStatus] = useState<string | null>(m.transcript_status ?? null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  useEffect(() => { setText(m.transcript ?? null); setStatus(m.transcript_status ?? null); }, [m.transcript, m.transcript_status]);
+  const run = async () => {
+    setBusy(true); setErr(undefined);
+    const r = await transcribeVoice(m.id);
+    setBusy(false);
+    if (r.error) setErr(r.error); else { setText(r.text || null); setStatus(r.text ? "done" : "empty"); }
+  };
+  return (
+    <div className="mb-1 space-y-1">
+      <audio src={`/api/media/${m.id}`} controls preload="none" className="h-9 max-w-[260px]" />
+      {text ? (
+        <div className={`rounded px-2 py-1 text-xs ${out ? "bg-white/10" : "bg-slate-100 text-slate-700"}`}>
+          <span className="mr-1 opacity-70">🎤 Text:</span><span className="whitespace-pre-wrap">{text}</span>
+        </div>
+      ) : status === "empty" ? (
+        <div className="text-[11px] italic opacity-70">No speech found in this voice note.</div>
+      ) : (
+        <button type="button" className={`text-[11px] underline ${out ? "text-white/80" : "text-brand-700"}`} disabled={busy} onClick={run}>
+          {busy ? "Converting to text…" : status === "failed" ? "Transcribe again" : "Transcribe"}
+        </button>
+      )}
+      {err && <div className="text-[11px] text-red-600">{err}</div>}
+      <a className="block text-[11px] underline opacity-70" href={`/api/media/${m.id}?download=1`}>Download</a>
+    </div>
   );
 }

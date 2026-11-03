@@ -16,7 +16,7 @@ export const PAGES: { key: string; label: string; paths: string[]; edit?: string
   { key: "field", label: "Field Force", paths: ["/field"] },
   { key: "inbox", label: "Inbox & live chat", paths: ["/inbox", "/whatsapp/live-chat", "/whatsapp/contacts"] },
   { key: "whatsapp", label: "WhatsApp (overview, templates, send, campaigns)", paths: ["/whatsapp"] },
-  { key: "automation", label: "Chatbots & flows", paths: ["/whatsapp/chatbots", "/whatsapp/flows"] },
+  { key: "automation", label: "Chatbots & flows", paths: ["/whatsapp/chatbots", "/whatsapp/flows", "/whatsapp/ai-bot"] },
   { key: "documents", label: "Documents", paths: ["/documents"], edit: "Upload / edit documents", delete: "Delete documents" },
   { key: "store", label: "Store orders", paths: ["/store"], edit: "Update orders" },
   { key: "quotes", label: "Quotes & Invoices", paths: ["/quotes"], edit: "Create / edit quotes, payment links", delete: "Delete quotes" },

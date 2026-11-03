@@ -6,6 +6,7 @@ import { saveCompanySettings } from "@/lib/actions/admin";
 import { saveNurtureSettings } from "@/lib/actions/nurture";
 import { saveAutomationSettings } from "@/lib/actions/automation";
 import { aiConfigured } from "@/lib/ai";
+import { transcribeConfigured } from "@/lib/transcribe";
 
 export const metadata = { title: "Settings" };
 
@@ -47,6 +48,10 @@ export default async function SettingsPage() {
             <span><b>Enable AI summaries & suggested replies.</b> Conversation text is sent to Anthropic&apos;s API. Replies are drafts only and use approved knowledge articles. {aiConfigured() ? "" : <span className="text-amber-700">Server key ANTHROPIC_API_KEY is not set yet.</span>}</span></label>
           <label className="mt-2 flex items-start gap-2 text-sm"><input type="checkbox" name="ai_auto_score" defaultChecked={c?.ai_auto_score !== false} className="mt-1" />
             <span><b>Auto AI lead score (Hot / Warm / Cold).</b> When a customer writes on WhatsApp, AI re-reads the chat and updates the lead&apos;s score (at most once per 10 minutes per lead, 300 per day). Agents can always re-score by hand.</span></label>
+          <input type="hidden" name="has_voice" value="1" />
+          <label className="mt-2 flex items-start gap-2 text-sm"><input type="checkbox" name="voice_transcribe" defaultChecked={c?.voice_transcribe !== false} className="mt-1" />
+            <span><b>Voice notes to text.</b> Customer voice notes in the inbox are converted to text automatically (the AI FAQ bot and keyword bots then answer them too). Audio is sent to the speech-to-text service. {transcribeConfigured() ? "" : <span className="text-amber-700">Server key GROQ_API_KEY or OPENAI_API_KEY is not set yet.</span>}</span></label>
+          <p className="mt-1 text-xs text-slate-500">AI FAQ bot (WhatsApp auto-answers from your FAQs and price list): <a href="/whatsapp/ai-bot" className="text-brand-700 underline">WhatsApp → AI FAQ bot</a>.</p>
           <Field label="Complaint keywords (comma-separated)" hint="A match raises a complaint, suppresses marketing and stops journeys."><textarea className="input" name="complaint_keywords" rows={2} defaultValue={(c?.complaint_keywords ?? []).join(", ")} /></Field>
           <Field label="Buying-signal keywords (comma-separated)" hint="A match alerts the owner and can start a journey."><textarea className="input" name="buying_keywords" rows={2} defaultValue={(c?.buying_keywords ?? []).join(", ")} /></Field>
           <Field label="Manager digest hour (IST, 0–23)"><input className="input w-24" type="number" min={0} max={23} name="digest_hour" defaultValue={c?.digest_hour ?? 9} /></Field>

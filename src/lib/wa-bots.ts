@@ -2,10 +2,11 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { runFlows } from "./wa-flows";
+import { applyHandover, runAiFaqBot } from "./ai-faq-bot";
 import { DEFAULT_PREFS, insideHours, keywordHit, pickBot, splitKeywords, type WaBot, type WaPrefs } from "./wa";
 
 type Db = ReturnType<typeof createAdminClient>;
-type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string; replyId?: string | null };
+type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string; replyId?: string | null; voice?: boolean };
 
 const TEXT_TYPES = ["text", "button", "interactive"];
 const AGENT_QUIET_MS = 2 * 3600 * 1000;
@@ -94,6 +95,23 @@ export async function runAutoReplies(ev: Inbound) {
       }
       return;
     }
+
+    // AI FAQ bot (only when switched on): answers from the company's own FAQs / price list, or hands over to an agent.
+    const { data: co } = await db.from("lb_companies").select("name").eq("id", ev.companyId).maybeSingle();
+    const ai = await runAiFaqBot(db, ev, conv, prefs, co?.name || "the business").catch(() => null);
+    if (ai?.kind === "answer") {
+      if (await log(db, ev, "ai_reply", { detail: ai.reason })) await queueReply(db, ev, ai.reply, "ai-faq");
+      return;
+    }
+    if (ai?.kind === "handover") {
+      if (await log(db, ev, "ai_handover", { detail: ai.reason })) {
+        await queueReply(db, ev, ai.message, "ai-handover");
+        await applyHandover(db, ev, conv, ai.reason);
+      }
+      await log(db, ev, "unmatched");
+      return; // the handover message already told the customer; no away message on top
+    }
+
     await log(db, ev, "unmatched");
     await maybeAway(db, ev, prefs);
   } catch (e) {

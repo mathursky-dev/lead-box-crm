@@ -6,6 +6,7 @@ export const metadata = { title: "Sign in" };
 
 const ERRORS: Record<string, string> = {
   no_access: "Your account is inactive or has no LEAD BOX access.",
+  company_inactive: "Your company account is inactive. Contact Lead Box support to activate it.",
   link_expired: "That link is invalid or has expired. Request a new one.",
 };
 

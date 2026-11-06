@@ -46,6 +46,8 @@ export const limitLabel = (n: number | null) => (n == null ? "Unlimited" : n.toL
 export type BillingRow = {
   company_id: string; plan: "trial" | "paid" | "internal"; plan_id: string | null; trial_ends_at: string; paid_until: string | null;
   suspended_at: string | null; suspended_reason: string | null; notes: string | null; created_at: string;
+  /** Users allowed for this company; null = the plan's limit. */
+  user_limit?: number | null;
 };
 
 export type Status = "suspended" | "internal" | "paid" | "trial" | "expired";
@@ -70,5 +72,5 @@ export const STATUS_BADGE: Record<Status, [string, string]> = {
   trial: ["Trial", "bg-sky-100 text-sky-700"],
   internal: ["Free forever", "bg-violet-100 text-violet-700"],
   expired: ["Expired", "bg-amber-100 text-amber-800"],
-  suspended: ["Suspended", "bg-red-100 text-red-700"],
+  suspended: ["Inactive", "bg-red-100 text-red-700"],
 };

@@ -68,6 +68,8 @@ export async function requireProfile({ allowUnpaid = false } = {}) {
   if (!s.profile) redirect("/login?error=no_access");
   const gate = await twoFactorGate();
   if (gate) redirect(gate);
+  // Company marked Inactive by the platform owner: no CRM pages at all, not even billing.
+  if (s.billing?.suspended_at && s.profile.role !== "super_admin") redirect("/login?error=company_inactive");
   if (!s.entitled && !allowUnpaid) redirect("/billing");
   return { profile: s.profile, company: s.company!, billing: s.billing, entitled: s.entitled, features: s.features ?? [],
     /** The signed-in user's own company; differs from profile.company_id while a Super Admin has another company open. */

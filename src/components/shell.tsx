@@ -11,6 +11,7 @@ import { Mascot } from "./mascot";
 import { Icon } from "./kit";
 import { Logo, type BrandLogo } from "./logo";
 import { HelpDrawer } from "./help-drawer";
+import { AppPromo, GetAppButton } from "./app-download";
 import { fmtNum } from "@/lib/wa";
 import { clearOfflineData } from "@/lib/offline/queue";
 import { tr, type Lang } from "@/lib/i18n";
@@ -126,6 +127,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", 
           {switcher && <CompanySwitcher data={switcher} />}
           <span className="ml-auto flex items-center gap-1.5 md:gap-2">
             <LangSwitch className="max-md:hidden" />
+            <GetAppButton />
             <button onClick={() => setHelp(true)} aria-label="Help & Guides (?)" title="Help & Guides (?)"
               className="flex h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 text-sm font-semibold text-violet-700 hover:bg-violet-100 max-md:w-9 max-md:justify-center md:px-3">
               <Icon name="book" className="h-4 w-4" /><span className="max-md:hidden">{t("Help & Guides")}</span>
@@ -144,6 +146,7 @@ export function Shell({ nav, quick, user, wallet, switcher = null, lang = "en", 
         <main className={`min-h-0 flex-1 ${fullBleed ? "overflow-hidden" : "overflow-auto p-4 md:p-6"}`}>{children}</main>
         {!fullBleed && !brand && <Mascot name={user.name} />}
       </div>
+      <AppPromo hideApk={Boolean(brand)} />
       {search && <SearchPalette items={all} onClose={() => setSearch(false)} />}
       {help && <HelpDrawer allowed={[...all.map((n) => n.href), ...quick.map((q) => q.href)]} onClose={() => setHelp(false)} />}
     </div>
@@ -330,6 +333,7 @@ function Profile({ user, initial }: { user: User; initial: string }) {
           <div className="mb-3 text-xs text-slate-500">{user.role} · {user.company}</div>
           <Availability value={user.availability} />
           <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-sm text-navy-900"><span>{t("Language")} · भाषा</span><LangSwitch /></div>
+          <Link href="/download-app" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2 text-sm font-medium text-navy-900 hover:text-brand-700"><Icon name="smartphone" className="h-4 w-4" />{t("Download app")} · Android · iPhone</Link>
           <Link href="/security" onClick={() => setOpen(false)} className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2 text-sm font-medium text-navy-900 hover:text-brand-700"><Icon name="shield" className="h-4 w-4" />{t("Security")} · OTP · {t("Login history")}</Link>
           <form action={logout} onSubmit={() => { void clearOfflineData(); }} className="mt-3 border-t border-slate-100 pt-2"><button className="flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700"><Icon name="logout" className="h-4 w-4" />{t("Sign out")}</button></form>
         </div>

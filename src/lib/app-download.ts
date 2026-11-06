@@ -5,6 +5,8 @@ export const ANDROID_APK = {
   url: "/downloads/leadbox.apk",
   version: "1.1.0",
   size: "3.0 MB",
+  /** false until public/downloads/leadbox.apk is committed; until then Android users get the Chrome "Install app" steps. */
+  ready: false,
 };
 
 /** Google Play listing. Leave empty until the app is live on Play; the page then shows the Play button too. */

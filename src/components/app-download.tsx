@@ -72,7 +72,7 @@ export function AppPromo({ hideApk = false }: { hideApk?: boolean }) {
   }, [d, path]);
   const hide = (days: number) => { try { localStorage.setItem(PROMO_KEY, String(Date.now() + days * DAY)); } catch {} setShow(false); };
   if (!show) return null;
-  const apk = d.os === "android" && !hideApk;
+  const apk = d.os === "android" && !hideApk && ANDROID_APK.ready;
   return (
     <div role="dialog" aria-label={t("Get the Lead Box app")} className="fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl md:hidden" style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex items-start gap-3">
@@ -103,7 +103,8 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
 }
 
 /** Body of /download-app: Android (APK) and iPhone cards, the visitor's own phone first, plus a QR code for computers. */
-export function DownloadApp({ qr, link, appName, hideApk = false }: { qr: string | null; link: string; appName: string; hideApk?: boolean }) {
+export function DownloadApp({ qr, link, appName, hideApk: noBrandApk = false }: { qr: string | null; link: string; appName: string; hideApk?: boolean }) {
+  const hideApk = noBrandApk || !ANDROID_APK.ready;
   const t = useT();
   const d = useDevice();
   const [copied, setCopied] = useState(false);

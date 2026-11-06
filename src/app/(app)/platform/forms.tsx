@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ActionForm, Field, ModalButton, Submit } from "@/components/ui";
 import {
   createCompany, savePlan, setCompanyPlan, setTrial, recordManualPayment, setSuspended, setInternal, walletCredit, saveNotes, setTenantPassword,
+  setAccessUntil, setUserLimit,
 } from "@/lib/actions/platform";
 
 type PlanOpt = { id: string; name: string; trial_days: number; period_days: number };
@@ -151,15 +152,44 @@ export function ManualPaymentButton({ companyId, seats, suggested, days }: { com
 
 export function SuspendForm({ companyId, suspended }: { companyId: string; suspended: boolean }) {
   return suspended ? (
-    <ActionForm action={setSuspended} confirm="Activate this company again?">
+    <ActionForm action={setSuspended} confirm="Make this company Active again? Its users will be able to sign in.">
       <Hidden id={companyId} /><input type="hidden" name="suspend" value="0" />
-      <Submit className="btn-primary">Activate company</Submit>
+      <Submit className="btn-primary">Make Active</Submit>
     </ActionForm>
   ) : (
-    <ActionForm action={setSuspended} className="flex flex-wrap items-end gap-2" confirm="Suspend this company? Its users will be locked out until you activate it. No data is deleted.">
+    <ActionForm action={setSuspended} className="flex flex-wrap items-end gap-2" confirm="Make this company Inactive? Its users will not be able to sign in until you make it Active. No data is deleted.">
       <Hidden id={companyId} /><input type="hidden" name="suspend" value="1" />
       <label className="min-w-40 flex-1"><span className="label">Reason (optional)</span><input className="input" name="reason" maxLength={300} placeholder="e.g. payment overdue" /></label>
-      <Submit className="btn-ghost text-red-600">Suspend</Submit>
+      <Submit className="btn-ghost text-red-600">Make Inactive</Submit>
+    </ActionForm>
+  );
+}
+
+/** Exact "Access until" day; the kind decides whether it counts as a trial or paid access. */
+export function AccessUntilForm({ companyId, current, kind }: { companyId: string; current: string | null; kind: "paid" | "trial" }) {
+  return (
+    <ActionForm action={setAccessUntil} className="flex flex-wrap items-end gap-2" confirm="Change this company's access end date?">
+      <Hidden id={companyId} />
+      <label className="w-44"><span className="label">Access until</span><input className="input" name="date" type="date" defaultValue={current ?? ""} required /></label>
+      <label className="w-32"><span className="label">As</span>
+        <select className="input" name="kind" defaultValue={kind}><option value="paid">Paid</option><option value="trial">Trial</option></select>
+      </label>
+      <Submit className="btn-ghost">Set date</Submit>
+    </ActionForm>
+  );
+}
+
+export function UserLimitForm({ companyId, current, planLimit, active }: { companyId: string; current: number | null; planLimit: number | null; active: number }) {
+  return (
+    <ActionForm action={setUserLimit} className="flex flex-wrap items-end gap-2">
+      <Hidden id={companyId} />
+      <label className="w-44"><span className="label">Users allowed</span>
+        <input className="input" name="user_limit" type="number" min={1} max={100000} defaultValue={current ?? ""} placeholder={planLimit == null ? "Plan: unlimited" : `Plan: ${planLimit}`} />
+      </label>
+      <Submit className="btn-ghost">Save users</Submit>
+      <p className="w-full text-xs text-slate-500">
+        {active} active now. Leave empty to follow the plan. A lower number does not remove anyone; it stops new users being added or re-activated.
+      </p>
     </ActionForm>
   );
 }

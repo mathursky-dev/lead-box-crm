@@ -12,7 +12,7 @@ export const metadata = { title: "Companies" };
 type Usage = { company_id: string; users: number; numbers: number; leads_month: number; leads_total: number; last_activity: string | null };
 
 const FILTERS: [Status | "all" | "expiring", string][] = [
-  ["all", "All"], ["paid", "Paid"], ["trial", "Trial"], ["expiring", "Expiring in 7 days"], ["expired", "Expired"], ["suspended", "Suspended"], ["internal", "Free forever"],
+  ["all", "All"], ["paid", "Paid"], ["trial", "Trial"], ["expiring", "Expiring in 7 days"], ["expired", "Expired"], ["suspended", "Inactive"], ["internal", "Free forever"],
 ];
 
 export default async function PlatformPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
@@ -35,6 +35,8 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pro
 
   const bill = new Map(((billing ?? []) as BillingRow[]).map((b) => [b.company_id, b]));
   const planName = new Map(((plans ?? []) as Plan[]).map((p) => [p.id, p.name]));
+  const planUsers = new Map(((plans ?? []) as Plan[]).map((p) => [p.id, p.max_users]));
+  const usersAllowed = (b: BillingRow | undefined) => b?.user_limit ?? (b && b.plan !== "internal" && b.plan_id ? planUsers.get(b.plan_id) ?? null : null);
   const use = new Map(((usage ?? []) as Usage[]).map((u) => [u.company_id, u]));
   const admin = new Map<string, { full_name: string; email: string; phone: string | null }>();
   (admins ?? []).forEach((a) => { if (!admin.has(a.company_id)) admin.set(a.company_id, a); });
@@ -66,7 +68,7 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pro
         <Kpi label="Companies" value={rows.length} icon="building" tone="violet" href="/platform" />
         <Kpi label="Paid" value={count((r) => r.s === "paid")} icon="check" tone="green" href="/platform?status=paid" />
         <Kpi label="On trial" value={count((r) => r.s === "trial")} icon="clock" tone="blue" href="/platform?status=trial" />
-        <Kpi label="Expiring in 7 days" value={count((r) => r.expiring)} sub={`${count((r) => r.s === "expired")} expired · ${count((r) => r.s === "suspended")} suspended`} icon="alert" tone="amber" href="/platform?status=expiring" />
+        <Kpi label="Expiring in 7 days" value={count((r) => r.expiring)} sub={`${count((r) => r.s === "expired")} expired · ${count((r) => r.s === "suspended")} inactive`} icon="alert" tone="amber" href="/platform?status=expiring" />
         <Kpi label="Revenue (30 days)" value={inr(Math.round(revenue))} sub={`${(payments ?? []).length} payment${(payments ?? []).length === 1 ? "" : "s"}`} icon="rupee" tone="green" />
       </div>
 
@@ -100,7 +102,7 @@ export default async function PlatformPage({ searchParams }: { searchParams: Pro
                   <td className="td">{(r.b?.plan_id && planName.get(r.b.plan_id)) || "—"}</td>
                   <td className="td"><span className={`badge ${STATUS_BADGE[r.s][1]}`}>{STATUS_BADGE[r.s][0]}</span></td>
                   <td className={`td ${r.expiring ? "font-medium text-amber-700" : ""}`}>{r.s === "internal" ? "No expiry" : fmtDay(r.ends ?? r.b?.paid_until ?? r.b?.trial_ends_at)}</td>
-                  <td className="td">{r.u?.users ?? 0}</td>
+                  <td className="td">{(() => { const lim = usersAllowed(r.b); const n = r.u?.users ?? 0; return <span className={lim != null && n > lim ? "font-medium text-red-600" : ""}>{n}{lim != null && <span className="text-slate-400"> / {lim}</span>}</span>; })()}</td>
                   <td className="td">{r.u?.numbers ?? 0}</td>
                   <td className="td">{(r.u?.leads_month ?? 0).toLocaleString("en-IN")}</td>
                   <td className="td">{inr(Math.round(wallet.get(r.id) ?? 0))}</td>

@@ -141,14 +141,52 @@ export async function setSuspended(_: FormState, form: FormData): Promise<FormSt
     if (!p.success) return { error: "Invalid request." };
     const { company_id, reason } = p.data;
     const suspend = p.data.suspend === "1";
-    if (company_id === me.company_id && suspend) return { error: "You cannot suspend your own company." };
+    if (company_id === me.company_id && suspend) return { error: "You cannot make your own company inactive." };
     const { error } = await db.from("lb_billing").update({
       suspended_at: suspend ? new Date().toISOString() : null, suspended_reason: suspend ? reason || null : null, updated_at: new Date().toISOString(),
     }).eq("company_id", company_id);
     if (error) return { error: error.message };
     await db.from("lb_companies").update({ is_active: !suspend }).eq("id", company_id);
     await audit(db, me.id, company_id, suspend ? "platform.suspend" : "platform.activate", { reason });
-    return done(suspend ? "Company suspended. Its users can no longer use the CRM; data is kept." : "Company activated.", company_id);
+    return done(suspend ? "Company marked Inactive. Its users cannot sign in; all data is kept." : "Company is Active again. Its users can sign in.", company_id);
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
+}
+
+/** Sets the exact day access ends (end of that day, India time). A past day ends access now. */
+export async function setAccessUntil(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    const { me, db } = await requireSuper();
+    const p = companyId.extend({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date."),
+      kind: z.enum(["paid", "trial"]),
+    }).safeParse(Object.fromEntries(form));
+    if (!p.success) return { error: p.error.issues[0]?.message ?? "Pick a date." };
+    const { company_id, date, kind } = p.data;
+    const until = new Date(`${date}T23:59:59+05:30`);
+    if (Number.isNaN(until.getTime()) || until.getFullYear() > 2100) return { error: "Pick a valid date." };
+    if (company_id === me.company_id && until.getTime() < Date.now()) return { error: "You cannot end access for your own company." };
+    const { error } = await db.rpc("lb_platform_set_access", { p_actor: me.id, p_company: company_id, p_until: until.toISOString(), p_kind: kind });
+    if (error) return { error: /lb_platform_set_access/.test(error.message) ? "Run the new SQL in Supabase first (company access controls)." : error.message };
+    const day = until.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+    return done(until.getTime() < Date.now() ? "Access ended. Users now see the billing page; data is kept." : `Access now runs until ${day} (${kind === "paid" ? "paid" : "trial"}).`, company_id);
+  } catch (e) {
+    return { error: errMsg(e) };
+  }
+}
+
+/** Users allowed for this company. Empty = use the plan's limit. */
+export async function setUserLimit(_: FormState, form: FormData): Promise<FormState> {
+  try {
+    const { me, db } = await requireSuper();
+    const p = companyId.extend({ user_limit: optInt(1) }).safeParse(Object.fromEntries(form));
+    if (!p.success) return { error: "Enter a number of users, or leave it empty." };
+    const { company_id, user_limit } = p.data;
+    const { error } = await db.from("lb_billing").update({ user_limit, updated_at: new Date().toISOString() }).eq("company_id", company_id);
+    if (error) return { error: /user_limit/.test(error.message) ? "Run the new SQL in Supabase first (company access controls)." : error.message };
+    await audit(db, me.id, company_id, "platform.user_limit", { user_limit });
+    return done(user_limit ? `This company can now have ${user_limit} active user${user_limit > 1 ? "s" : ""}.` : "User limit now follows the plan.", company_id);
   } catch (e) {
     return { error: errMsg(e) };
   }

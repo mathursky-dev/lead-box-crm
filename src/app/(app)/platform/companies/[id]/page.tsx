@@ -7,7 +7,7 @@ import { Kpi, Panel } from "@/components/kit";
 import { fmtDateTime, fmtDay } from "@/lib/dates";
 import { companyStatus, accessEnds, inr, priceFor, priceLabel, limitLabel, FEATURES, STATUS_BADGE, type BillingRow, type Plan } from "@/lib/plans";
 import { CompanyBrandForm } from "@/components/brand-forms";
-import { ChangePlanForm, TrialForm, ManualPaymentButton, SuspendForm, InternalForm, WalletForm, NotesForm, PasswordButton } from "../../forms";
+import { ChangePlanForm, TrialForm, ManualPaymentButton, SuspendForm, InternalForm, WalletForm, NotesForm, PasswordButton, AccessUntilForm, UserLimitForm } from "../../forms";
 
 export const metadata = { title: "Company" };
 
@@ -40,6 +40,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const seats = u?.users ?? 1;
   const over = (n: number | undefined, max: number | null | undefined) => max != null && (n ?? 0) > max;
   const own = id === me.company_id;
+  const userLimit = billing?.user_limit ?? (billing?.plan === "internal" ? null : plan?.max_users ?? null);
+  const endIso = ends ?? billing?.paid_until ?? billing?.trial_ends_at ?? null;
+  const endDay = endIso && s !== "internal" ? new Date(endIso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : null;
 
   return (
     <>
@@ -48,13 +51,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         actions={<span className={`badge ${STATUS_BADGE[s][1]}`}>{STATUS_BADGE[s][0]}</span>} />
       {billing?.suspended_at && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">
-          Suspended {fmtDateTime(billing.suspended_at)}{billing.suspended_reason ? `: ${billing.suspended_reason}` : ""}. Users cannot use the CRM; all data is kept.
+          Inactive since {fmtDateTime(billing.suspended_at)}{billing.suspended_reason ? `: ${billing.suspended_reason}` : ""}. Its users cannot sign in; all data is kept.
         </div>
       )}
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Access until" value={s === "internal" ? "No expiry" : fmtDay(ends ?? billing?.paid_until ?? billing?.trial_ends_at)} sub={s === "trial" ? "Free trial" : s === "expired" ? "Expired" : undefined} icon="calendar" tone={s === "expired" ? "amber" : "blue"} />
-        <Kpi label="Active users" value={<span className={over(u?.users, plan?.max_users) ? "text-red-600" : ""}>{u?.users ?? 0}</span>} sub={`Limit ${limitLabel(plan?.max_users ?? null)}`} icon="contacts" tone="violet" />
+        <Kpi label="Active users" value={<span className={over(u?.users, userLimit) ? "text-red-600" : ""}>{u?.users ?? 0}</span>} sub={`Limit ${limitLabel(userLimit)}${billing?.user_limit ? " (set for this company)" : ""}`} icon="contacts" tone="violet" />
         <Kpi label="WhatsApp numbers" value={<span className={over(u?.numbers, plan?.max_numbers) ? "text-red-600" : ""}>{u?.numbers ?? 0}</span>} sub={`Limit ${limitLabel(plan?.max_numbers ?? null)}`} icon="phone" tone="green" />
         <Kpi label="Leads this month" value={<span className={over(u?.leads_month, plan?.max_leads_month) ? "text-red-600" : ""}>{(u?.leads_month ?? 0).toLocaleString("en-IN")}</span>} sub={`Limit ${limitLabel(plan?.max_leads_month ?? null)} · ${(u?.leads_total ?? 0).toLocaleString("en-IN")} total`} icon="target" tone="amber" />
       </div>
@@ -63,6 +66,16 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         <Panel title="Plan & access" icon="rupee" tone="green"
           sub={plan ? `${plan.name}: ${priceLabel(plan)} · this company ≈ ${inr(priceFor(plan, seats))} per ${plan.period_days} days` : "No plan assigned"}>
           <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <div className="text-sm">
+                <span className="font-medium text-navy-900">Company status: </span>
+                {billing?.suspended_at ? <span className="badge bg-red-100 text-red-700">Inactive</span> : <span className="badge bg-emerald-50 text-emerald-700">Active</span>}
+              </div>
+              {own ? <span className="text-xs text-slate-500">Your own company stays active</span> : <SuspendForm companyId={id} suspended={Boolean(billing?.suspended_at)} />}
+            </div>
+            <AccessUntilForm companyId={id} current={endDay} kind={s === "trial" ? "trial" : "paid"} />
+            {billing && <UserLimitForm companyId={id} current={billing.user_limit ?? null} planLimit={billing.plan === "internal" ? null : plan?.max_users ?? null} active={u?.users ?? 0} />}
+            <div className="border-t border-slate-100 pt-3" />
             <ChangePlanForm companyId={id} plans={allPlans.filter((p) => p.is_active || p.id === plan?.id).map((p) => ({ id: p.id, name: p.name, trial_days: p.trial_days, period_days: p.period_days }))} current={plan?.id ?? null} />
             {plan && <p className="text-xs text-slate-500">Features: {plan.features.map((f) => FEATURES[f] ?? f).join(", ") || "none"}</p>}
             <TrialForm companyId={id} />
@@ -71,7 +84,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
               <InternalForm companyId={id} internal={billing?.plan === "internal"} />
             </div>
             <div className="border-t border-slate-100 pt-3"><CompanyBrandForm companyId={id} brands={(brands ?? []) as { id: string; name: string }[]} current={(company as { brand_id?: string | null }).brand_id ?? null} /></div>
-            {!own && <div className="border-t border-slate-100 pt-3"><SuspendForm companyId={id} suspended={Boolean(billing?.suspended_at)} /></div>}
           </div>
         </Panel>
 

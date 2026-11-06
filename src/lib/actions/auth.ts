@@ -9,6 +9,8 @@ import { normalizePhone } from "@/lib/util";
 import { DEMO_EMAIL_DOMAIN } from "@/lib/demo";
 import { logLogin } from "@/lib/login-log";
 
+const COMPANY_INACTIVE = "Your company account is inactive. Contact Lead Box support to activate it.";
+
 export type FormState = { error?: string; ok?: string } | undefined;
 
 async function clientIp() {
@@ -50,11 +52,20 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
     await logLogin({ userId: uid, login: ident, success: false, reason: "wrong password" });
     return { error: "Invalid User ID/email or password." };
   }
-  const { data: profile } = await supabase.from("lb_profiles").select("is_active").eq("id", data.user.id).maybeSingle();
+  const { data: profile } = await supabase.from("lb_profiles").select("is_active,company_id,role").eq("id", data.user.id).maybeSingle();
   if (!profile?.is_active) {
     await logLogin({ userId: profile ? data.user.id : null, login: ident, success: false, reason: profile ? "deactivated" : "no access" });
     await supabase.auth.signOut();
     return { error: profile ? "Your account is deactivated. Contact your administrator." : "This account has no LEAD BOX access." };
+  }
+  // A company the platform owner marked Inactive cannot sign in (the Super Admin always can).
+  if (profile.role !== "super_admin") {
+    const { data: bill } = await supabase.from("lb_billing").select("suspended_at").eq("company_id", profile.company_id).maybeSingle();
+    if (bill?.suspended_at) {
+      await logLogin({ userId: data.user.id, login: ident, success: false, reason: "company inactive" });
+      await supabase.auth.signOut();
+      return { error: COMPANY_INACTIVE };
+    }
   }
   const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
   // Two-factor: the password was right, now the authenticator code is needed (session stays aal1 until then).

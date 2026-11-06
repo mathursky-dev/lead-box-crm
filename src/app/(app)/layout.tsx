@@ -111,6 +111,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ...it(admin, "/gst", "GST reports", "gstr-1 gstr1 e-invoice irn hsn tax return accountant"),
     ] },
     { section: "Help", label: "Features & Guide", icon: "book", href: "/guide" },
+    { section: "Help", label: "Download app", icon: "smartphone", href: "/download-app" },
     ...(admin ? [{ section: "Admin", label: "Settings", icon: "gear", items: [
       { href: "/settings", label: "All settings", keywords: "admin manage configuration setup" },
       { href: "/admin/quick-setup", label: "Quick Setup" }, { href: "/admin/users", label: "Users", keywords: "team agent staff" },

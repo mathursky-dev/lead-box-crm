@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { pageForPath, allowed, type PageAccess } from "@/lib/page-access";
 
-const PUBLIC = ["/login", "/forgot-password", "/auth/confirm", "/api/whatsapp/webhook", "/api/whatsapp/gateway", "/api/facebook/webhook", "/api/jobs/run", "/api/jobs/email", "/signup", "/f", "/s", "/api/billing/razorpay/webhook", "/api/billing/razorpay/callback", "/sw.js", "/q", "/api/pay/razorpay", "/paid", "/o", "/p", "/b", "/r", "/ref", "/api/hooks", "/api/widget", "/api/v1", "/api/ivr", "/developers"];
+const PUBLIC = ["/login", "/forgot-password", "/auth/confirm", "/api/whatsapp/webhook", "/api/whatsapp/gateway", "/api/facebook/webhook", "/api/jobs/run", "/api/jobs/email", "/signup", "/f", "/s", "/api/billing/razorpay/webhook", "/api/billing/razorpay/callback", "/sw.js", "/q", "/api/pay/razorpay", "/paid", "/o", "/p", "/b", "/r", "/ref", "/api/hooks", "/api/widget", "/api/v1", "/api/ivr", "/developers", "/privacy", "/delete-account", "/manifest.webmanifest", "/.well-known", "/downloads"];
 
 // Refreshes the Supabase session cookie and redirects anonymous users.
 // Authorization itself is enforced by RLS and server checks, not here.

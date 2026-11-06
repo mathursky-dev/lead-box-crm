@@ -6,10 +6,14 @@ import { brandCss, getHostBrand } from "@/lib/brand";
 export async function generateMetadata(): Promise<Metadata> {
   const b = await getHostBrand();
   const name = b?.name ?? "LEAD BOX";
+  const appName = b?.name ?? "Lead Box";
   return {
     title: { default: name, template: `%s · ${name}` },
     description: b?.tagline ?? "WhatsApp CRM",
-    ...(b?.icon_url ? { icons: { icon: b.icon_url } } : {}),
+    applicationName: appName,
+    icons: b?.icon_url ? { icon: b.icon_url, apple: b.icon_url } : { icon: "/icons/icon-192.png", apple: "/icons/apple-icon.png" },
+    // iPhone "Add to Home Screen" opens full screen like an app.
+    appleWebApp: { capable: true, title: appName, statusBarStyle: "black-translucent" },
   };
 }
 

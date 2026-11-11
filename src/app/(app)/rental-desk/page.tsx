@@ -38,7 +38,7 @@ const TABS: { key: string; label: string; stages: string[] }[] = [
 
 type Enq = {
   id: string; stage: string; role: string | null; answers: Answers; zone: number | null; budget: number | null; conversation_id: string; lead_id: string | null;
-  screenshot_message_id: string | null; screenshot_at: string | null; paid_at: string | null; followups: number; next_followup_at: string | null;
+  plan: string | null; screenshot_message_id: string | null; screenshot_at: string | null; paid_at: string | null; followups: number; next_followup_at: string | null;
   found_broker: string | null; found_rent: string | null; happy: string | null; updated_at: string; created_at: string;
   customer: { name: string | null; wa_profile_name: string | null; phone_e164: string } | null; assigned: { full_name: string } | null;
 };
@@ -50,7 +50,7 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
   const [{ data: desk, error: dErr }, { data: users }, { data: rows, error }] = await Promise.all([
     sb.from("lb_rental_desk").select("*").eq("company_id", profile.company_id).maybeSingle(),
     sb.from("lb_profiles").select("id,full_name,role").eq("company_id", profile.company_id).eq("is_active", true).neq("role", "super_admin").order("full_name"),
-    sb.from("lb_rental_enquiries").select("id,stage,role,answers,zone,budget,conversation_id,lead_id,screenshot_message_id,screenshot_at,paid_at,followups,next_followup_at,found_broker,found_rent,happy,updated_at,created_at,customer:lb_customers(name,wa_profile_name,phone_e164),assigned:lb_profiles!lb_rental_enquiries_assigned_to_fkey(full_name)")
+    sb.from("lb_rental_enquiries").select("id,stage,role,plan,answers,zone,budget,conversation_id,lead_id,screenshot_message_id,screenshot_at,paid_at,followups,next_followup_at,found_broker,found_rent,happy,updated_at,created_at,customer:lb_customers(name,wa_profile_name,phone_e164),assigned:lb_profiles!lb_rental_enquiries_assigned_to_fkey(full_name)")
       .eq("company_id", profile.company_id).order("updated_at", { ascending: false }).limit(500),
   ]);
   if (dErr || error) return <ErrorBox message={(dErr ?? error)!.message} />;
@@ -130,6 +130,7 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                 </td>
                 <td className="td text-xs">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>
+                  {e.plan === "urgent" && <span className="ml-1 rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">⚡ Urgent {inr(desk?.urgent_fee ?? 500)}</span>}
                   {e.paid_at && <div className="mt-1 text-slate-500">Paid {fmtDateTime(e.paid_at)}</div>}
                   {e.followups > 0 && <div className="text-slate-500">{e.followups} follow-up{e.followups === 1 ? "" : "s"}</div>}
                   {e.next_followup_at && <div className="text-slate-400">Next {fmtDateTime(e.next_followup_at)}</div>}
@@ -139,7 +140,7 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                     <a className="btn-secondary btn-sm inline-block" href={`/api/media/${e.screenshot_message_id}`} target="_blank" rel="noreferrer">View screenshot</a>
                   )}
                   {["payment_review", "awaiting_payment", "fee_offer", "not_registered"].includes(e.stage) && e.role === "tenant" && (
-                    <ActionForm action={confirmRentalPayment} className="flex items-center gap-1" confirm={`Confirm ${inr(desk?.fee ?? 200)} payment and give this lead to ${zoneLabel(e.zone)}?`}>
+                    <ActionForm action={confirmRentalPayment} className="flex items-center gap-1" confirm={`Confirm ${inr(e.plan === "urgent" ? desk?.urgent_fee ?? 500 : desk?.fee ?? 200)} payment and give this lead to ${zoneLabel(e.zone)}?`}>
                       <input type="hidden" name="id" value={e.id} />
                       <input type="hidden" name="zone" value={e.zone ?? ""} />
                       <Submit className="btn-primary btn-sm" pendingText="Confirming…">Payment confirm</Submit>
@@ -192,8 +193,14 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
 
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Registration fee (₹)"><input className="input" name="fee" type="number" min={1} defaultValue={desk?.fee ?? 200} /></Field>
+            <Field label="Urgent fee, 3 days (₹)" hint="Adjusted in the final brokerage."><input className="input" name="urgent_fee" type="number" min={1} defaultValue={desk?.urgent_fee ?? 500} /></Field>
+            <Field label="Single person: min budget (₹)" hint="Below this, a single person is not accepted (sharing / PG)."><input className="input" name="single_min_budget" type="number" min={0} defaultValue={desk?.single_min_budget ?? 15000} /></Field>
             <Field label="UPI ID"><input className="input" name="upi_id" defaultValue={desk?.upi_id ?? ""} placeholder="name@ybl" /></Field>
             <Field label="UPI name"><input className="input" name="upi_name" defaultValue={desk?.upi_name ?? ""} /></Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="WhatsApp channel link"><input className="input" name="channel_url" defaultValue={desk?.channel_url ?? ""} placeholder="https://whatsapp.com/channel/…" /></Field>
+            <Field label="Instagram link"><input className="input" name="instagram_url" defaultValue={desk?.instagram_url ?? ""} placeholder="https://www.instagram.com/…" /></Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="UPI QR photo" hint="Sent to the customer on WhatsApp. Upload a new one to replace it.">

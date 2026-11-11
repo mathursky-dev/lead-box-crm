@@ -14,6 +14,11 @@ export type Stage =
 export type Zone = { no: number; name: string; areas: string[]; user_id: string | null };
 export type DeskConfig = {
   enabled: boolean; fee: number; upi_id: string; upi_name: string; qr_url: string;
+  /** ₹500 urgent plan: flat within 3 days, adjusted in the final brokerage. */
+  urgent_fee: number;
+  /** A single person is accepted (sharing flat / PG) only at or above this budget. */
+  single_min_budget: number;
+  channel_url: string; instagram_url: string;
   min_followup_budget: number; followup_hours: number; max_followups: number; max_followups_unreg: number;
   zones: Zone[];
 };
@@ -214,21 +219,28 @@ export const MSG = {
   missingFirst: (n: number, f: Field) => `Dhanyavaad 🙏 Form me *${n} detail${n === 1 ? "" : "s"}* baaki hai. Poori details ke bina enquiry submit nahi hogi.\n\n👉 ${f.ask}`,
   missingNext: (n: number, f: Field) => `👍 Noted. ${n} aur baaki.\n\n👉 ${f.ask}`,
   invalidAnswer: (f: Field) => f.number ? `Kripya budget number me bataiye (jaise 25000) 🙏\n\n👉 ${f.ask}` : `👉 ${f.ask}`,
-  feeOffer: (summary: string, zone: string, fee: number) =>
+  feeOffer: (summary: string, zone: string, fee: number, urgent: number) =>
     `✅ Aapki requirement mil gayi!\n\n${summary}${zone ? `\n📍 ${zone}` : ""}\n\n` +
-    "Roz humare paas kai rental enquiries aati hain aur hum *limited registered enquiries* par hi kaam karte hain.\n\n" +
-    `⚡ Agar aap chahte hain ki *dedicated team* bina time waste kiye urgent basis par aapko options bheje, to ${inr(fee)} pay karke enquiry submit kariye.\n` +
-    "• Bina time waste kiye *100 ghante ke andar* hum final flat options bhejte hain\n• Daily hum 1 client ko rental flat dilwate hain\n" +
-    `• ${inr(fee)} *non-refundable* hai\n\nKya aap ${inr(fee)} pay karke register karna chahenge?`,
-  feeYes: "Haan, register karo",
+    "Hum daily limited aur genuine enquiries par hi kaam karte hain. Humari *dedicated team* aapki requirement ke hisaab se best options dhoondh kar deti hai.\n\n" +
+    `📋 *${inr(fee)} Registration*\n• *100 ghante ke andar* final flat options\n• ${inr(fee)} non-refundable\n\n` +
+    `⚡ *${inr(urgent)} Urgent (3 din me flat)*\n• Team sirf aapke liye options filter karegi\n• ${inr(urgent)} aapke final brokerage me *100% adjust* (koi extra kharcha nahi)`,
+  feeYes: "₹200 Register",
+  feeUrgent: "₹500 Urgent (3 din)",
   feeNo: "Abhi nahi",
+  singleOk: "👤 Single person ke liye hum *sharing flat / PG* options bhi dete hain.",
+  singleDecline: (min: number) => `Dhanyavaad 🙏 Single person ke liye hum ${inr(min)}+ budget me hi sharing flat / PG options par kaam karte hain.`,
   payQrCaption: (fee: number, upi: string) => `${inr(fee)} is QR par pay kariye${upi ? `\nUPI ID: ${upi}` : ""}`,
   payText: (fee: number, upi: string) => `💳 ${inr(fee)} registration fee${upi ? `\nUPI ID: *${upi}*` : ""}\n\nPayment ke baad *screenshot yahin bhejiye* 📸 Payment confirm hote hi aapki enquiry aapke zone ki dedicated team ko submit ho jayegi.`,
   sendScreenshot: "Payment ka *screenshot* (photo) yahin bhejiye 📸 Koi sawaal ho to likhiye, team jawab degi.",
   screenshotThanks: "Screenshot mil gaya ✅ Hum payment check karke jaldi confirm karte hain. Confirm hote hi aapki enquiry zone team ko submit ho jayegi.",
-  notNow: "Koi baat nahi 🙏 Jab tak aapko best option nahi milta, humare touch me rahiye. We will help you as soon as possible.\n\nKabhi bhi register karna ho to *REGISTER* likh kar bhejiye.",
-  registered: (zone: string) =>
-    `🎉 Payment confirm ho gaya! Aapki enquiry register ho gayi hai.\n\nAapke zone${zone ? ` (${zone})` : ""} ki dedicated team jaldi aapse contact karegi aur *100 ghante ke andar* final options bhejegi.\n\n` +
+  notNow: "Koi baat nahi 🙏 Jab tak aapko best option nahi milta, humare touch me rahiye. We will help you as soon as possible.\n\nKabhi bhi register karna ho to *REGISTER* (ya urgent ke liye *URGENT*) likh kar bhejiye.",
+  links: (channel: string, insta: string) => [
+    channel && `📢 Regular rental property updates aur sharing flat options ke liye humara WhatsApp channel follow kariye:\n${channel}`,
+    insta && `📸 Premium rental property updates ke liye Instagram:\n${insta}`,
+  ].filter(Boolean).join("\n\n"),
+  registered: (zone: string, urgent = false, urgentFee = 500) =>
+    `🎉 Payment confirm ho gaya! Aapki enquiry register ho gayi hai.\n\nAapke zone${zone ? ` (${zone})` : ""} ki dedicated team jaldi aapse contact karegi aur ` +
+    (urgent ? `*urgent basis par* options bhejegi, taaki *3 din me* flat final ho sake. ${inr(urgentFee)} aapke final brokerage me adjust ho jayega.\n\n` : "*100 ghante ke andar* final options bhejegi.\n\n") +
     "⚠️ *Safety ke liye:* bina 100% surety ke koi bada token amount ya brokerage pay na karein, taaki baad me cancel hone par refund ki problem na ho.\n\nLog humare fast & hassle-free kaam ki wajah se humse judte hain 🙏",
   paymentRejected: (reason: string) => `⚠️ Aapka payment abhi confirm nahi ho paya${reason ? `: ${reason}` : ""}.\n\nKripya sahi payment ka screenshot dobara bhejiye 📸`,
   followup: "Namaste 🙏 LivoraRent se follow-up: kya aapko flat mil gaya?",
@@ -260,6 +272,7 @@ export const formNote = (a: Answers, role: Role | null = "tenant") => `${formTit
 export type State = {
   stage: Stage; role: Role | null; answers: Answers; asking: string | null; zone: number | null; budget: number | null;
   base_stage: "registered" | "not_registered" | null; found_broker: string | null; found_rent: string | null; happy: string | null;
+  plan: "standard" | "urgent" | null;
 };
 
 export type Out =
@@ -280,7 +293,7 @@ export type In = { text: string; replyId?: string | null; media: boolean };
 export type Result = { state: State; out: Out[]; acts: Act[]; handled: boolean };
 
 export const freshState = (): State => ({
-  stage: "role", role: null, answers: {}, asking: null, zone: null, budget: null, base_stage: null, found_broker: null, found_rent: null, happy: null,
+  stage: "role", role: null, answers: {}, asking: null, zone: null, budget: null, base_stage: null, found_broker: null, found_rent: null, happy: null, plan: null,
 });
 
 const lc = (s: string) => s.trim().toLowerCase();
@@ -309,23 +322,57 @@ function pickRole(inp: In): Role | null {
 }
 
 const roleMenu = (): Out => ({ kind: "list", body: MSG.welcome, button: "Choose kariye", rows: MSG.roleRows });
-const feeButtons = (body: string): Out => ({ kind: "buttons", body, buttons: [{ id: "rd:fee_yes", title: MSG.feeYes }, { id: "rd:fee_no", title: MSG.feeNo }] });
+const feeButtons = (body: string, cfg: DeskConfig): Out => ({ kind: "buttons", body, buttons: [
+  { id: "rd:fee_yes", title: `${inr(cfg.fee)} Register` }, { id: "rd:fee_urgent", title: `${inr(cfg.urgent_fee)} Urgent (3 din)` }, { id: "rd:fee_no", title: MSG.feeNo }] });
+export const planFee = (plan: State["plan"], cfg: Pick<DeskConfig, "fee" | "urgent_fee">) => (plan === "urgent" ? cfg.urgent_fee : cfg.fee);
+
+/** "1", "single", "akela", "1 person" → one person living alone. */
+export function isSingle(a: Answers) {
+  const occ = clean(a.occupants ?? "").toLowerCase();
+  return /^(1|one|ek)\b|single|akela|alone|^1\s*(person|member|log|people)/.test(occ) || /\bsingle\b/.test((a.tenant_type ?? "").toLowerCase());
+}
+
+/** Plan picked on the offer: urgent / standard / no / null (unclear). */
+function pickPlan(inp: In): "urgent" | "standard" | "no" | null {
+  if (inp.replyId?.endsWith("fee_urgent")) return "urgent";
+  if (inp.replyId?.endsWith("fee_yes")) return "standard";
+  if (inp.replyId?.endsWith("fee_no")) return "no";
+  const t = lc(inp.text);
+  if (/urgent|500|3 din|teen din/.test(t)) return "urgent";
+  if (NO_RE.test(t)) return "no";
+  if (/register|200|pay|haan|yes|ok/.test(t)) return "standard";
+  return null;
+}
 export const followupOut = (): Out => ({ kind: "buttons", body: MSG.followup, buttons: [{ id: "rd:fu_yes", title: MSG.fuYes }, { id: "rd:fu_no", title: MSG.fuNo }] });
 
-function payOut(cfg: DeskConfig): Out[] {
+function payOut(cfg: DeskConfig, plan: State["plan"]): Out[] {
+  const fee = planFee(plan, cfg);
   const out: Out[] = [];
-  if (/^https:\/\//.test(cfg.qr_url)) out.push({ kind: "image", url: cfg.qr_url, caption: MSG.payQrCaption(cfg.fee, cfg.upi_id) });
-  out.push({ kind: "text", body: MSG.payText(cfg.fee, cfg.upi_id) });
+  if (/^https:\/\//.test(cfg.qr_url)) out.push({ kind: "image", url: cfg.qr_url, caption: MSG.payQrCaption(fee, cfg.upi_id) });
+  out.push({ kind: "text", body: MSG.payText(fee, cfg.upi_id) });
   return out;
 }
+const withLinks = (body: string, cfg: DeskConfig) => [body, MSG.links(cfg.channel_url, cfg.instagram_url)].filter(Boolean).join("\n\n");
 
 function afterForm(s: State, cfg: DeskConfig): Result {
   const z = zoneFor(s.answers.area ?? "", cfg.zones);
   const st: State = { ...s, stage: "fee_offer", asking: null, zone: z?.no ?? null, budget: parseBudget(s.answers.budget ?? "") };
+  const note: Act = { kind: "note", body: formNote(st.answers) + (z ? `\nZone: ${z.no} ${z.name}` : "\nZone: not matched (pick on Rental desk)") };
+  const single = isSingle(st.answers);
+  // Single person: only with a budget for a sharing flat / PG.
+  if (single && (st.budget ?? 0) < cfg.single_min_budget) {
+    return {
+      state: { ...st, stage: "not_registered", base_stage: "not_registered" }, handled: true,
+      out: [{ kind: "text", body: withLinks(MSG.singleDecline(cfg.single_min_budget), cfg) }],
+      acts: [note, { kind: "tag", tag: "Single - low budget" }],
+    };
+  }
+  const summary = summaryOf(st.answers) + (single ? `\n${MSG.singleOk}` : "");
   return {
     state: st, handled: true,
-    out: [feeButtons(MSG.feeOffer(summaryOf(st.answers), z ? `Zone ${z.no}: ${z.name}` : "", cfg.fee))],
-    acts: [{ kind: "note", body: formNote(st.answers) + (z ? `\nZone: ${z.no} ${z.name}` : "\nZone: not matched (pick on Rental desk)") }, { kind: "tag", tag: "Form filled" }],
+    // Long text first, then the buttons (an interactive body is limited to 1024 characters).
+    out: [{ kind: "text", body: MSG.feeOffer(summary, z ? `Zone ${z.no}: ${z.name}` : "", cfg.fee, cfg.urgent_fee) }, feeButtons("Kaunsa option chahiye? 👇", cfg)],
+    acts: [note, { kind: "tag", tag: "Form filled" }, ...(single ? [{ kind: "tag", tag: "Single - sharing/PG" } as Act] : [])],
   };
 }
 
@@ -392,26 +439,30 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
       if (inp.media && !inp.text.trim()) return { state: s, out: [{ kind: "text", body: s.asking ? MSG.invalidAnswer(fieldsFor(s.role).find((f) => f.key === s.asking)!) : "Kripya form text me bhar kar bhejiye 🙏" }], acts: [], handled: true };
       return takeForm(s, inp, cfg);
     case "fee_offer": {
-      const yn = yesNo(inp, "fee_yes", "fee_no") ?? (/register|pay/.test(t) ? true : null);
-      if (yn === true) return { state: { ...s, stage: "awaiting_payment" }, out: payOut(cfg), acts: [{ kind: "status", status: "Registration Pending (Rs 200)" }], handled: true };
-      if (yn === false) return { state: { ...s, stage: "not_registered", base_stage: "not_registered" }, out: [{ kind: "text", body: MSG.notNow }], acts: [{ kind: "tag", tag: "Not registered" }], handled: true };
-      return { state: s, out: [feeButtons(`Kya aap ${inr(cfg.fee)} pay karke register karna chahenge?`)], acts: [], handled: true };
+      const p = pickPlan(inp);
+      if (p === "standard" || p === "urgent") {
+        return { state: { ...s, stage: "awaiting_payment", plan: p }, out: payOut(cfg, p), handled: true,
+          acts: [{ kind: "status", status: "Registration Pending (Rs 200)" }, ...(p === "urgent" ? [{ kind: "tag", tag: "Urgent 3 days" } as Act] : [])] };
+      }
+      if (p === "no") return { state: { ...s, stage: "not_registered", base_stage: "not_registered" }, out: [{ kind: "text", body: withLinks(MSG.notNow, cfg) }], acts: [{ kind: "tag", tag: "Not registered" }], handled: true };
+      return { state: s, out: [feeButtons("Kaunsa option chahiye? 👇", cfg)], acts: [], handled: true };
     }
     case "awaiting_payment":
       if (inp.media) {
         return {
           state: { ...s, stage: "payment_review" }, out: [{ kind: "text", body: MSG.screenshotThanks }], handled: true,
-          acts: [{ kind: "screenshot" }, { kind: "tag", tag: "Payment check" }, { kind: "notify_admins", title: `💰 ${inr(cfg.fee)} screenshot received`, body: "Check the payment and confirm it on the Rental desk page." }],
+          acts: [{ kind: "screenshot" }, { kind: "tag", tag: "Payment check" }, { kind: "notify_admins", title: `💰 ${inr(planFee(s.plan, cfg))}${s.plan === "urgent" ? " (urgent)" : ""} screenshot received`, body: "Check the payment and confirm it on the Rental desk page." }],
         };
       }
-      if (/qr|upi|pay|register/.test(t)) return { state: s, out: payOut(cfg), acts: [], handled: true };
+      if (/qr|upi|pay|register/.test(t)) return { state: s, out: payOut(cfg, s.plan), acts: [], handled: true };
       return { state: s, out: [{ kind: "text", body: MSG.sendScreenshot }], acts: [], handled: true };
     case "payment_review":
       if (inp.media) return { state: s, out: [], acts: [{ kind: "screenshot" }], handled: true };
       return none();
     case "not_registered":
-      if (/^register\b|register karo|register karna/.test(t) || inp.replyId?.endsWith("fee_yes")) {
-        return { state: { ...s, stage: "awaiting_payment" }, out: payOut(cfg), acts: [{ kind: "status", status: "Registration Pending (Rs 200)" }], handled: true };
+      if (/^(register|urgent)\b|register karo|register karna/.test(t) || inp.replyId?.endsWith("fee_yes") || inp.replyId?.endsWith("fee_urgent")) {
+        const plan = /^urgent/.test(t) || inp.replyId?.endsWith("fee_urgent") ? "urgent" : "standard";
+        return { state: { ...s, stage: "awaiting_payment", plan }, out: payOut(cfg, plan), acts: [{ kind: "status", status: "Registration Pending (Rs 200)" }], handled: true };
       }
       return { ...none(), handled: false };
     case "registered":
@@ -421,7 +472,7 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
       const yn = yesNo(inp, "fu_yes", "fu_no");
       if (yn === true) return { state: { ...s, stage: "fu_broker" }, out: [{ kind: "text", body: MSG.askBroker }], acts: [], handled: true };
       if (yn === false) {
-        return { state: { ...s, stage: base }, out: [{ kind: "text", body: base === "registered" ? MSG.keepTouch : MSG.keepTouchUnreg(cfg.fee) }], acts: [], handled: true };
+        return { state: { ...s, stage: base }, out: [{ kind: "text", body: base === "registered" ? MSG.keepTouch : withLinks(MSG.keepTouchUnreg(cfg.fee), cfg) }], acts: [], handled: true };
       }
       return { state: { ...s, stage: base }, out: [], acts: [], handled: false };
     }

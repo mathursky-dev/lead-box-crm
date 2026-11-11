@@ -15,6 +15,10 @@ import type { FormState } from "@/components/ui";
 const tpl = z.string().trim().max(120).regex(/^[a-z0-9_]*$/, "Template name: lowercase letters, digits and _ only").default("");
 const Settings = z.object({
   fee: z.coerce.number().int().min(1).max(100000),
+  urgent_fee: z.coerce.number().int().min(1).max(100000),
+  single_min_budget: z.coerce.number().int().min(0).max(10000000),
+  channel_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
+  instagram_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
   upi_id: z.string().trim().max(120).default(""),
   upi_name: z.string().trim().max(120).default(""),
   qr_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
@@ -56,7 +60,8 @@ export async function saveRentalDesk(_: FormState, fd: FormData): Promise<FormSt
   }
 
   const { error } = await sb.from("lb_rental_desk").upsert({
-    company_id: profile.company_id, enabled: fd.get("enabled") === "on", fee: p.data.fee, upi_id: p.data.upi_id, upi_name: p.data.upi_name,
+    company_id: profile.company_id, enabled: fd.get("enabled") === "on", fee: p.data.fee, urgent_fee: p.data.urgent_fee, single_min_budget: p.data.single_min_budget,
+    channel_url: p.data.channel_url, instagram_url: p.data.instagram_url, upi_id: p.data.upi_id, upi_name: p.data.upi_name,
     qr_url: qr, alert_phone: phone, alert_template: p.data.alert_template || null, alert_template_lang: p.data.alert_template_lang || "en",
     followup_template: p.data.followup_template || null, followup_template_lang: p.data.followup_template_lang || "en",
     min_followup_budget: p.data.min_followup_budget, followup_hours: p.data.followup_hours, max_followups: p.data.max_followups,
@@ -69,7 +74,7 @@ export async function saveRentalDesk(_: FormState, fd: FormData): Promise<FormSt
 
 async function enquiry(id: string) {
   const sb = await createClient();
-  const { data } = await sb.from("lb_rental_enquiries").select("id,company_id,conversation_id,zone").eq("id", id).maybeSingle();
+  const { data } = await sb.from("lb_rental_enquiries").select("id,company_id,conversation_id,zone,plan").eq("id", id).maybeSingle();
   return data;
 }
 
@@ -84,11 +89,11 @@ export async function confirmRentalPayment(_: FormState, fd: FormData): Promise<
   const { data, error } = await sb.rpc("lb_rental_confirm_payment", { p_id: id.data, p_zone: zone });
   if (error) return { error: errMsg(error) };
   const e = await enquiry(id.data);
-  const r = data as { zone: number; zone_name: string; user_name: string };
+  const r = data as { zone: number; zone_name: string; user_name: string; fee: number };
   if (e) {
     const db = createAdminClient();
     await send(db, { messageId: `confirm:${e.id}`, conversationId: e.conversation_id, companyId: e.company_id },
-      { kind: "text", body: MSG.registered(`Zone ${r.zone}: ${r.zone_name}`) }, 0, "paid").catch(() => {});
+      { kind: "text", body: MSG.registered(`Zone ${r.zone}: ${r.zone_name}`, e.plan === "urgent", r.fee) }, 0, "paid").catch(() => {});
     await drainOutbox(8000).catch(() => {});
   }
   revalidatePath("/rental-desk");

@@ -44,9 +44,31 @@ export const FIELDS: Field[] = [
   { key: "lockin", label: "Agree to Lock-in & 1-Month Notice (Yes/No)", ask: "Lock-in aur 1 month notice se agree hain? (Yes / No)", aliases: ["lock-in", "lock in", "notice"] },
 ];
 
-export const FORM_TEXT = `*RENTAL REQUIREMENT FORM*\n${FIELDS.map((f, i) => `${i + 1}. ${f.label}: `).join("\n")}`;
+/** Buyer questions (cody 2026-11-11), grouped like the client's list. */
+export const BUYER_FIELDS: Field[] = [
+  { key: "b_budget", label: "Total Budget (Registry & tax included?)", ask: "Aapka total budget kitna hai? (Registry aur tax alag se hain ya included?)", aliases: ["total budget", "budget"] },
+  { key: "b_payment", label: "Payment (Home loan / Own funds)", ask: "Payment kaise karoge? (Home loan se ya apne funds se?)", aliases: ["payment", "home loan", "funds"] },
+  { key: "b_preapproved", label: "Loan Pre-approved (Yes/No)", ask: "Kya loan pehle se pre-approved hai? (Yes / No / Loan nahi chahiye)", aliases: ["pre-approved", "pre approved", "preapproved"] },
+  { key: "b_area", label: "Preferred Area / Landmark", ask: "Kis area ya landmark ke aas-paas property chahiye?", aliases: ["preferred area", "area", "landmark", "location"] },
+  { key: "b_distance", label: "Office / School / Hospital Distance Priority", ask: "Office, school ya hospital ki distance ko lekar koi priority hai kya?", aliases: ["distance", "school", "hospital"] },
+  { key: "b_bhk", label: "BHK (Flat / House)", ask: "Kitne BHK ka flat ya makan chahiye?", aliases: ["bhk"] },
+  { key: "b_ready", label: "Ready-to-move / Under-construction", ask: "Ready-to-move chahiye ya under-construction chalega?", aliases: ["ready", "under-construction", "under construction"] },
+  { key: "b_floor", label: "Floor / Facing Preference", ask: "Koi specific floor ya facing (jaise east-facing) pasand hai?", aliases: ["facing", "floor"] },
+  { key: "b_purpose", label: "Self-use / Investment", ask: "Khud rehne ke liye lena hai ya investment ke liye?", aliases: ["investment", "self", "purpose"] },
+  { key: "b_possession", label: "Possession Needed By", ask: "Kab tak possession chahiye?", aliases: ["possession"] },
+  { key: "b_amenities", label: "Must-have Amenities (Parking, Lift, Security)", ask: "Kaun-kaun si amenities zaroori hain? (Jaise parking, lift, security)", aliases: ["amenities", "amenity"] },
+  { key: "b_members", label: "Total Family Members", ask: "Ghar mein total kitne log rahenge?", aliases: ["members", "kitne log", "family members"] },
+  { key: "b_decision", label: "Final Decision Maker", ask: "Family mein final decision lene wala kaun hai?", aliases: ["decision"] },
+  { key: "b_contact", label: "Contact Number", ask: "Aapka contact number?", aliases: ["contact", "mobile", "phone"] },
+];
+
+export const fieldsFor = (role: Role | null) => (role === "buyer" ? BUYER_FIELDS : FIELDS);
+const formTitle = (role: Role | null) => (role === "buyer" ? "PROPERTY BUYING REQUIREMENT FORM" : "RENTAL REQUIREMENT FORM");
+export const formText = (role: Role | null) => `*${formTitle(role)}*\n${fieldsFor(role).map((f, i) => `${i + 1}. ${f.label}: `).join("\n")}`;
+export const FORM_TEXT = formText("tenant");
 
 export type Answers = Record<string, string>;
+const TENANT = FIELDS;
 
 const EMPTY_RE = /^[\s\-_.:*?·•]*$/;
 const clean = (s: string) => s.replace(/[*_~]/g, "").replace(/\s+/g, " ").trim();
@@ -69,7 +91,7 @@ export function looksLikeForm(text: string) {
 }
 
 /** Reads a filled form: "3. Move-in Date: 1 Dec" by number, or "Deposit: 50k" by label. */
-export function parseForm(text: string): Answers {
+export function parseForm(text: string, FIELDS: Field[] = TENANT): Answers {
   const out: Answers = {};
   for (const raw of text.split(/\r?\n/)) {
     const line = clean(raw);
@@ -99,7 +121,7 @@ export function validAnswer(f: Field, v: string | undefined) {
   return clean(v).length >= 1;
 }
 
-export const missingFields = (a: Answers) => FIELDS.filter((f) => !validAnswer(f, a[f.key]));
+export const missingFields = (a: Answers, fields: Field[] = TENANT) => fields.filter((f) => !validAnswer(f, a[f.key]));
 
 /** "25k", "25,000", "₹ 25000", "20-25k", "1.2 lakh", "25" (thousands) → rupees per month; the highest number counts. */
 export function parseBudget(s: string): number | null {
@@ -185,8 +207,9 @@ export const MSG = {
   details: {
     owner: "Dhanyavaad 🙏 Apne flat ki details bhejiye: area, BHK, rent, furnishing aur photos (agar ho to).",
     broker: "Dhanyavaad 🙏 Apna naam, agency aur aapke paas kaunsi property / requirement hai, bataiye.",
-    buyer: "Dhanyavaad 🙏 Aap kis area me, kitne BHK aur kitne budget me ghar kharidna chahte hain?",
-  } as Record<Exclude<Role, "tenant">, string>,
+  } as Record<"owner" | "broker", string>,
+  buyerIntro: "Bahut badhiya 👍 Aapke liye sahi property dhoondhne ke liye neeche wala form *copy karke har line bhar kar* bhejiye. Jo detail baaki rahegi, hum ek-ek karke puch lenge.",
+  buyerThanks: "Dhanyavaad 🙏 Aapki poori requirement mil gayi hai. Humari team jaldi aapse contact karegi aur aapke budget aur location ke hisaab se best options share karegi 🏡",
   detailsThanks: "Shukriya 🙏 Humari team jaldi aapse contact karegi 📞",
   missingFirst: (n: number, f: Field) => `Dhanyavaad 🙏 Form me *${n} detail${n === 1 ? "" : "s"}* baaki hai. Poori details ke bina enquiry submit nahi hogi.\n\n👉 ${f.ask}`,
   missingNext: (n: number, f: Field) => `👍 Noted. ${n} aur baaki.\n\n👉 ${f.ask}`,
@@ -230,7 +253,7 @@ export function summaryOf(a: Answers) {
 }
 
 /** Full form as a note on the lead / message to the zone user. */
-export const formNote = (a: Answers) => `RENTAL REQUIREMENT FORM\n${FIELDS.map((f, i) => `${i + 1}. ${f.label}: ${a[f.key] ?? "-"}`).join("\n")}`;
+export const formNote = (a: Answers, role: Role | null = "tenant") => `${formTitle(role)}\n${fieldsFor(role).map((f, i) => `${i + 1}. ${f.label}: ${a[f.key] ?? "-"}`).join("\n")}`;
 
 // ------------------------------------------------------------------ the state machine
 
@@ -306,18 +329,27 @@ function afterForm(s: State, cfg: DeskConfig): Result {
   };
 }
 
+function afterBuyerForm(s: State): Result {
+  return {
+    state: { ...s, stage: "done", asking: null }, handled: true,
+    out: [{ kind: "text", body: MSG.buyerThanks }],
+    acts: [{ kind: "note", body: formNote(s.answers, "buyer") }, { kind: "tag", tag: "Buyer form filled" },
+      { kind: "notify_admins", title: "New Buyer enquiry (form filled)", body: [s.answers.b_budget, s.answers.b_bhk, s.answers.b_area].filter(Boolean).join(" · ").slice(0, 200) }],
+  };
+}
+
 function takeForm(s: State, inp: In, cfg: DeskConfig): Result {
   let answers = { ...s.answers };
   let bad: Field | null = null;
   if (looksLikeForm(inp.text) || !s.asking) {
-    answers = { ...answers, ...parseForm(inp.text) };
+    answers = { ...answers, ...parseForm(inp.text, fieldsFor(s.role)) };
   } else {
-    const f = FIELDS.find((x) => x.key === s.asking)!;
+    const f = fieldsFor(s.role).find((x) => x.key === s.asking)!;
     if (validAnswer(f, inp.text)) answers[f.key] = clean(inp.text).slice(0, 300);
     else bad = f;
   }
-  const miss = missingFields(answers);
-  if (!miss.length) return afterForm({ ...s, answers }, cfg);
+  const miss = missingFields(answers, fieldsFor(s.role));
+  if (!miss.length) return s.role === "buyer" ? afterBuyerForm({ ...s, answers }) : afterForm({ ...s, answers }, cfg);
   const next = bad ?? miss[0];
   const body = bad ? MSG.invalidAnswer(bad) : s.asking ? MSG.missingNext(miss.length, next) : MSG.missingFirst(miss.length, next);
   return { state: { ...s, answers, asking: next.key }, out: [{ kind: "text", body }], acts: [], handled: true };
@@ -341,10 +373,13 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
     case "role": {
       const role = pickRole(inp);
       if (!role) return { state: s, out: [roleMenu()], acts: [], handled: true };
+      if (role === "buyer") {
+        return { state: { ...s, role, stage: "form", asking: null }, out: [{ kind: "text", body: MSG.buyerIntro }, { kind: "text", body: formText("buyer") }], acts: [{ kind: "tag", tag: "Buyer" }], handled: true };
+      }
       if (role === "tenant") {
         return { state: { ...s, role, stage: "form", asking: null }, out: [{ kind: "text", body: MSG.tenantIntro }, { kind: "text", body: FORM_TEXT }], acts: [{ kind: "tag", tag: "Tenant" }], handled: true };
       }
-      return { state: { ...s, role, stage: "details" }, out: [{ kind: "text", body: MSG.details[role] }], acts: [{ kind: "tag", tag: role[0].toUpperCase() + role.slice(1) }], handled: true };
+      return { state: { ...s, role, stage: "details" }, out: [{ kind: "text", body: MSG.details[role as "owner" | "broker"] }], acts: [{ kind: "tag", tag: role[0].toUpperCase() + role.slice(1) }], handled: true };
     }
     case "details": {
       const label = s.role ? s.role[0].toUpperCase() + s.role.slice(1) : "Contact";
@@ -354,7 +389,7 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
       };
     }
     case "form":
-      if (inp.media && !inp.text.trim()) return { state: s, out: [{ kind: "text", body: s.asking ? MSG.invalidAnswer(FIELDS.find((f) => f.key === s.asking)!) : "Kripya form text me bhar kar bhejiye 🙏" }], acts: [], handled: true };
+      if (inp.media && !inp.text.trim()) return { state: s, out: [{ kind: "text", body: s.asking ? MSG.invalidAnswer(fieldsFor(s.role).find((f) => f.key === s.asking)!) : "Kripya form text me bhar kar bhejiye 🙏" }], acts: [], handled: true };
       return takeForm(s, inp, cfg);
     case "fee_offer": {
       const yn = yesNo(inp, "fee_yes", "fee_no") ?? (/register|pay/.test(t) ? true : null);

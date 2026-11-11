@@ -5,7 +5,7 @@ import { PageHeader, ErrorBox } from "@/components/static";
 import { ActionForm, Field, Submit } from "@/components/ui";
 import { Kpi, Notice, Panel, PillTabs, Table } from "@/components/kit";
 import { fmtDateTime } from "@/lib/dates";
-import { FIELDS, LIVORA_ZONES, inr, missingFields, type Answers, type Zone } from "@/lib/rental-desk";
+import { FIELDS, LIVORA_ZONES, fieldsFor, inr, missingFields, type Answers, type Zone } from "@/lib/rental-desk";
 import { confirmRentalPayment, markRentalFound, rejectRentalPayment, saveRentalDesk, setRentalZone } from "@/lib/actions/rental-desk";
 
 export const metadata = { title: "Rental desk" };
@@ -94,6 +94,15 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                 </td>
                 <td className="td max-w-xs text-xs text-slate-600">
                   {e.role && e.role !== "tenant" && <div className="font-semibold capitalize">{e.role}</div>}
+                  {e.role === "buyer" && (
+                    <>
+                      <div>{[e.answers?.b_bhk, e.answers?.b_budget, e.answers?.b_area].filter(Boolean).join(" · ") || "—"}</div>
+                      {e.stage === "form" && <div className="text-amber-700">{missingFields(e.answers ?? {}, fieldsFor("buyer")).length} of {fieldsFor("buyer").length} details missing</div>}
+                      <details className="mt-1"><summary className="cursor-pointer text-brand-700">Full form</summary>
+                        <ol className="mt-1 list-decimal space-y-0.5 pl-4">{fieldsFor("buyer").map((f) => <li key={f.key}><span className="text-slate-400">{f.label}:</span> {e.answers?.[f.key] ?? "—"}</li>)}</ol>
+                      </details>
+                    </>
+                  )}
                   {e.role === "tenant" && (
                     <>
                       <div>{[e.answers?.bhk, e.budget ? `${inr(e.budget)}/mo` : e.answers?.budget, e.answers?.furnishing].filter(Boolean).join(" · ") || "—"}</div>

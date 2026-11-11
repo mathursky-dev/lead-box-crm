@@ -106,9 +106,31 @@ async function sendSummaryWhatsApp(db: Db, a: Alert): Promise<{ ok: boolean; err
   return { ok: false, error: `${r.message}${hint}`, retry: !r.ambiguous && (r.status === 0 || r.status === 429 || r.status >= 500) };
 }
 
+/** Rental desk "flat final" alert to the desk's personal number (lb_rental_desk.alert_phone), from the company's first number. */
+async function sendRentalFinal(db: Db, a: Alert): Promise<{ ok: boolean; error?: string; retry?: boolean }> {
+  const { data: d } = await db.from("lb_rental_desk").select("alert_phone,alert_template,alert_template_lang").eq("company_id", a.company_id).maybeSingle();
+  const to = d?.alert_phone ? normalizePhone(d.alert_phone)?.replace(/^\+/, "") : null;
+  if (!to) return { ok: false, error: "No personal number set on the Rental desk page" };
+  const numberId = await summaryNumber(db, a.company_id, null);
+  if (!numberId) return { ok: false, error: "No WhatsApp number connected" };
+  const c = await numberCredentials(numberId).catch(() => null);
+  if (!c || !c.is_active) return { ok: false, error: "WhatsApp number is disconnected" };
+  const link = `${APP_URL}${a.link ?? ""}`;
+  const base = { messaging_product: "whatsapp", recipient_type: "individual", to };
+  const payload = d?.alert_template && c.provider !== "qr"
+    ? { ...base, type: "template", template: { name: d.alert_template, language: { code: d.alert_template_lang || "en" },
+        components: [{ type: "body", parameters: [{ type: "text", text: "Sir" }, { type: "text", text: oneLine(`${a.title}: ${a.body ?? ""}`, 900) }] }] } }
+    : { ...base, type: "text", text: { body: `*${a.title}*\n${(a.body ?? "").split(" · ").join("\n")}\n\n${link}`, preview_url: false } };
+  const r = await graph<{ messages?: { id: string }[] }>(c.token, `${c.endpoint}/messages`, { method: "POST", body: JSON.stringify(payload) });
+  if (r.ok) return { ok: true };
+  const hint = r.code === 131047 || r.code === 131026 ? " (outside the 24h window: set an approved alert template on the Rental desk page)" : "";
+  return { ok: false, error: `${r.message}${hint}`, retry: !r.ambiguous && (r.status === 0 || r.status === 429 || r.status >= 500) };
+}
+
 async function sendWhatsApp(db: Db, a: Alert): Promise<{ ok: boolean; error?: string; retry?: boolean }> {
   if (await isDemoCompany(a.company_id)) return { ok: false, error: "Demo company: WhatsApp is off" };
   if (a.kind === "owner_summary") return sendSummaryWhatsApp(db, a);
+  if (a.kind === "rental_final") return sendRentalFinal(db, a);
   const [{ data: s }, { data: u }] = await Promise.all([
     db.from("lb_alert_settings").select("wa_enabled,wa_number_id,wa_template,wa_template_lang").eq("company_id", a.company_id).maybeSingle(),
     db.from("lb_profiles").select("full_name,phone").eq("id", a.user_id).maybeSingle(),

@@ -40,8 +40,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Every page keeps the same permission check it had before; a group with no visible items is dropped.
   const it = (ok: boolean, href: string, label: string, keywords?: string) => (ok ? [{ href, label, ...(keywords ? { keywords } : {}) }] : []);
   const reports = can(profile, "reports.view");
+  // Rental desk (companies that have one, e.g. LivoraRent): admins get it in the menu.
+  const rentalDesk = admin
+    ? Boolean((await createClient().then((c) => c.from("lb_rental_desk").select("company_id").eq("company_id", profile.company_id).maybeSingle())).data)
+    : false;
   const navAll: NavGroup[] = [
     { section: "Work", label: "Dashboard", icon: "grid", href: "/dashboard" },
+    ...(rentalDesk ? [{ section: "Work", label: "Rental desk", icon: "building", href: "/rental-desk" }] : []),
     { section: "Work", label: "Sales", icon: "target", items: [
       { href: "/leads", label: "Leads" }, { href: "/followups", label: "Follow-ups" },
       { href: "/tasks", label: "Tasks", keywords: "todo to-do reminder" },

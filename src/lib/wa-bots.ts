@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "./supabase/server";
 import { runFlows } from "./wa-flows";
+import { runRentalDesk } from "./rental-desk-server";
 import { applyHandover, runAiFaqBot } from "./ai-faq-bot";
 import { DEFAULT_PREFS, insideHours, keywordHit, pickBot, splitKeywords, type WaBot, type WaPrefs } from "./wa";
 
@@ -9,6 +10,7 @@ type Db = ReturnType<typeof createAdminClient>;
 type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string; replyId?: string | null; voice?: boolean };
 
 const TEXT_TYPES = ["text", "button", "interactive"];
+const RENTAL_MEDIA = ["image", "document"];
 const AGENT_QUIET_MS = 2 * 3600 * 1000;
 
 /** Stable uuid per (inbound message, purpose) so webhook replays never send a second reply. */
@@ -48,9 +50,17 @@ async function log(db: Db, ev: Inbound, kind: string, extra: { bot_id?: string; 
  * Never throws into the webhook: a bot problem must not block message ingestion.
  */
 export async function runAutoReplies(ev: Inbound) {
-  if (!ev.body || !TEXT_TYPES.includes(ev.type)) return;
+  const isText = Boolean(ev.body) && TEXT_TYPES.includes(ev.type);
+  // Photos / files go only to the Rental desk (payment screenshots); every other bot needs text.
+  if (!isText && !RENTAL_MEDIA.includes(ev.type)) return;
   const db = createAdminClient();
   try {
+    if (!isText) {
+      const { data: c } = await db.from("lb_conversations").select("id,number_id,customer_id").eq("id", ev.conversationId).single();
+      if (c) await runRentalDesk(db, ev, c, () => agentActive(db, ev.conversationId));
+      return;
+    }
+    if (!ev.body) return;
     const prefs = await loadPrefs(db, ev.companyId);
     const { data: conv } = await db.from("lb_conversations").select("id,number_id,customer_id,assignee_id").eq("id", ev.conversationId).single();
     if (!conv) return;
@@ -75,6 +85,9 @@ export async function runAutoReplies(ev: Inbound) {
         return;
       }
     }
+
+    // Rental desk (only companies that switched it on): its own enquiry flow, before flows and bots.
+    if (await runRentalDesk(db, ev, conv, () => agentActive(db, ev.conversationId))) return;
 
     if (prefs.pause_bots_when_assigned && conv.assignee_id && (await agentActive(db, ev.conversationId))) {
       // An agent is talking in this chat right now; still answer out of hours with the away message.

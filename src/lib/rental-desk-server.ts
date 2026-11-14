@@ -6,7 +6,7 @@ import { step, type Act, type DeskConfig, type Out, type State, type Stage, type
 type Db = ReturnType<typeof createAdminClient>;
 type Inbound = { messageId: string; conversationId: string; companyId: string; body: string | null; type: string; replyId?: string | null };
 type Conv = { id: string; number_id: string; customer_id: string };
-type Row = State & { id: string; lead_id: string | null; last_in_at: string; updated_at: string; paid_at: string | null };
+type Row = State & { id: string; lead_id: string | null; last_in_at: string; updated_at: string; paid_at: string | null; benefits_sent: boolean | null };
 
 const DAY = 86400000;
 const MEDIA = ["image", "document"];
@@ -22,7 +22,7 @@ export async function deskConfig(db: Db, companyId: string): Promise<(DeskConfig
   if (error || !data?.enabled) return null; // error: SQL not applied yet → desk simply off
   return {
     enabled: true, fee: data.fee, upi_id: data.upi_id ?? "", upi_name: data.upi_name ?? "", qr_url: data.qr_url ?? "",
-    urgent_fee: data.urgent_fee ?? 500, single_min_budget: data.single_min_budget ?? 15000, channel_url: data.channel_url ?? "", instagram_url: data.instagram_url ?? "",
+    urgent_fee: data.urgent_fee ?? 500, single_min_budget: data.single_min_budget ?? 15000, channel_url: data.channel_url ?? "", instagram_url: data.instagram_url ?? "", help_phone: data.help_phone ?? "",
     min_followup_budget: data.min_followup_budget, followup_hours: data.followup_hours, max_followups: data.max_followups,
     max_followups_unreg: data.max_followups_unreg, zones: (Array.isArray(data.zones) ? data.zones : []) as Zone[], alert_phone: data.alert_phone,
   };
@@ -55,11 +55,11 @@ export async function runRentalDesk(db: Db, ev: Inbound, conv: Conv, agentActive
     // A person is chatting in this enquiry right now: stay quiet, except for the steps only the desk handles.
     const deskOnly: Stage[] = ["awaiting_payment", "payment_review", "fu_ask", "fu_broker", "fu_rent", "fu_happy"];
     if (row && !deskOnly.includes(row.stage) && (await agentActive())) return true;
-    if (!row && media) return false; // a photo as the very first message: leave it to the team
 
     const prev: State | null = row ? {
       stage: row.stage, role: row.role, answers: row.answers ?? {}, asking: row.asking, zone: row.zone, budget: row.budget,
       base_stage: row.base_stage, found_broker: row.found_broker, found_rent: row.found_rent, happy: row.happy, plan: row.plan ?? null,
+      zones: row.zones ?? [], benefits: row.benefits_sent ?? false,
     } : null;
     const res = step(prev, { text: ev.body ?? "", replyId: ev.replyId, media }, cfg);
 
@@ -69,6 +69,7 @@ export async function runRentalDesk(db: Db, ev: Inbound, conv: Conv, agentActive
     const patch = {
       stage: res.state.stage, role: res.state.role, answers: res.state.answers, asking: res.state.asking, zone: res.state.zone, budget: res.state.budget,
       base_stage: res.state.base_stage, found_broker: res.state.found_broker, found_rent: res.state.found_rent, happy: res.state.happy, plan: res.state.plan,
+      zones: res.state.zones, benefits_sent: res.state.benefits,
       last_in_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       ...(res.state.stage === "closed" && prev?.stage !== "closed" ? { closed_at: new Date().toISOString(), next_followup_at: null } : {}),
       // Not registered: first follow-up a day later (the tick skips small budgets).
@@ -155,6 +156,10 @@ async function act(db: Db, ev: Inbound, conv: Conv, enquiryId: string, a: Act, c
       dedupe_key: `rental:${ev.messageId}:${u.id}`,
     }));
     for (const r of rows) await db.from("lb_notifications").insert(r); // a duplicate key (replay) just fails
+  } else if (a.kind === "zone_assign") {
+    // The lead goes to the agents of every zone of the area (copies for the 2nd, 3rd... agent). Bell + push via lb__assign.
+    const { error } = await db.rpc("lb__rental_zone_assign", { p_id: enquiryId, p_actor: null, p_note: a.note });
+    if (error) throw new Error(error.message);
   } else if (a.kind === "final_alert") {
     await queueFinalAlert(db, ev.companyId, enquiryId, cfg.alert_phone, `final:${ev.messageId}`);
   }

@@ -37,7 +37,7 @@ const TABS: { key: string; label: string; stages: string[] }[] = [
 ];
 
 type Enq = {
-  id: string; stage: string; role: string | null; answers: Answers; zone: number | null; budget: number | null; conversation_id: string; lead_id: string | null;
+  id: string; stage: string; role: string | null; answers: Answers; zone: number | null; zones: number[] | null; assigned_users: string[] | null; lead_copies: string[] | null; budget: number | null; conversation_id: string; lead_id: string | null;
   plan: string | null; screenshot_message_id: string | null; screenshot_at: string | null; paid_at: string | null; followups: number; next_followup_at: string | null;
   found_broker: string | null; found_rent: string | null; happy: string | null; updated_at: string; created_at: string;
   customer: { name: string | null; wa_profile_name: string | null; phone_e164: string } | null; assigned: { full_name: string } | null;
@@ -47,10 +47,11 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
   const { profile } = await requireAdmin();
   const sp = await searchParams;
   const sb = await createClient();
-  const [{ data: desk, error: dErr }, { data: users }, { data: rows, error }] = await Promise.all([
+  const [{ data: desk, error: dErr }, { data: users }, { data: depts }, { data: rows, error }] = await Promise.all([
     sb.from("lb_rental_desk").select("*").eq("company_id", profile.company_id).maybeSingle(),
-    sb.from("lb_profiles").select("id,full_name,role").eq("company_id", profile.company_id).eq("is_active", true).neq("role", "super_admin").order("full_name"),
-    sb.from("lb_rental_enquiries").select("id,stage,role,plan,answers,zone,budget,conversation_id,lead_id,screenshot_message_id,screenshot_at,paid_at,followups,next_followup_at,found_broker,found_rent,happy,updated_at,created_at,customer:lb_customers(name,wa_profile_name,phone_e164),assigned:lb_profiles!lb_rental_enquiries_assigned_to_fkey(full_name)")
+    sb.from("lb_profiles").select("id,full_name,role,email,phone,department_id").eq("company_id", profile.company_id).eq("is_active", true).neq("role", "super_admin").order("full_name"),
+    sb.from("lb_departments").select("id,name").eq("company_id", profile.company_id).eq("is_active", true).order("name"),
+    sb.from("lb_rental_enquiries").select("id,stage,role,plan,answers,zone,zones,assigned_users,lead_copies,budget,conversation_id,lead_id,screenshot_message_id,screenshot_at,paid_at,followups,next_followup_at,found_broker,found_rent,happy,updated_at,created_at,customer:lb_customers(name,wa_profile_name,phone_e164),assigned:lb_profiles!lb_rental_enquiries_assigned_to_fkey(full_name)")
       .eq("company_id", profile.company_id).order("updated_at", { ascending: false }).limit(500),
   ]);
   if (dErr || error) return <ErrorBox message={(dErr ?? error)!.message} />;
@@ -59,15 +60,21 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
   const tab = TABS.find((t) => t.key === sp.tab) ?? TABS[0];
   const count = (k: string) => all.filter((e) => TABS.find((t) => t.key === k)!.stages.includes(e.stage)).length;
   const list = all.filter((e) => tab.stages.includes(e.stage));
-  const zoneLabel = (n: number | null) => (n ? `Zone ${n}` : "No zone");
   const userName = (id: string | null) => users?.find((u) => u.id === id)?.full_name;
+  // Zone agents: active users of the zone's department, else the zone's fallback user (same rule as the SQL).
+  const agentsOf = (z: Zone) => {
+    const d = z.department_id ? (users ?? []).filter((u) => u.department_id === z.department_id) : [];
+    return d.length ? d : (users ?? []).filter((u) => u.id === z.user_id);
+  };
+  const zonesOf = (e: Enq) => (e.zones?.length ? e.zones : e.zone ? [e.zone] : []);
+  const zonesLabel = (e: Enq) => (zonesOf(e).length ? zonesOf(e).map((n) => `Zone ${n}`).join(" + ") : "No zone");
 
   return (
     <>
       <PageHeader icon="building" tone="green" title="Rental desk"
-        sub="WhatsApp enquiries: who is writing, the 20-point tenant form, ₹ registration, zone-wise lead and daily follow-ups." />
+        sub="WhatsApp enquiries: who is writing, the tenant form, zone-wise lead (all zones of the area), ₹ registration and daily follow-ups." />
       {!desk?.enabled && <Notice>The Rental desk is <b>off</b>. Set the zone users below and tick “Rental desk is on” to start answering WhatsApp enquiries.</Notice>}
-      {desk?.enabled && zones.some((z) => !z.user_id) && <Notice>Zones without a user: {zones.filter((z) => !z.user_id).map((z) => `Zone ${z.no}`).join(", ")}. Payments for those zones can’t be confirmed until a user is set.</Notice>}
+      {desk?.enabled && zones.some((z) => !agentsOf(z).length) && <Notice>Zones without an agent: {zones.filter((z) => !agentsOf(z).length).map((z) => `Zone ${z.no}`).join(", ")}. Leads of those areas wait here until a user is added to the zone’s department.</Notice>}
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="Check payment" value={count("check")} icon="rupee" tone="red" href="/rental-desk?tab=check" />
@@ -119,14 +126,16 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                   {e.role === "tenant" ? (
                     <ActionForm action={setRentalZone} className="flex items-center gap-1">
                       <input type="hidden" name="id" value={e.id} />
-                      <select name="zone" defaultValue={e.zone ?? ""} className="input h-8 w-28 py-0 text-xs">
-                        <option value="">No zone</option>
-                        {zones.map((z) => <option key={z.no} value={z.no}>Zone {z.no}</option>)}
+                      <select name="zone" defaultValue="" className="input h-8 w-28 py-0 text-xs">
+                        <option value="">{e.assigned_users?.length ? "+ Zone" : "Pick zone"}</option>
+                        {zones.filter((z) => !zonesOf(e).includes(z.no)).map((z) => <option key={z.no} value={z.no}>Zone {z.no}</option>)}
                       </select>
-                      <Submit className="btn-secondary btn-sm" pendingText="…">Set</Submit>
+                      <Submit className="btn-secondary btn-sm" pendingText="…">{e.assigned_users?.length ? "Add" : "Give"}</Submit>
                     </ActionForm>
                   ) : "—"}
-                  <div className="mt-1 text-slate-500">{e.assigned?.full_name ?? (e.zone ? userName(zones.find((z) => z.no === e.zone)?.user_id ?? null) ?? "" : "")}</div>
+                  <div className="mt-1 font-semibold text-slate-700">{zonesLabel(e)}</div>
+                  <div className="text-slate-500">{(e.assigned_users ?? []).map((id) => userName(id) ?? "?").join(", ") || (zonesOf(e).length ? "Not given yet" : "")}</div>
+                  {(e.lead_copies?.length ?? 0) > 0 && <div className="text-slate-400">+{e.lead_copies!.length} lead cop{e.lead_copies!.length === 1 ? "y" : "ies"} for other agents</div>}
                 </td>
                 <td className="td text-xs">
                   <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>
@@ -140,9 +149,8 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                     <a className="btn-secondary btn-sm inline-block" href={`/api/media/${e.screenshot_message_id}`} target="_blank" rel="noreferrer">View screenshot</a>
                   )}
                   {["payment_review", "awaiting_payment", "fee_offer", "not_registered"].includes(e.stage) && e.role === "tenant" && (
-                    <ActionForm action={confirmRentalPayment} className="flex items-center gap-1" confirm={`Confirm ${inr(e.plan === "urgent" ? desk?.urgent_fee ?? 500 : desk?.fee ?? 200)} payment and give this lead to ${zoneLabel(e.zone)}?`}>
+                    <ActionForm action={confirmRentalPayment} className="flex items-center gap-1" confirm={`Confirm ${inr(e.plan === "urgent" ? desk?.urgent_fee ?? 500 : desk?.fee ?? 200)} payment (${zonesLabel(e)})?`}>
                       <input type="hidden" name="id" value={e.id} />
-                      <input type="hidden" name="zone" value={e.zone ?? ""} />
                       <Submit className="btn-primary btn-sm" pendingText="Confirming…">Payment confirm</Submit>
                     </ActionForm>
                   )}
@@ -170,7 +178,7 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
         </Table>
       </div>
 
-      <Panel title="Settings" icon="gear" tone="slate" sub="Zone users, ₹ fee, UPI QR, personal number for “flat final” alerts and follow-up templates.">
+      <Panel title="Settings" icon="gear" tone="slate" sub="Zone departments and agents, ₹ fee, UPI QR, personal number for “flat final” alerts and follow-up templates.">
         <ActionForm action={saveRentalDesk} className="space-y-4">
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked={desk?.enabled ?? false} className="mt-1" />
             <span><b>Rental desk is on.</b> Every new WhatsApp chat gets “Aap kaun hain?” (Tenant / Owner / Broker / Buyer). Other chatbot flows don’t start while it is on.</span></label>
@@ -178,12 +186,22 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
           <div className="grid gap-3 md:grid-cols-2">
             {zones.map((z) => (
               <div key={z.no} className="rounded-lg border border-slate-200 p-3">
-                <Field label={`Zone ${z.no}: ${z.name}`}>
-                  <select className="input" name={`zone_user_${z.no}`} defaultValue={z.user_id ?? ""}>
-                    <option value="">No user yet</option>
-                    {(users ?? []).map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                  </select>
-                </Field>
+                <div className="text-sm font-semibold text-slate-800">Zone {z.no}: {z.name}</div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <Field label="Department" hint="Every active user of this department gets the zone’s leads.">
+                    <select className="input" name={`zone_dept_${z.no}`} defaultValue={z.department_id ?? ""}>
+                      <option value="">No department</option>
+                      {(depts ?? []).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Fallback user" hint="Only when the department has no active user.">
+                    <select className="input" name={`zone_user_${z.no}`} defaultValue={z.user_id ?? ""}>
+                      <option value="">No user</option>
+                      {(users ?? []).map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <div className="mt-1 text-xs text-slate-600">Agents: {agentsOf(z).map((u) => u.full_name).join(", ") || <span className="text-red-600">none</span>}</div>
                 <details className="mt-2"><summary className="cursor-pointer text-xs text-brand-700">Areas in this zone ({z.areas.length})</summary>
                   <textarea name={`zone_areas_${z.no}`} rows={4} className="input mt-1 text-xs" defaultValue={z.areas.join(", ")} />
                 </details>
@@ -201,6 +219,7 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="WhatsApp channel link"><input className="input" name="channel_url" defaultValue={desk?.channel_url ?? ""} placeholder="https://whatsapp.com/channel/…" /></Field>
             <Field label="Instagram link"><input className="input" name="instagram_url" defaultValue={desk?.instagram_url ?? ""} placeholder="https://www.instagram.com/…" /></Field>
+            <Field label="Call number for customers" hint="In the “fill the form first” reply (reel link / screenshot) and the registration benefits message."><input className="input" name="help_phone" defaultValue={desk?.help_phone ?? ""} placeholder="9558832824" /></Field>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="UPI QR photo" hint="Sent to the customer on WhatsApp. Upload a new one to replace it.">

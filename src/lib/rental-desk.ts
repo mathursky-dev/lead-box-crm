@@ -1,17 +1,18 @@
 // Rental desk: a fixed WhatsApp enquiry flow for rental brokerages (built for LivoraRent Ahmedabad).
 // Pure and shared: the webhook runner (lib/rental-desk-server.ts), the admin page and the tests use it.
 //
-// Flow: who are you (tenant / owner / broker / buyer) → tenant gets the 20-point requirement form →
-// every missing answer is asked one by one → ₹fee registration offer → UPI QR → payment screenshot →
-// an admin confirms the payment on the Rental desk page → the lead goes to the zone's user →
-// daily "flat mila?" follow-ups → who gave the flat + final rent + happy? → personal alert.
+// Flow: who are you (tenant / owner / broker / buyer) → tenant gets the 11-point requirement form →
+// every missing answer is asked one by one → the lead goes to the agents of the zone(s) of the area →
+// ₹fee registration offer → UPI QR → payment screenshot → an admin confirms the payment on the
+// Rental desk page → daily "flat mila?" follow-ups → who gave the flat + final rent + happy? → personal alert.
 
 export type Role = "tenant" | "owner" | "broker" | "buyer";
 export type Stage =
   | "role" | "form" | "fee_offer" | "awaiting_payment" | "payment_review" | "registered" | "not_registered"
   | "fu_ask" | "fu_broker" | "fu_rent" | "fu_happy" | "details" | "done" | "closed";
 
-export type Zone = { no: number; name: string; areas: string[]; user_id: string | null };
+/** A zone: its agents are the active users of department_id (user_id = fallback when the department is empty). */
+export type Zone = { no: number; name: string; areas: string[]; user_id: string | null; department_id?: string | null };
 export type DeskConfig = {
   enabled: boolean; fee: number; upi_id: string; upi_name: string; qr_url: string;
   /** ₹500 urgent plan: flat within 3 days, adjusted in the final brokerage. */
@@ -19,34 +20,27 @@ export type DeskConfig = {
   /** A single person is accepted (sharing flat / PG) only at or above this budget. */
   single_min_budget: number;
   channel_url: string; instagram_url: string;
+  /** Call number in the "fill the form first" reply (reel link / screenshot) and the benefits message. */
+  help_phone: string;
   min_followup_budget: number; followup_hours: number; max_followups: number; max_followups_unreg: number;
   zones: Zone[];
 };
 
 export type Field = { key: string; label: string; ask: string; aliases: string[]; number?: boolean };
 
-/** The 20-point RENTAL REQUIREMENT FORM, in the order the customer sees it. */
+/** The RENTAL REQUIREMENT FORM (11 points, cody 2026-11-14), in the order the customer sees it. */
 export const FIELDS: Field[] = [
   { key: "bhk", label: "BHK", ask: "Kitne BHK chahiye? (1 / 2 / 3 BHK)", aliases: ["bhk"] },
   { key: "budget", label: "Monthly Budget (Rent + Maint)", ask: "Monthly budget kitna hai? (Rent + Maintenance, jaise 25000)", aliases: ["budget", "monthly budget", "rent + maint"], number: true },
-  { key: "move_in", label: "Move-in Date", ask: "Move-in date kab ki hai?", aliases: ["move-in", "move in", "shifting"] },
-  { key: "deposit", label: "Deposit Capacity", ask: "Deposit kitna de sakte hain?", aliases: ["deposit"] },
-  { key: "occupants", label: "Total Occupants", ask: "Kul kitne log rahenge? (Total occupants)", aliases: ["occupants", "total members", "members"] },
-  { key: "tenant_type", label: "Tenant Type (Family/Bachelors/Working)", ask: "Tenant type kya hai? (Family / Bachelors / Working)", aliases: ["tenant type", "tenant"] },
-  { key: "profession", label: "Profession & Office Location", ask: "Aapka profession aur office location kya hai?", aliases: ["profession", "office"] },
-  { key: "food", label: "Food Preference (Veg/Non-Veg)", ask: "Food preference? (Veg / Non-Veg)", aliases: ["food"] },
-  { key: "pets", label: "Pets (Yes/No)", ask: "Pets hain? (Yes / No)", aliases: ["pets", "pet"] },
   { key: "area", label: "Preferred Area / Landmark", ask: "Preferred area / landmark kaunsa hai?", aliases: ["preferred area", "area", "landmark", "location"] },
-  { key: "commute", label: "Max Commute Distance", ask: "Office tak max kitni doori chalegi? (Max commute distance)", aliases: ["commute", "distance"] },
-  { key: "metro", label: "Metro / Public Transport Needed", ask: "Metro / public transport paas me chahiye? (Yes / No)", aliases: ["metro", "public transport", "transport"] },
   { key: "furnishing", label: "Furnishing (Full / Semi / Raw)", ask: "Furnishing kaisi chahiye? (Full / Semi / Raw)", aliases: ["furnishing", "furnished"] },
+  { key: "move_in", label: "Move-in Date", ask: "Move-in date kab ki hai?", aliases: ["move-in", "move in", "shifting"] },
+  { key: "tenant_type", label: "Tenant Type (Family / Bachelors / Working)", ask: "Tenant type kya hai? (Family / Bachelors / Working)", aliases: ["tenant type", "tenant"] },
+  { key: "occupants", label: "Total Occupants", ask: "Kul kitne log rahenge? (Total occupants)", aliases: ["occupants", "total members", "members"] },
+  { key: "profession", label: "Profession & Office Location", ask: "Aapka profession aur office location kya hai?", aliases: ["profession", "office"] },
+  { key: "food", label: "Food Preference (Veg / Non-Veg)", ask: "Food preference? (Veg / Non-Veg)", aliases: ["food"] },
   { key: "parking", label: "Parking Needed (Car / 2-Wheeler)", ask: "Parking chahiye? (Car / 2-Wheeler / No)", aliases: ["parking"] },
-  { key: "floor", label: "Floor Preference & Lift Needed", ask: "Floor preference aur lift chahiye ya nahi?", aliases: ["floor", "lift"] },
-  { key: "balcony", label: "Balcony Compulsory (Yes/No)", ask: "Balcony compulsory hai? (Yes / No)", aliases: ["balcony"] },
-  { key: "backup", label: "24/7 Water & Power Backup Needed", ask: "24/7 water aur power backup chahiye? (Yes / No)", aliases: ["water", "power backup", "backup"] },
-  { key: "tenure", label: "Planned Stay Duration (Tenure)", ask: "Kitne time tak rehne ka plan hai? (Tenure)", aliases: ["stay duration", "tenure", "duration"] },
-  { key: "rules", label: "Comfortable with Society Rules (Yes/No)", ask: "Society rules ke saath comfortable hain? (Yes / No)", aliases: ["society rules", "society"] },
-  { key: "lockin", label: "Agree to Lock-in & 1-Month Notice (Yes/No)", ask: "Lock-in aur 1 month notice se agree hain? (Yes / No)", aliases: ["lock-in", "lock in", "notice"] },
+  { key: "tenure", label: "Kitne Mahine tak Rent par Rahna h", ask: "Kitne mahine tak rent par rehna hai?", aliases: ["kitne mahine", "mahine", "stay duration", "tenure", "duration"] },
 ];
 
 /** Buyer questions (cody 2026-11-11), grouped like the client's list. */
@@ -68,7 +62,7 @@ export const BUYER_FIELDS: Field[] = [
 ];
 
 export const fieldsFor = (role: Role | null) => (role === "buyer" ? BUYER_FIELDS : FIELDS);
-const formTitle = (role: Role | null) => (role === "buyer" ? "PROPERTY BUYING REQUIREMENT FORM" : "RENTAL REQUIREMENT FORM");
+const formTitle = (role: Role | null) => (role === "buyer" ? "PROPERTY BUYING REQUIREMENT FORM" : "🏡 RENTAL REQUIREMENT FORM");
 export const formText = (role: Role | null) => `*${formTitle(role)}*\n${fieldsFor(role).map((f, i) => `${i + 1}. ${f.label}: `).join("\n")}`;
 export const FORM_TEXT = formText("tenant");
 
@@ -88,6 +82,14 @@ function valueAfterLabel(rest: string, f: Field) {
   return r;
 }
 
+const labelKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+/** Labels of the old 20-point form (a customer may still send an old copy): the field they fill now, or null = dropped. */
+const OLD_LABELS = new Map<string, string | null>([
+  ["Deposit Capacity", null], ["Pets (Yes/No)", null], ["Max Commute Distance", null], ["Metro / Public Transport Needed", null],
+  ["Floor Preference & Lift Needed", null], ["Balcony Compulsory (Yes/No)", null], ["24/7 Water & Power Backup Needed", null],
+  ["Planned Stay Duration (Tenure)", "tenure"], ["Comfortable with Society Rules (Yes/No)", null], ["Agree to Lock-in & 1-Month Notice (Yes/No)", null],
+].map(([k, v]) => [labelKey(k as string), v]));
+
 /** True when the text looks like the filled form (at least 2 numbered or labelled lines). */
 export function looksLikeForm(text: string) {
   const lines = text.split(/\r?\n/);
@@ -103,9 +105,16 @@ export function parseForm(text: string, FIELDS: Field[] = TENANT): Answers {
     if (!line) continue;
     const m = line.match(/^(\d{1,2})\s*[.)\-:]\s*(.*)$/);
     let f: Field | undefined, v = "";
-    if (m && Number(m[1]) >= 1 && Number(m[1]) <= FIELDS.length) {
-      f = FIELDS[Number(m[1]) - 1];
-      v = valueAfterLabel(m[2], f);
+    if (m && Number(m[1]) >= 1 && Number(m[1]) <= 20) {
+      // The label the customer copied wins over the number (an old 20-point copy still reads right).
+      const colon = m[2].indexOf(":");
+      const lab = colon > 0 ? labelKey(m[2].slice(0, colon)) : "";
+      const old = lab ? OLD_LABELS.get(lab) : undefined;
+      const byLabel = lab ? FIELDS.find((x) => labelKey(x.label) === lab || (old && x.key === old)) : undefined;
+      if (byLabel) { f = byLabel; v = m[2].slice(colon + 1).trim(); }
+      else if (old === null) continue; // a point the form no longer has
+      else if (Number(m[1]) <= FIELDS.length) { f = FIELDS[Number(m[1]) - 1]; v = valueAfterLabel(m[2], f); }
+      else continue;
     } else {
       const colon = line.indexOf(":");
       if (colon <= 0) continue;
@@ -153,39 +162,51 @@ export function parseBudget(s: string): number | null {
 const norm = (s: string) => ` ${s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 
-/** The zone of a preferred area: the longest area name found in the text wins (so "Thaltej-Sola Road" beats "Thaltej"). */
-export function zoneFor(area: string, zones: Zone[]): Zone | null {
-  if (!area?.trim()) return null;
-  const t = norm(area), tq = squash(area);
-  let best: { z: Zone; len: number } | null = null;
+/**
+ * Every zone named in the area text, in the order they are written ("Bodakdev ya Gota" → zones 2 and 3).
+ * A name inside a longer one does not count on its own ("Thaltej-Sola Road" is zone 3 only, not 2 + 3).
+ */
+export function zonesFor(area: string, zones: Zone[]): Zone[] {
+  if (!area?.trim()) return [];
+  const t = norm(area);
+  // The text without spaces, with each letter's position in t (for "prahladnagar" vs "Prahlad Nagar").
+  let tq = ""; const at: number[] = [];
+  for (let i = 0; i < t.length; i++) if (t[i] !== " ") { tq += t[i]; at.push(i); }
+  const hits: { z: Zone; from: number; to: number }[] = [];
   for (const z of zones) {
     for (const a of z.areas) {
       const k = norm(a).trim(), kq = squash(a);
       if (!kq) continue;
-      const hit = t.includes(` ${k} `) || (kq.length >= 6 && tq.includes(kq));
-      if (hit && (!best || kq.length > best.len)) best = { z, len: kq.length };
+      for (let p = t.indexOf(` ${k} `); p >= 0; p = t.indexOf(` ${k} `, p + 1)) hits.push({ z, from: p + 1, to: p + 1 + k.length });
+      if (kq.length >= 6) for (let p = tq.indexOf(kq); p >= 0; p = tq.indexOf(kq, p + 1)) hits.push({ z, from: at[p], to: at[p + kq.length - 1] + 1 });
     }
   }
-  return best?.z ?? null;
+  const inside = (h: (typeof hits)[number]) => hits.some((o) => o !== h && o.to - o.from > h.to - h.from && o.from <= h.from && o.to >= h.to);
+  const out: Zone[] = [];
+  for (const h of hits.filter((h) => !inside(h)).sort((x, y) => x.from - y.from)) if (!out.includes(h.z)) out.push(h.z);
+  return out;
 }
+
+/** The first zone named in the area text. */
+export const zoneFor = (area: string, zones: Zone[]): Zone | null => zonesFor(area, zones)[0] ?? null;
 
 /** LivoraRent – Ahmedabad West, 5 main broker zones (from their zone poster). Spelling variants included. */
 export const LIVORA_ZONES: Omit<Zone, "user_id">[] = [
   { no: 1, name: "Satellite-Prahladnagar Hub", areas: [
-    "Satellite", "Jodhpur", "Jodhpur Gam", "Shivranjani", "Anandnagar", "Anand Nagar", "Ramdevnagar", "Ramdev Nagar", "Nehrunagar", "Nehru Nagar",
+    "Satellite", "Jodhpur", "Jodhpur Gam", "Jodhpur Gaam", "Shivranjani", "Anandnagar", "Anand Nagar", "Ramdevnagar", "Ramdev Nagar", "Nehrunagar", "Nehru Nagar",
     "Shyamal", "Prahladnagar", "Prahlad Nagar", "Makarba", "Vejalpur", "Juhapura", "Sarkhej", "Vasna", "Fatehwadi", "Corporate Road",
     "South Satellite", "100 Feet Road", "100 Ft Road", "Shreyas Crossing", "Shreyas"] },
   { no: 2, name: "Bodakdev-Thaltej-Bopal Hub", areas: [
     "Bodakdev", "Thaltej", "Sindhu Bhavan", "Sindhubhavan", "Hebatpur", "Shilaj", "Ambli", "Bopal", "South Bopal", "Shela",
     "Ghuma", "Sanathal", "Godhavi", "Telav", "Science City", "Drive In", "Drive-In Road", "Judges Bungalow", "Palladium",
-    "Iscon", "Ambli Road", "SP Ring Road", "S P Ring Road", "Ring Road Bopal", "Vastrapur Lake"] },
+    "Iscon", "Iscon Ambli Road", "Ambli Road", "SP Ring Road", "S P Ring Road", "Ring Road Bopal", "Vastrapur Lake"] },
   { no: 3, name: "Sola-Gota-Ghatlodia Hub", areas: [
     "Sola", "Gota", "Jagatpur", "Chandlodia", "Chandlodiya", "Ghatlodia", "Ghatlodiya", "Bhadaj", "Tragad", "Ognaj", "Sola Road", "New Sola",
-    "Thaltej Sola Road", "Ranna Park", "Akhbarnagar", "Akhbar Nagar", "Nirnaynagar", "Nirnay Nagar", "Chandlodia Railway", "Vaishnodevi",
+    "Thaltej Sola Road", "Ranna Park", "Akhbarnagar", "Akhbar Nagar", "Nirnaynagar", "Nirnay Nagar", "Chandlodia Railway", "Chandlodia Rly", "Vaishnodevi",
     "Vaishno Devi", "Zundal S", "Bhuyangdev", "Sattadhar", "KK Nagar", "K K Nagar", "RC Technical", "R C Technical"] },
   { no: 4, name: "Chandkheda-Sabarmati Hub", areas: [
     "Chandkheda", "Motera", "Motera Stadium", "Sabarmati", "New CG Road", "Zundal", "Koteshwar", "Tapovan", "Visat", "Ranip", "New Ranip", "ONGC",
-    "IOC Road", "Tragad Extension", "Adalaj", "Chandkheda Railway", "Sabarmati Railway", "Acher", "Ramnagar", "Ram Nagar", "D Cabin",
+    "IOC Road", "Tragad Extension", "Adalaj", "Adalaj Road", "Chandkheda Railway", "Chandkheda Rly", "Sabarmati Railway", "Sabarmati Rly", "Acher", "Ramnagar", "Ram Nagar", "D Cabin",
     "D-Cabin", "Pashravnagar", "Narmada Canal", "Bhat"] },
   { no: 5, name: "Navrangpura-Naranpura Hub", areas: [
     "Navrangpura", "Naranpura", "Vastrapur", "University Area", "Memnagar", "Gurukul", "Vijay Cross", "Vijay Char Rasta", "Stadium",
@@ -253,6 +274,25 @@ export const MSG = {
   happyNo: "Nahi",
   closedThanks: "Thank you 🙏 Aapki details note kar li hain. Naye ghar ki bahut badhai! 🏠\n\n⚠️ Bina 100% surety ke koi bada token amount ya brokerage pay na karein.",
   keepTouch: "Koi baat nahi 🙏 Jab tak aapko best option nahi milta, humare touch me rahiye. Team options bhej rahi hai, we will help you as soon as possible.",
+  /** Reel link / screenshot instead of the form (cody 2026-11-14). */
+  formFirst: (phone: string) =>
+    "Pahle *Requirement Form* fill kariye, to aapko complete multiple property options or same property ki bhi details mil jaegi 🙏" +
+    (phone ? `\n\nAgar koi query hai to aap humare number par call kar sakte hain: ${phone}` : "") + "\n\nThank You!!!",
+  /** "₹500 kis baat ka?" / not registering: sent once per enquiry (cody 2026-11-14). */
+  benefits: (fee: number, phone: string) =>
+    "👋 Hello! Looking for your dream home without the hassle?\n" +
+    `Register with Livorarent for just *${inr(fee)}/-* and let us do the hard work for you.\n\n` +
+    "✨ *Why register with us?*\n" +
+    "• *Save Time:* Get multiple property options within 24–48 hours tailored to your exact budget and location.\n" +
+    "• *Extensive Options:* Access multiple verified options both online and offline.\n" +
+    "• *Zero Hassle:* No need to search endlessly or call multiple brokers/agents.\n" +
+    "• *Quick Closure:* Finalize your flat within 3 to 7 days.\n\n" +
+    "📌 *Please Note Before Registering:*\n" +
+    "• Please proceed only if your budget, BHK requirement, preferred location, and family members are finalized.\n" +
+    "• Once you receive multiple options, choose the best one without confusion.\n" +
+    "• We stay with you until you successfully find your ideal home.\n" +
+    "• *Special Offer:* Your registration amount is fully adjusted against the brokerage if you finalize a flat through our team member!\n\n" +
+    `📍 Livorarent${phone ? `\n📞 ${phone}` : ""}`,
   keepTouchUnreg: (fee: number) => `Hum help kar sakte hain 🙌 Dedicated team se urgent options ke liye ${inr(fee)} registration kariye: *REGISTER* likh kar bhejiye.`,
 };
 
@@ -273,6 +313,10 @@ export type State = {
   stage: Stage; role: Role | null; answers: Answers; asking: string | null; zone: number | null; budget: number | null;
   base_stage: "registered" | "not_registered" | null; found_broker: string | null; found_rent: string | null; happy: string | null;
   plan: "standard" | "urgent" | null;
+  /** Every zone named in the area (the lead goes to the agents of all of them). */
+  zones: number[];
+  /** The ₹ benefits message went out already (once per enquiry). */
+  benefits: boolean;
 };
 
 export type Out =
@@ -287,13 +331,15 @@ export type Act =
   | { kind: "note"; body: string }
   | { kind: "notify_admins"; title: string; body: string }
   | { kind: "screenshot" }
-  | { kind: "final_alert" };
+  | { kind: "final_alert" }
+  /** Give the lead to the agents of the enquiry's zones (form complete). */
+  | { kind: "zone_assign"; note: string };
 
 export type In = { text: string; replyId?: string | null; media: boolean };
 export type Result = { state: State; out: Out[]; acts: Act[]; handled: boolean };
 
 export const freshState = (): State => ({
-  stage: "role", role: null, answers: {}, asking: null, zone: null, budget: null, base_stage: null, found_broker: null, found_rent: null, happy: null, plan: null,
+  stage: "role", role: null, answers: {}, asking: null, zone: null, budget: null, base_stage: null, found_broker: null, found_rent: null, happy: null, plan: null, zones: [], benefits: false,
 });
 
 const lc = (s: string) => s.trim().toLowerCase();
@@ -354,10 +400,29 @@ function payOut(cfg: DeskConfig, plan: State["plan"]): Out[] {
 }
 const withLinks = (body: string, cfg: DeskConfig) => [body, MSG.links(cfg.channel_url, cfg.instagram_url)].filter(Boolean).join("\n\n");
 
+const zoneText = (zs: Zone[]) => zs.map((z) => `Zone ${z.no}: ${z.name}`).join("\n📍 ");
+
+/** Reel / post link or a photo instead of the form. */
+const LINK_RE = /https?:\/\/|www\.|instagram\.com|instagr\.am|youtu\.?be|fb\.watch/i;
+const isReel = (inp: In) => (inp.media && !looksLikeForm(inp.text)) || (LINK_RE.test(inp.text) && !looksLikeForm(inp.text));
+
+/** "₹500 kis baat ka?", "200 kyu?", "registration fee kya hai": a question about the fee. */
+const FEE_Q_RE = /(200|500|fee|fees|charge|registration|register|paise|paisa|payment)/;
+const ASK_RE = /\?|\b(kis|kiss|kyu|kyun|kyon|kyo|why|what|kya|kaisa|kaise|kaun|matlab|meaning|fayda|benefit)\b/;
+const feeQuestion = (inp: In) => !inp.replyId && FEE_Q_RE.test(lc(inp.text)) && ASK_RE.test(lc(inp.text));
+
+/** The benefits message, only once per enquiry: [messages, state]. */
+function benefitsOnce(s: State, cfg: DeskConfig): [Out[], State] {
+  if (s.benefits) return [[], s];
+  return [[{ kind: "text", body: MSG.benefits(cfg.urgent_fee, cfg.help_phone) }], { ...s, benefits: true }];
+}
+
 function afterForm(s: State, cfg: DeskConfig): Result {
-  const z = zoneFor(s.answers.area ?? "", cfg.zones);
-  const st: State = { ...s, stage: "fee_offer", asking: null, zone: z?.no ?? null, budget: parseBudget(s.answers.budget ?? "") };
-  const note: Act = { kind: "note", body: formNote(st.answers) + (z ? `\nZone: ${z.no} ${z.name}` : "\nZone: not matched (pick on Rental desk)") };
+  const zs = zonesFor(s.answers.area ?? "", cfg.zones);
+  const z = zs[0] ?? null;
+  const st: State = { ...s, stage: "fee_offer", asking: null, zone: z?.no ?? null, zones: zs.map((x) => x.no), budget: parseBudget(s.answers.budget ?? "") };
+  const form = formNote(st.answers) + (zs.length ? `\n${zs.map((x) => `Zone: ${x.no} ${x.name}`).join("\n")}` : "\nZone: not matched (pick on Rental desk)");
+  const note: Act = { kind: "note", body: form };
   const single = isSingle(st.answers);
   // Single person: only with a budget for a sharing flat / PG.
   if (single && (st.budget ?? 0) < cfg.single_min_budget) {
@@ -371,8 +436,9 @@ function afterForm(s: State, cfg: DeskConfig): Result {
   return {
     state: st, handled: true,
     // Long text first, then the buttons (an interactive body is limited to 1024 characters).
-    out: [{ kind: "text", body: MSG.feeOffer(summary, z ? `Zone ${z.no}: ${z.name}` : "", cfg.fee, cfg.urgent_fee) }, feeButtons("Kaunsa option chahiye? 👇", cfg)],
-    acts: [note, { kind: "tag", tag: "Form filled" }, ...(single ? [{ kind: "tag", tag: "Single - sharing/PG" } as Act] : [])],
+    out: [{ kind: "text", body: MSG.feeOffer(summary, zoneText(zs), cfg.fee, cfg.urgent_fee) }, feeButtons("Kaunsa option chahiye? 👇", cfg)],
+    acts: [note, { kind: "tag", tag: "Form filled" }, ...(single ? [{ kind: "tag", tag: "Single - sharing/PG" } as Act] : []),
+      ...(zs.length ? [{ kind: "zone_assign", note: form } as Act] : [{ kind: "notify_admins", title: "Rental form: area matched no zone", body: `Area: ${st.answers.area ?? "-"}. Pick the zone on the Rental desk page.`.slice(0, 200) } as Act])],
   };
 }
 
@@ -391,8 +457,9 @@ function takeForm(s: State, inp: In, cfg: DeskConfig): Result {
   if (looksLikeForm(inp.text) || !s.asking) {
     answers = { ...answers, ...parseForm(inp.text, fieldsFor(s.role)) };
   } else {
-    const f = fieldsFor(s.role).find((x) => x.key === s.asking)!;
-    if (validAnswer(f, inp.text)) answers[f.key] = clean(inp.text).slice(0, 300);
+    const f = fieldsFor(s.role).find((x) => x.key === s.asking);
+    if (!f) answers = { ...answers, ...parseForm(inp.text, fieldsFor(s.role)) }; // asked a point the form no longer has
+    else if (validAnswer(f, inp.text)) answers[f.key] = clean(inp.text).slice(0, 300);
     else bad = f;
   }
   const miss = missingFields(answers, fieldsFor(s.role));
@@ -413,13 +480,13 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
 
   // Start / restart.
   if (!s0 || (/^(menu|restart|start)$/.test(t) && ["role", "form", "fee_offer", "details", "done", "not_registered", "closed"].includes(s.stage))) {
-    return { state: freshState(), out: [roleMenu()], acts: [], handled: true };
+    return { state: freshState(), out: [...(isReel(inp) ? [{ kind: "text", body: MSG.formFirst(cfg.help_phone) } as Out] : []), roleMenu()], acts: [], handled: true };
   }
 
   switch (s.stage) {
     case "role": {
-      const role = pickRole(inp);
-      if (!role) return { state: s, out: [roleMenu()], acts: [], handled: true };
+      const role = isReel(inp) ? null : pickRole(inp);
+      if (!role) return { state: s, out: [...(isReel(inp) ? [{ kind: "text", body: MSG.formFirst(cfg.help_phone) } as Out] : []), roleMenu()], acts: [], handled: true };
       if (role === "buyer") {
         return { state: { ...s, role, stage: "form", asking: null }, out: [{ kind: "text", body: MSG.buyerIntro }, { kind: "text", body: formText("buyer") }], acts: [{ kind: "tag", tag: "Buyer" }], handled: true };
       }
@@ -436,15 +503,25 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
       };
     }
     case "form":
-      if (inp.media && !inp.text.trim()) return { state: s, out: [{ kind: "text", body: s.asking ? MSG.invalidAnswer(fieldsFor(s.role).find((f) => f.key === s.asking)!) : "Kripya form text me bhar kar bhejiye 🙏" }], acts: [], handled: true };
+      if (isReel(inp)) {
+        const f = s.asking ? fieldsFor(s.role).find((x) => x.key === s.asking) : undefined;
+        return { state: s, out: [{ kind: "text", body: MSG.formFirst(cfg.help_phone) }, { kind: "text", body: f ? `👉 ${f.ask}` : formText(s.role) }], acts: [], handled: true };
+      }
       return takeForm(s, inp, cfg);
     case "fee_offer": {
+      if (feeQuestion(inp)) {
+        const [b, st] = benefitsOnce(s, cfg);
+        return { state: st, out: [...b, feeButtons("Kaunsa option chahiye? 👇", cfg)], acts: [], handled: true };
+      }
       const p = pickPlan(inp);
       if (p === "standard" || p === "urgent") {
         return { state: { ...s, stage: "awaiting_payment", plan: p }, out: payOut(cfg, p), handled: true,
           acts: [{ kind: "status", status: "Registration Pending (Rs 200)" }, ...(p === "urgent" ? [{ kind: "tag", tag: "Urgent 3 days" } as Act] : [])] };
       }
-      if (p === "no") return { state: { ...s, stage: "not_registered", base_stage: "not_registered" }, out: [{ kind: "text", body: withLinks(MSG.notNow, cfg) }], acts: [{ kind: "tag", tag: "Not registered" }], handled: true };
+      if (p === "no") {
+        const [b, st] = benefitsOnce({ ...s, stage: "not_registered", base_stage: "not_registered" }, cfg);
+        return { state: st, out: [{ kind: "text", body: withLinks(MSG.notNow, cfg) }, ...b], acts: [{ kind: "tag", tag: "Not registered" }], handled: true };
+      }
       return { state: s, out: [feeButtons("Kaunsa option chahiye? 👇", cfg)], acts: [], handled: true };
     }
     case "awaiting_payment":
@@ -453,6 +530,10 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
           state: { ...s, stage: "payment_review" }, out: [{ kind: "text", body: MSG.screenshotThanks }], handled: true,
           acts: [{ kind: "screenshot" }, { kind: "tag", tag: "Payment check" }, { kind: "notify_admins", title: `💰 ${inr(planFee(s.plan, cfg))}${s.plan === "urgent" ? " (urgent)" : ""} screenshot received`, body: "Check the payment and confirm it on the Rental desk page." }],
         };
+      }
+      if (feeQuestion(inp) && !s.benefits) {
+        const [b, st] = benefitsOnce(s, cfg);
+        return { state: st, out: [...b, { kind: "text", body: MSG.sendScreenshot }], acts: [], handled: true };
       }
       if (/qr|upi|pay|register/.test(t)) return { state: s, out: payOut(cfg, s.plan), acts: [], handled: true };
       return { state: s, out: [{ kind: "text", body: MSG.sendScreenshot }], acts: [], handled: true };
@@ -464,6 +545,11 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
         const plan = /^urgent/.test(t) || inp.replyId?.endsWith("fee_urgent") ? "urgent" : "standard";
         return { state: { ...s, stage: "awaiting_payment", plan }, out: payOut(cfg, plan), acts: [{ kind: "status", status: "Registration Pending (Rs 200)" }], handled: true };
       }
+      if (inp.replyId?.endsWith("fee_no")) return { state: s, out: [{ kind: "text", body: MSG.keepTouch }], acts: [], handled: true };
+      if (feeQuestion(inp) && !s.benefits) {
+        const [b, st] = benefitsOnce(s, cfg);
+        return { state: st, out: [...b, feeButtons("Register karna hai? 👇", cfg)], acts: [], handled: true };
+      }
       return { ...none(), handled: false };
     case "registered":
       return { ...none(), handled: false };
@@ -472,7 +558,11 @@ export function step(s0: State | null, inp: In, cfg: DeskConfig): Result {
       const yn = yesNo(inp, "fu_yes", "fu_no");
       if (yn === true) return { state: { ...s, stage: "fu_broker" }, out: [{ kind: "text", body: MSG.askBroker }], acts: [], handled: true };
       if (yn === false) {
-        return { state: { ...s, stage: base }, out: [{ kind: "text", body: base === "registered" ? MSG.keepTouch : withLinks(MSG.keepTouchUnreg(cfg.fee), cfg) }], acts: [], handled: true };
+        if (base === "registered") return { state: { ...s, stage: base }, out: [{ kind: "text", body: MSG.keepTouch }], acts: [], handled: true };
+        // Not registered: the benefits message once (with Register buttons), after that the short reminder.
+        const [b, st] = benefitsOnce({ ...s, stage: base }, cfg);
+        if (b.length) return { state: st, out: [{ kind: "text", body: withLinks(MSG.keepTouch, cfg) }, ...b, feeButtons("Register karna hai? 👇", cfg)], acts: [], handled: true };
+        return { state: st, out: [{ kind: "text", body: withLinks(MSG.keepTouchUnreg(cfg.fee), cfg) }], acts: [], handled: true };
       }
       return { state: { ...s, stage: base }, out: [], acts: [], handled: false };
     }

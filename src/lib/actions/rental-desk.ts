@@ -19,6 +19,7 @@ const Settings = z.object({
   single_min_budget: z.coerce.number().int().min(0).max(10000000),
   channel_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
   instagram_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
+  help_phone: z.string().trim().max(20).regex(/^[0-9+ -]*$/, "Call number: digits only").default(""),
   upi_id: z.string().trim().max(120).default(""),
   upi_name: z.string().trim().max(120).default(""),
   qr_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
@@ -43,6 +44,7 @@ export async function saveRentalDesk(_: FormState, fd: FormData): Promise<FormSt
   const zones = base.map((z) => ({
     ...z,
     user_id: String(fd.get(`zone_user_${z.no}`) ?? "") || null,
+    department_id: String(fd.get(`zone_dept_${z.no}`) ?? "") || null,
     areas: String(fd.get(`zone_areas_${z.no}`) ?? z.areas.join(", ")).split(/[,\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 200),
   }));
 
@@ -61,7 +63,7 @@ export async function saveRentalDesk(_: FormState, fd: FormData): Promise<FormSt
 
   const { error } = await sb.from("lb_rental_desk").upsert({
     company_id: profile.company_id, enabled: fd.get("enabled") === "on", fee: p.data.fee, urgent_fee: p.data.urgent_fee, single_min_budget: p.data.single_min_budget,
-    channel_url: p.data.channel_url, instagram_url: p.data.instagram_url, upi_id: p.data.upi_id, upi_name: p.data.upi_name,
+    channel_url: p.data.channel_url, instagram_url: p.data.instagram_url, help_phone: p.data.help_phone, upi_id: p.data.upi_id, upi_name: p.data.upi_name,
     qr_url: qr, alert_phone: phone, alert_template: p.data.alert_template || null, alert_template_lang: p.data.alert_template_lang || "en",
     followup_template: p.data.followup_template || null, followup_template_lang: p.data.followup_template_lang || "en",
     min_followup_budget: p.data.min_followup_budget, followup_hours: p.data.followup_hours, max_followups: p.data.max_followups,
@@ -89,15 +91,19 @@ export async function confirmRentalPayment(_: FormState, fd: FormData): Promise<
   const { data, error } = await sb.rpc("lb_rental_confirm_payment", { p_id: id.data, p_zone: zone });
   if (error) return { error: errMsg(error) };
   const e = await enquiry(id.data);
-  const r = data as { zone: number; zone_name: string; user_name: string; fee: number };
+  const r = data as { zone: number; zone_name: string; zones: number[] | null; user_name: string; fee: number };
   if (e) {
     const db = createAdminClient();
+    const { data: d } = await db.from("lb_rental_desk").select("zones").eq("company_id", e.company_id).maybeSingle();
+    const all: Zone[] = Array.isArray(d?.zones) ? d.zones : [];
+    const nos = r.zones?.length ? r.zones : [r.zone];
+    const label = nos.map((n) => `Zone ${n}: ${all.find((z) => z.no === n)?.name ?? (n === r.zone ? r.zone_name : "")}`).join(", ");
     await send(db, { messageId: `confirm:${e.id}`, conversationId: e.conversation_id, companyId: e.company_id },
-      { kind: "text", body: MSG.registered(`Zone ${r.zone}: ${r.zone_name}`, e.plan === "urgent", r.fee) }, 0, "paid").catch(() => {});
+      { kind: "text", body: MSG.registered(label, e.plan === "urgent", r.fee) }, 0, "paid").catch(() => {});
     await drainOutbox(8000).catch(() => {});
   }
   revalidatePath("/rental-desk");
-  return { ok: `Payment confirmed. Lead given to ${r.user_name} (Zone ${r.zone}); the customer got the confirmation.` };
+  return { ok: `Payment confirmed. Lead is with ${r.user_name}; the customer got the confirmation.` };
 }
 
 export async function rejectRentalPayment(_: FormState, fd: FormData): Promise<FormState> {
@@ -126,7 +132,7 @@ export async function setRentalZone(_: FormState, fd: FormData): Promise<FormSta
   const { error } = await sb.rpc("lb_rental_set_zone", { p_id: id.data, p_zone: Number(fd.get("zone")) || null });
   if (error) return { error: errMsg(error) };
   revalidatePath("/rental-desk");
-  return { ok: "Zone saved." };
+  return { ok: "Zone saved. Its agents got the lead." };
 }
 
 export async function markRentalFound(_: FormState, fd: FormData): Promise<FormState> {

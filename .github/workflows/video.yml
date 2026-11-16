@@ -18,7 +18,7 @@ jobs:
           LB_PW: ${{ secrets.LIVORA_VIDEO_PW }}
       - if: always()
         run: |
-          if [ -f out/raw/video.webm ]; then ffmpeg -y -loglevel error -i out/raw/video.webm -c:v libx264 -pix_fmt yuv420p -crf 24 -movflags +faststart out/video.mp4; fi
+          if [ -f out/raw/video.webm ]; then mv out/raw/video.webm out/video.webm; fi
           rm -rf out/raw
           git config user.name "training-video-bot"; git config user.email "actions@users.noreply.github.com"
           git rm -q --cached 2>/dev/null || true

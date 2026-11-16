@@ -146,12 +146,9 @@ const CAPTION_JS = () => {
   await shot("chat-form");
   for (let i = 0; i < 6; i++) { await p.mouse.wheel(0, 400); await p.waitForTimeout(250); }
   await shot("chat");
-  await cap("Neeche <b>message box</b> me reply likhiye...", undefined, 1500);
-  const box = p.locator("textarea").first();
-  if (await tap(box, "textarea")) await box.pressSequentially("Namaste ji, main LivoraRent se. Aapke liye Bodakdev me 2BHK options bhej raha hoon 🙏", { delay: 45 });
-  await cap("...aur <b>Send ➤</b> dabaiye. Message client ke WhatsApp pe chala jaata hai", undefined, 6000);
-  await shot("chat-typed");
-  await box.fill("").catch(() => {});
+  await cap("Chat ke neeche likha hai ki aap <b>message nahi bhej sakte</b>. LivoraRent me agents ka WhatsApp reply admin ne band rakha hai", undefined, 7000);
+  await shot("chat-bottom");
+  await cap("Isliye client se baat ke liye lead page pe <b>📞 Call</b> dabaiye, aur baat ka note <b>Log activity</b> me likhiye", undefined, 7000);
 
   // Follow-ups
   await cap("<b>Step 8: Follow-ups</b>\nMenu me <b>Follow-ups</b>: kis client ko kab call karna hai", "8 / 9 · Follow-ups", 3000);
@@ -172,7 +169,7 @@ const CAPTION_JS = () => {
   await shot("app");
 
   await go("/dashboard"); await closeBrief();
-  await cap("<b>Yaad rakhiye</b>\n1. 🔔 Naya lead = turant chat kholiye\n2. Client ko jaldi reply/call kariye\n3. Status aur follow-up update kariye\n\nHelp: <b>9558832824</b>", "LivoraRent", 9000);
+  await cap("<b>Yaad rakhiye</b>\n1. 🔔 Naya lead = turant chat kholiye\n2. Client ko jaldi <b>Call</b> kariye\n3. Status aur follow-up update kariye\n\nHelp: <b>9558832824</b>", "LivoraRent", 9000);
   await shot("end");
 
   await ctx.close(); await b.close();

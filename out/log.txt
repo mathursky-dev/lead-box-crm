@@ -17,3 +17,19 @@ Call log:
   - waiting for locator('textarea').first() to be visi
 tap ok close brief
 done
+tap ok email
+tap ok password
+tap ok sign in
+after login https://wacrm.leadboxs.in/dashboard
+tap ok close brief
+tap ok bell
+tap ok menu
+tap ok menu sales
+tap ok menu leads
+tap ok lead row
+tap ok inbox row
+tap FAIL textarea TimeoutError: locator.waitFor: Timeout 8000ms exceeded.
+Call log:
+  - waiting for locator('textarea').first() to be visi
+tap ok upcoming
+done

@@ -1,0 +1,25 @@
+name: training-video
+on:
+  push:
+    branches: [claude/training-video]
+permissions:
+  contents: write
+jobs:
+  rec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm i --no-save playwright@1.49.1 && npx playwright install --with-deps chromium
+      - run: mkdir -p out && node record.cjs
+        env:
+          LB_PW: ${{ secrets.LIVORA_VIDEO_PW }}
+      - if: always()
+        run: |
+          if [ -f out/raw/video.webm ]; then ffmpeg -y -loglevel error -i out/raw/video.webm -c:v libx264 -pix_fmt yuv420p -crf 24 -movflags +faststart out/video.mp4; fi
+          rm -rf out/raw
+          git config user.name "training-video-bot"; git config user.email "actions@users.noreply.github.com"
+          git rm -q --cached 2>/dev/null || true
+          git add -A out && git commit -qm "video output" && git push

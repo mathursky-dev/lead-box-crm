@@ -77,6 +77,8 @@ const CAPTION_JS = () => {
   await cap("Padh liya? <b>✕</b> se band kariye", undefined, 1500);
   await closeBrief();
   await p.waitForTimeout(1500);
+  const later = p.getByRole("button", { name: "Later" }).first();
+  if (await later.isVisible().catch(() => false)) await later.click().catch(() => {});
   await cap("Ye aapka <b>Dashboard</b> hai. Yahan aapke leads aur kaam ka hisaab dikhta hai", undefined, 5000);
   await shot("dashboard");
   await slowScroll(900); await p.waitForTimeout(1200); await slowScroll(-900);
@@ -96,8 +98,10 @@ const CAPTION_JS = () => {
   await cap("<b>Step 4: Menu</b>\nUpar left me <b>☰</b> dabaiye: Leads, Inbox, Follow-ups sab yahin hain", "4 / 9 · Menu", 2500);
   await tap(p.locator('button[aria-label="Toggle menu"]').first(), "menu");
   await p.waitForTimeout(1500);
-  await cap("Menu me <b>Leads</b> pe dabaiye", undefined, 3500);
+  await cap("<b>Sales</b> pe dabaiye, phir <b>Leads</b>", undefined, 3000);
   await shot("menu");
+  await tap(p.locator('nav[aria-label="Main"]').getByText("Sales", { exact: true }).first(), "menu sales");
+  await p.waitForTimeout(1200);
   const leadsLink = p.locator('nav[aria-label="Main"] a[href="/leads"]').first();
   if (!(await tap(leadsLink, "menu leads"))) await go("/leads");
   await p.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
@@ -106,6 +110,10 @@ const CAPTION_JS = () => {
   // Leads list
   await cap("<b>Step 5: Leads</b>\nYahan aapko mile <b>saare clients</b> ki list hai. Sabse naya upar", "5 / 9 · Leads", 6000);
   await shot("leads");
+  await cap("Upar status ke hisaab se ginti hai. Neeche list me <b>client ka naam</b> hai", undefined, 1500);
+  await slowScroll(1200, 8);
+  await p.waitForTimeout(1500);
+  await shot("leads-list");
   await cap("Client ke naam pe dabaiye", undefined, 2000);
   if (!(await tap(p.getByText("Test Client (Demo)").first(), "lead row"))) await go(`/leads/${LEAD}`);
   await p.waitForURL((u) => u.pathname.includes("/leads/"), { timeout: 15000 }).catch(() => go(`/leads/${LEAD}`));
@@ -113,13 +121,13 @@ const CAPTION_JS = () => {
   await p.waitForTimeout(2000);
 
   // Lead detail
-  await cap("<b>Step 6: Lead ki details</b>\nNaam, number, status aur source yahan dikhte hain", "6 / 9 · Lead details", 6000);
+  await cap("<b>Step 6: Lead ki details</b>\nClient ka naam, number, <b>Call</b> button aur lead kab assign hua", "6 / 9 · Lead details", 6000);
   await shot("lead-top");
-  await slowScroll(700);
-  await cap("Neeche client ka bhara hua <b>Requirement Form</b> (BHK, budget, area, move-in) aur <b>Zone</b> note me milta hai", undefined, 7000);
+  await slowScroll(350);
+  await cap("<b>Sales status</b>: client se baat ke baad <b>Status</b> badliye (jaise Details Shared, Site Visit) aur <b>Next action</b> lagaiye", undefined, 7000);
   await shot("lead-mid");
   await slowScroll(800);
-  await cap("Client se baat hone ke baad <b>Status</b> badliye aur <b>Follow-up</b> lagaiye", undefined, 6000);
+  await cap("<b>Log activity</b> me likhiye kya baat hui. <b>History</b> me sab record rehta hai", undefined, 6000);
   await shot("lead-low");
   await slowScroll(-1500, 5);
 
@@ -131,7 +139,12 @@ const CAPTION_JS = () => {
   await shot("inbox");
   if (!(await tap(p.getByText("Test Client", { exact: false }).first(), "inbox row"))) await go(`/inbox?c=${CONV}`);
   await p.waitForTimeout(2500);
-  await cap("Bot ne client se jo baat ki (form, ₹200 fee) <b>sab yahan dikhta hai</b>", undefined, 5500);
+  await cap("Bot ne client se jo baat ki (form, ₹200 fee) <b>sab yahan dikhta hai</b>", undefined, 4500);
+  await p.mouse.move(200, 500);
+  for (let i = 0; i < 6; i++) { await p.mouse.wheel(0, -250); await p.waitForTimeout(350); }
+  await cap("<b>Peela box</b> = client ka bhara hua <b>Requirement Form</b> aur Zone. Ye sirf team ko dikhta hai", undefined, 6000);
+  await shot("chat-form");
+  for (let i = 0; i < 6; i++) { await p.mouse.wheel(0, 400); await p.waitForTimeout(250); }
   await shot("chat");
   await cap("Neeche <b>message box</b> me reply likhiye...", undefined, 1500);
   const box = p.locator("textarea").first();
@@ -144,6 +157,9 @@ const CAPTION_JS = () => {
   await cap("<b>Step 8: Follow-ups</b>\nMenu me <b>Follow-ups</b>: kis client ko kab call karna hai", "8 / 9 · Follow-ups", 3000);
   await go("/followups");
   await p.waitForTimeout(1500);
+  await tap(p.getByText("Upcoming", { exact: true }).first(), "upcoming");
+  await p.waitForTimeout(1500);
+  await cap("<b>Upcoming</b> me aage ke follow-ups. Yahan kal 11 baje client ko call karna hai", undefined, 5000);
   await cap("Time aane pe reminder aata hai. Kaam hone ke baad usko <b>Done</b> mark kariye", undefined, 6500);
   await shot("followups");
 
@@ -151,6 +167,7 @@ const CAPTION_JS = () => {
   await cap("<b>Step 9: Mobile App</b>\nMenu me <b>Download app</b> se CRM ko phone pe app ki tarah install kariye", "9 / 9 · App", 3000);
   await go("/download-app");
   await p.waitForTimeout(1500);
+  await slowScroll(500);
   await cap("Android: APK download kariye.  iPhone: Share ➜ <b>Add to Home Screen</b>", undefined, 6500);
   await shot("app");
 

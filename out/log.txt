@@ -33,3 +33,16 @@ Call log:
   - waiting for locator('textarea').first() to be visi
 tap ok upcoming
 done
+tap ok email
+tap ok password
+tap ok sign in
+after login https://wacrm.leadboxs.in/dashboard
+tap ok close brief
+tap ok bell
+tap ok menu
+tap ok menu sales
+tap ok menu leads
+tap ok lead row
+tap ok inbox row
+tap ok upcoming
+done

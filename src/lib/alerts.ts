@@ -106,11 +106,19 @@ async function sendSummaryWhatsApp(db: Db, a: Alert): Promise<{ ok: boolean; err
   return { ok: false, error: `${r.message}${hint}`, retry: !r.ambiguous && (r.status === 0 || r.status === 429 || r.status >= 500) };
 }
 
-/** Rental desk "flat final" alert to the desk's personal number (lb_rental_desk.alert_phone), from the company's first number. */
+/**
+ * Rental desk alerts, from the company's first number: "flat final" and new-lead alerts (rental_final, rental_admin)
+ * go to the desk's admin number (lb_rental_desk.alert_phone); rental_agent goes to the zone agent's own mobile.
+ */
 async function sendRentalFinal(db: Db, a: Alert): Promise<{ ok: boolean; error?: string; retry?: boolean }> {
   const { data: d } = await db.from("lb_rental_desk").select("alert_phone,alert_template,alert_template_lang").eq("company_id", a.company_id).maybeSingle();
-  const to = d?.alert_phone ? normalizePhone(d.alert_phone)?.replace(/^\+/, "") : null;
-  if (!to) return { ok: false, error: "No personal number set on the Rental desk page" };
+  let phone = d?.alert_phone ?? null;
+  if (a.kind === "rental_agent") {
+    const { data: u } = await db.from("lb_profiles").select("phone").eq("id", a.user_id).maybeSingle();
+    phone = u?.phone ?? null;
+  }
+  const to = phone ? normalizePhone(phone)?.replace(/^\+/, "") : null;
+  if (!to) return { ok: false, error: a.kind === "rental_agent" ? "Agent has no valid mobile number" : "No personal number set on the Rental desk page" };
   const numberId = await summaryNumber(db, a.company_id, null);
   if (!numberId) return { ok: false, error: "No WhatsApp number connected" };
   const c = await numberCredentials(numberId).catch(() => null);
@@ -120,7 +128,7 @@ async function sendRentalFinal(db: Db, a: Alert): Promise<{ ok: boolean; error?:
   const payload = d?.alert_template && c.provider !== "qr"
     ? { ...base, type: "template", template: { name: d.alert_template, language: { code: d.alert_template_lang || "en" },
         components: [{ type: "body", parameters: [{ type: "text", text: "Sir" }, { type: "text", text: oneLine(`${a.title}: ${a.body ?? ""}`, 900) }] }] } }
-    : { ...base, type: "text", text: { body: `*${a.title}*\n${(a.body ?? "").split(" · ").join("\n")}\n\n${link}`, preview_url: false } };
+    : { ...base, type: "text", text: { body: `*${a.title}*\n${(a.kind === "rental_final" ? (a.body ?? "").split(" · ").join("\n") : a.body ?? "").slice(0, 3500)}\n\n${link}`, preview_url: false } };
   const r = await graph<{ messages?: { id: string }[] }>(c.token, `${c.endpoint}/messages`, { method: "POST", body: JSON.stringify(payload) });
   if (r.ok) return { ok: true };
   const hint = r.code === 131047 || r.code === 131026 ? " (outside the 24h window: set an approved alert template on the Rental desk page)" : "";
@@ -130,7 +138,7 @@ async function sendRentalFinal(db: Db, a: Alert): Promise<{ ok: boolean; error?:
 async function sendWhatsApp(db: Db, a: Alert): Promise<{ ok: boolean; error?: string; retry?: boolean }> {
   if (await isDemoCompany(a.company_id)) return { ok: false, error: "Demo company: WhatsApp is off" };
   if (a.kind === "owner_summary") return sendSummaryWhatsApp(db, a);
-  if (a.kind === "rental_final") return sendRentalFinal(db, a);
+  if (a.kind === "rental_final" || a.kind === "rental_admin" || a.kind === "rental_agent") return sendRentalFinal(db, a);
   const [{ data: s }, { data: u }] = await Promise.all([
     db.from("lb_alert_settings").select("wa_enabled,wa_number_id,wa_template,wa_template_lang").eq("company_id", a.company_id).maybeSingle(),
     db.from("lb_profiles").select("full_name,phone").eq("id", a.user_id).maybeSingle(),

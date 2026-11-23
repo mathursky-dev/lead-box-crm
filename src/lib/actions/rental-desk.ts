@@ -15,8 +15,12 @@ import type { FormState } from "@/components/ui";
 const tpl = z.string().trim().max(120).regex(/^[a-z0-9_]*$/, "Template name: lowercase letters, digits and _ only").default("");
 const Settings = z.object({
   fee: z.coerce.number().int().min(1).max(100000),
-  urgent_fee: z.coerce.number().int().min(1).max(100000),
   single_min_budget: z.coerce.number().int().min(0).max(10000000),
+  tenant_min_budget: z.coerce.number().int().min(0).max(10000000),
+  poster_min_budget: z.coerce.number().int().min(0).max(10000000),
+  poster_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
+  support_phone: z.string().trim().max(20).regex(/^[0-9+ -]*$/, "Support number: digits only").default(""),
+  support_name: z.string().trim().max(60).default(""),
   channel_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
   instagram_url: z.union([z.literal(""), z.string().trim().url().startsWith("https://")]).default(""),
   help_phone: z.string().trim().max(20).regex(/^[0-9+ -]*$/, "Call number: digits only").default(""),
@@ -48,21 +52,29 @@ export async function saveRentalDesk(_: FormState, fd: FormData): Promise<FormSt
     areas: String(fd.get(`zone_areas_${z.no}`) ?? z.areas.join(", ")).split(/[,\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 200),
   }));
 
-  // New QR photo: stored in the public brand bucket so WhatsApp can fetch it.
-  let qr = p.data.qr_url;
-  const file = fd.get("qr_file");
-  if (file instanceof File && file.size > 0) {
-    if (!/^image\/(png|jpe?g)$/.test(file.type)) return { error: "QR photo: PNG or JPG only" };
-    if (file.size > 4 * 1024 * 1024) return { error: "QR photo: max 4 MB" };
+  // New QR / poster photo: stored in the public brand bucket so WhatsApp can fetch it.
+  const upload = async (field: string, name: string, label: string): Promise<string | { error: string } | null> => {
+    const file = fd.get(field);
+    if (!(file instanceof File) || file.size === 0) return null;
+    if (!/^image\/(png|jpe?g)$/.test(file.type)) return { error: `${label}: PNG or JPG only` };
+    if (file.size > 4 * 1024 * 1024) return { error: `${label}: max 4 MB` };
     const db = createAdminClient();
-    const path = `rental/${profile.company_id}/qr-${Date.now()}.${file.type === "image/png" ? "png" : "jpg"}`;
+    const path = `rental/${profile.company_id}/${name}-${Date.now()}.${file.type === "image/png" ? "png" : "jpg"}`;
     const { error } = await db.storage.from("lb-brand").upload(path, file, { contentType: file.type, upsert: false });
-    if (error) return { error: `QR upload failed: ${error.message}` };
-    qr = db.storage.from("lb-brand").getPublicUrl(path).data.publicUrl;
-  }
+    if (error) return { error: `${label} upload failed: ${error.message}` };
+    return db.storage.from("lb-brand").getPublicUrl(path).data.publicUrl;
+  };
+  const qrUp = await upload("qr_file", "qr", "QR photo");
+  if (qrUp && typeof qrUp === "object") return qrUp;
+  const posterUp = await upload("poster_file", "poster", "Poster photo");
+  if (posterUp && typeof posterUp === "object") return posterUp;
+  const qr = qrUp ?? p.data.qr_url;
+  const poster = posterUp ?? p.data.poster_url;
 
   const { error } = await sb.from("lb_rental_desk").upsert({
-    company_id: profile.company_id, enabled: fd.get("enabled") === "on", fee: p.data.fee, urgent_fee: p.data.urgent_fee, single_min_budget: p.data.single_min_budget,
+    company_id: profile.company_id, enabled: fd.get("enabled") === "on", fee: p.data.fee, single_min_budget: p.data.single_min_budget,
+    tenant_min_budget: p.data.tenant_min_budget, poster_url: poster, poster_min_budget: p.data.poster_min_budget,
+    support_phone: p.data.support_phone, support_name: p.data.support_name,
     channel_url: p.data.channel_url, instagram_url: p.data.instagram_url, help_phone: p.data.help_phone, upi_id: p.data.upi_id, upi_name: p.data.upi_name,
     qr_url: qr, alert_phone: phone, alert_template: p.data.alert_template || null, alert_template_lang: p.data.alert_template_lang || "en",
     followup_template: p.data.followup_template || null, followup_template_lang: p.data.followup_template_lang || "en",

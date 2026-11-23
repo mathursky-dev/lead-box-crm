@@ -22,7 +22,9 @@ export async function deskConfig(db: Db, companyId: string): Promise<(DeskConfig
   if (error || !data?.enabled) return null; // error: SQL not applied yet → desk simply off
   return {
     enabled: true, fee: data.fee, upi_id: data.upi_id ?? "", upi_name: data.upi_name ?? "", qr_url: data.qr_url ?? "",
-    urgent_fee: data.urgent_fee ?? 500, single_min_budget: data.single_min_budget ?? 15000, channel_url: data.channel_url ?? "", instagram_url: data.instagram_url ?? "", help_phone: data.help_phone ?? "",
+    urgent_fee: data.urgent_fee ?? 500, single_min_budget: data.single_min_budget ?? 14000,
+    tenant_min_budget: data.tenant_min_budget ?? 25000, poster_url: data.poster_url ?? "", poster_min_budget: data.poster_min_budget ?? 15000,
+    support_phone: data.support_phone || (data.alert_phone ? String(data.alert_phone).replace(/\D/g, "").slice(-10) : ""), support_name: data.support_name ?? "", channel_url: data.channel_url ?? "", instagram_url: data.instagram_url ?? "", help_phone: data.help_phone ?? "",
     min_followup_budget: data.min_followup_budget, followup_hours: data.followup_hours, max_followups: data.max_followups,
     max_followups_unreg: data.max_followups_unreg, zones: (Array.isArray(data.zones) ? data.zones : []) as Zone[], alert_phone: data.alert_phone,
   };
@@ -31,7 +33,8 @@ export async function deskConfig(db: Db, companyId: string): Promise<(DeskConfig
 /** When an old run is over, a new message starts a fresh enquiry (history stays). */
 function stale(r: Row) {
   const idle = Date.now() - new Date(r.last_in_at).getTime();
-  if (["role", "form", "fee_offer", "details"].includes(r.stage)) return idle > 3 * DAY;
+  if (["role", "form", "fee_offer", "details", "sharing", "timeline", "fast_ask", "pitch"].includes(r.stage)) return idle > 3 * DAY;
+  if (r.stage === "declined") return idle > 15 * DAY;
   if (r.stage === "done") return idle > 7 * DAY;
   if (r.stage === "closed") return idle > 30 * DAY;
   if (r.stage === "not_registered") return idle > 15 * DAY;
@@ -160,8 +163,41 @@ async function act(db: Db, ev: Inbound, conv: Conv, enquiryId: string, a: Act, c
     // The lead goes to the agents of every zone of the area (copies for the 2nd, 3rd... agent). Bell + push via lb__assign.
     const { error } = await db.rpc("lb__rental_zone_assign", { p_id: enquiryId, p_actor: null, p_note: a.note });
     if (error) throw new Error(error.message);
+  } else if (a.kind === "wa_admin" || a.kind === "wa_zone") {
+    await queueLeadAlert(db, ev, conv, enquiryId, a);
   } else if (a.kind === "final_alert") {
     await queueFinalAlert(db, ev.companyId, enquiryId, cfg.alert_phone, `final:${ev.messageId}`);
+  }
+}
+
+/**
+ * Lead alert on WhatsApp (cody's blueprint 2026-11-23):
+ *  wa_admin → the admin number (lb_rental_desk.alert_phone, kind rental_admin) + bell for the admins;
+ *  wa_zone → every agent the lead went to, on their own mobile (kind rental_agent), linked to their own copy of the lead.
+ * Sent by the alerts job (lib/alerts.ts) from the company's number.
+ */
+async function queueLeadAlert(db: Db, ev: Inbound, conv: Conv, enquiryId: string, a: { kind: "wa_admin" | "wa_zone"; title: string; body: string }) {
+  const [{ data: c }, { data: e }] = await Promise.all([
+    db.from("lb_customers").select("name,wa_profile_name,phone_e164").eq("id", conv.customer_id).single(),
+    db.from("lb_rental_enquiries").select("lead_id,lead_copies,assigned_users").eq("id", enquiryId).single(),
+  ]);
+  const who = `${c?.name || c?.wa_profile_name || "Customer"} ${c?.phone_e164 ?? ""}`.trim();
+  const body = `${who}\n${a.body}`.slice(0, 3500);
+  if (a.kind === "wa_admin") {
+    const people = await admins(db, ev.companyId);
+    const link = e?.lead_id ? `/leads/${e.lead_id}` : "/rental-desk";
+    for (const u of people) await db.from("lb_notifications").insert({ company_id: ev.companyId, user_id: u.id, type: "rental_desk", title: `${a.title} · ${who}`.slice(0, 200), body: a.body.slice(0, 500), link, dedupe_key: `rental:${ev.messageId}:${a.title}:${u.id}`.slice(0, 200) });
+    if (people[0]) await db.from("lb_alert_queue").insert({ company_id: ev.companyId, user_id: people[0].id, channel: "whatsapp", kind: "rental_admin", title: a.title, body, link, dedupe_key: `wa:${ev.messageId}:${a.title}`.slice(0, 200) });
+    return;
+  }
+  const users = (e?.assigned_users ?? []) as string[];
+  if (!users.length) return;
+  const ids = [e?.lead_id, ...((e?.lead_copies ?? []) as string[])].filter(Boolean) as string[];
+  const { data: leads } = await db.from("lb_leads").select("id,owner_id").in("id", ids);
+  for (const u of users) {
+    const own = leads?.find((l) => l.owner_id === u)?.id;
+    await db.from("lb_alert_queue").insert({ company_id: ev.companyId, user_id: u, channel: "whatsapp", kind: "rental_agent", title: a.title, body,
+      link: own ? `/leads/${own}` : "/leads", dedupe_key: `wa:${ev.messageId}:zone:${u}` });
   }
 }
 

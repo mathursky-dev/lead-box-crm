@@ -13,6 +13,11 @@ export const metadata = { title: "Rental desk" };
 const STAGE: Record<string, { label: string; cls: string }> = {
   role: { label: "Choosing type", cls: "bg-slate-100 text-slate-600" },
   form: { label: "Filling form", cls: "bg-sky-50 text-sky-700" },
+  sharing: { label: "Sharing flat?", cls: "bg-sky-50 text-sky-700" },
+  timeline: { label: "Asked: how soon", cls: "bg-sky-50 text-sky-700" },
+  fast_ask: { label: "Asked: within 5 days?", cls: "bg-sky-50 text-sky-700" },
+  pitch: { label: "₹ registration asked", cls: "bg-amber-50 text-amber-700" },
+  declined: { label: "Low budget / no", cls: "bg-slate-100 text-slate-500" },
   fee_offer: { label: "₹ offer sent", cls: "bg-amber-50 text-amber-700" },
   awaiting_payment: { label: "QR sent", cls: "bg-amber-50 text-amber-700" },
   payment_review: { label: "Check payment", cls: "bg-red-50 text-red-700" },
@@ -22,18 +27,18 @@ const STAGE: Record<string, { label: string; cls: string }> = {
   fu_broker: { label: "Flat found: asking", cls: "bg-violet-50 text-violet-700" },
   fu_rent: { label: "Flat found: asking", cls: "bg-violet-50 text-violet-700" },
   fu_happy: { label: "Flat found: asking", cls: "bg-violet-50 text-violet-700" },
-  details: { label: "Owner/Broker/Buyer", cls: "bg-slate-100 text-slate-600" },
-  done: { label: "Owner/Broker/Buyer", cls: "bg-slate-100 text-slate-600" },
+  details: { label: "Form sent", cls: "bg-slate-100 text-slate-600" },
+  done: { label: "Details received", cls: "bg-slate-100 text-slate-600" },
   closed: { label: "Flat final", cls: "bg-emerald-100 text-emerald-800" },
 };
 
 const TABS: { key: string; label: string; stages: string[] }[] = [
   { key: "check", label: "Check payment", stages: ["payment_review"] },
-  { key: "open", label: "In progress", stages: ["role", "form", "fee_offer", "awaiting_payment"] },
+  { key: "open", label: "In progress", stages: ["role", "form", "sharing", "timeline", "fast_ask", "pitch", "fee_offer", "awaiting_payment"] },
   { key: "registered", label: "Registered", stages: ["registered", "fu_ask", "fu_broker", "fu_rent", "fu_happy"] },
-  { key: "unreg", label: "Not registered", stages: ["not_registered"] },
+  { key: "unreg", label: "Not registered", stages: ["not_registered", "declined"] },
   { key: "closed", label: "Flat final", stages: ["closed"] },
-  { key: "others", label: "Owner / Broker / Buyer", stages: ["details", "done"] },
+  { key: "others", label: "Landlord / Broker / Buyer / Owner", stages: ["details", "done"] },
 ];
 
 type Enq = {
@@ -100,8 +105,8 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                   {e.lead_id && <Link className="text-[11px] text-brand-700 hover:underline" href={`/leads/${e.lead_id}`}>Open lead</Link>}
                 </td>
                 <td className="td max-w-xs text-xs text-slate-600">
-                  {e.role && e.role !== "tenant" && <div className="font-semibold capitalize">{e.role}</div>}
-                  {e.role === "buyer" && (
+                  {e.role && e.role !== "tenant" && <div className="font-semibold capitalize">{e.role === "seller" ? "Owner (sell)" : e.role === "owner" ? "Landlord" : e.role}</div>}
+                  {e.role === "buyer" && e.answers?.b_budget !== undefined && (
                     <>
                       <div>{[e.answers?.b_bhk, e.answers?.b_budget, e.answers?.b_area].filter(Boolean).join(" · ") || "—"}</div>
                       {e.stage === "form" && <div className="text-amber-700">{missingFields(e.answers ?? {}, fieldsFor("buyer")).length} of {fieldsFor("buyer").length} details missing</div>}
@@ -114,6 +119,7 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
                     <>
                       <div>{[e.answers?.bhk, e.budget ? `${inr(e.budget)}/mo` : e.answers?.budget, e.answers?.furnishing].filter(Boolean).join(" · ") || "—"}</div>
                       <div className="truncate">📍 {e.answers?.area ?? "—"}</div>
+                      {e.answers?.timeline && <div>⏱ {e.answers.timeline}{e.answers?.sharing ? " · sharing flat" : ""}</div>}
                       {e.stage === "form" && <div className="text-amber-700">{miss} of {FIELDS.length} details missing</div>}
                       <details className="mt-1"><summary className="cursor-pointer text-brand-700">Full form</summary>
                         <ol className="mt-1 list-decimal space-y-0.5 pl-4">{FIELDS.map((f) => <li key={f.key}><span className="text-slate-400">{f.label}:</span> {e.answers?.[f.key] ?? "—"}</li>)}</ol>
@@ -211,8 +217,8 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
 
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Registration fee (₹)"><input className="input" name="fee" type="number" min={1} defaultValue={desk?.fee ?? 200} /></Field>
-            <Field label="Urgent fee, 3 days (₹)" hint="Adjusted in the final brokerage."><input className="input" name="urgent_fee" type="number" min={1} defaultValue={desk?.urgent_fee ?? 500} /></Field>
-            <Field label="Single person: min budget (₹)" hint="Below this, a single person is not accepted (sharing / PG)."><input className="input" name="single_min_budget" type="number" min={0} defaultValue={desk?.single_min_budget ?? 15000} /></Field>
+            <Field label="Independent flat: min budget (₹)" hint="From this budget the lead goes to the admin and the zone agents."><input className="input" name="tenant_min_budget" type="number" min={0} defaultValue={desk?.tenant_min_budget ?? 25000} /></Field>
+            <Field label="Single person sharing flat: min budget (₹)" hint="A single person below the flat minimum is offered a sharing flat from this budget."><input className="input" name="single_min_budget" type="number" min={0} defaultValue={desk?.single_min_budget ?? 14000} /></Field>
             <Field label="UPI ID"><input className="input" name="upi_id" defaultValue={desk?.upi_id ?? ""} placeholder="name@ybl" /></Field>
             <Field label="UPI name"><input className="input" name="upi_name" defaultValue={desk?.upi_name ?? ""} /></Field>
           </div>
@@ -227,13 +233,28 @@ export default async function RentalDeskPage({ searchParams }: { searchParams: P
             </Field>
             <Field label="…or QR image link (https)"><input className="input" name="qr_url" defaultValue={desk?.qr_url ?? ""} /></Field>
           </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Poster photo" hint="Sent with the brokerage note when the form is complete. Upload a new one to replace it.">
+              <input type="file" name="poster_file" accept="image/png,image/jpeg" className="input" />
+            </Field>
+            <Field label="…or poster image link (https)"><input className="input" name="poster_url" defaultValue={desk?.poster_url ?? ""} /></Field>
+            <Field label="Send the poster from budget (₹)"><input className="input" name="poster_min_budget" type="number" min={0} defaultValue={desk?.poster_min_budget ?? 15000} /></Field>
+          </div>
+          {desk?.poster_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={desk.poster_url} alt="Poster" className="h-40 rounded border" />
+          )}
           {desk?.qr_url && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={desk.qr_url} alt="UPI QR" className="h-40 rounded border" />
           )}
 
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Support number shown to customers" hint="“Direct contact ke liye WhatsApp karein: …”. Empty = the admin number."><input className="input" name="support_phone" defaultValue={desk?.support_phone ?? ""} placeholder="9558642824" /></Field>
+            <Field label="Support name"><input className="input" name="support_name" defaultValue={desk?.support_name ?? ""} placeholder="Ravi Shankar" /></Field>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Personal number for “flat final”" hint="Gets a WhatsApp when a registered client confirms the flat."><input className="input" name="alert_phone" defaultValue={desk?.alert_phone ?? ""} placeholder="+91…" /></Field>
+            <Field label="Admin WhatsApp number" hint="Gets every new lead, urgent lead, payment screenshot and “flat final” on WhatsApp."><input className="input" name="alert_phone" defaultValue={desk?.alert_phone ?? ""} placeholder="+91…" /></Field>
             <Field label="Alert template (optional)" hint="Body: {{1}} name, {{2}} details. Needed when that number hasn’t messaged in 24 hours."><input className="input" name="alert_template" defaultValue={desk?.alert_template ?? ""} /></Field>
             <Field label="Alert template language"><input className="input" name="alert_template_lang" defaultValue={desk?.alert_template_lang ?? "en"} /></Field>
           </div>

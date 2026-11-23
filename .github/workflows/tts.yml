@@ -1,0 +1,27 @@
+name: livora-tts
+on:
+  push:
+    branches: [claude/livora-tts]
+permissions:
+  contents: write
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install piper-tts
+      - run: |
+          for v in priyamvada pratham rohan; do
+            for f in hi_IN-$v-medium.onnx hi_IN-$v-medium.onnx.json; do
+              curl -sSfL -o $f "https://huggingface.co/rhasspy/piper-voices/resolve/main/hi/hi_IN/$v/medium/$f" || echo "no $f"
+            done
+          done
+          ls -la
+      - run: python tts.py | tee out/log.txt
+      - if: always()
+        run: |
+          git config user.name "tts-bot"; git config user.email "actions@users.noreply.github.com"
+          git add -A out && git commit -qm "tts output" && git push

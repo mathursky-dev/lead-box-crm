@@ -1,0 +1,15 @@
+[
+ {"id":"s00","hi":"लिवोरारेंट का नया व्हाट्सऐप चैटबॉट। देखिए, क्लाइंट के पहले मैसेज से लेकर पेमेंट तक, सब कुछ अपने आप कैसे होता है।","sub":"LivoraRent ka naya WhatsApp chatbot: pehle message se payment tak, sab kuch automatic"},
+ {"id":"s01","hi":"क्लाइंट कोई भी पहला मैसेज भेजे, जैसे हाय, रील लिंक या स्क्रीनशॉट। बॉट वेलकम मैसेज भेजता है, और पूछता है कि आप कौन हैं: टेनेंट, लैंडलॉर्ड, ब्रोकर, बायर या ओनर।","sub":"Pehla message (Hi / reel / screenshot) → Welcome + \"Aap kaun hain?\" (5 options)"},
+ {"id":"s02","hi":"क्लाइंट टेनेंट चुनता है। बॉट रिक्वायरमेंट फॉर्म भेजता है: नाम, नंबर, बी एच के, बजट, एरिया, और बाकी डिटेल्स।","sub":"Tenant → Rental Requirement Form (naam, number, BHK, budget, area...)"},
+ {"id":"s03","hi":"अगर कोई डिटेल छूट जाए, तो बॉट आगे नहीं बढ़ता। वो बताता है कि क्या मिसिंग है, और एक एक करके पूछता है।","sub":"Detail missing? Bot aage nahi badhta: \"Missing: ...\" bata ke ek-ek karke puchta hai"},
+ {"id":"s04","hi":"फॉर्म पूरा होते ही बॉट ब्रोकरेज नोट और पोस्टर भेजता है। बजट पच्चीस हज़ार या ज़्यादा है, इसलिए लीड तुरंत रवि जी के व्हाट्सऐप, और बोडकदेव ज़ोन के एजेंट के पास पहुंच जाती है।","sub":"Form poora → brokerage note + poster · Budget ₹25k+ → lead Ravi ji + Zone 2 agent ko WhatsApp par"},
+ {"id":"s05","hi":"फिर बॉट पूछता है, कितने दिन में फ्लैट फाइनल करना है। क्लाइंट ने सात दिन चुना, तो लीड पर अर्जेंट टैग लगता है, और एडमिन को प्रायोरिटी अलर्ट जाता है।","sub":"\"Kitne din me flat final?\" → 7 din = URGENT tag + admin ko priority alert"},
+ {"id":"s06","hi":"अब रजिस्ट्रेशन। फीस सिर्फ एक सौ पचास रुपये, जो ब्रोकरेज में एडजस्ट हो जाती है। क्लाइंट यस बोलता है, तो बॉट क्यूआर कोड और ज़रूरी टर्म्स भेजता है।","sub":"Registration sirf ₹150 (brokerage me adjust) → Yes → QR + important terms"},
+ {"id":"s07","hi":"क्लाइंट पेमेंट का स्क्रीनशॉट भेजता है। एडमिन को तुरंत अलर्ट जाता है: पेड एक सौ पचास, एक्शन रिक्वायर्ड। टीम सी आर एम में पेमेंट कन्फर्म करती है।","sub":"Screenshot aaya → admin alert \"PAID ₹150 - ACTION REQUIRED\" → CRM me confirm"},
+ {"id":"s08","hi":"अगर क्लाइंट रिफंड या गारंटी के बारे में पूछे, तो बॉट अपने आप सही जवाब देता है।","sub":"Refund / guarantee / pasand nahi aaya → bot khud sahi jawab deta hai"},
+ {"id":"s09","hi":"अब दूसरे केस। सिंगल पर्सन, बजट अठारह हज़ार। बॉट शेयरिंग फ्लैट का ऑप्शन देता है। यस बोलने पर लीड एडमिन को जाती है।","sub":"Single person, ₹18k → sharing flat option → Yes = lead admin ko"},
+ {"id":"s10","hi":"फैमिली, बजट बीस हज़ार। बॉट विनम्रता से मना करता है, और इंस्टाग्राम पेज का लिंक देता है। ये लीड किसी को फॉरवर्ड नहीं होती।","sub":"Family, ₹20k → sorry + Instagram link · lead kisi ko forward nahi hoti"},
+ {"id":"s11","hi":"लैंडलॉर्ड, ब्रोकर, बायर या ओनर के लिए बॉट उनका फॉर्म भेजता है। डिटेल्स मिलते ही धन्यवाद कहता है, और पूरी डिटेल्स रवि जी के व्हाट्सऐप पर भेज देता है।","sub":"Landlord / Broker / Buyer / Owner → unka form → thanks + details Ravi ji ke WhatsApp par"},
+ {"id":"s12","hi":"तो ये है लिवोरारेंट का पूरा व्हाट्सऐप फ्लो। बॉट चौबीसों घंटे काम करता है, और आपकी टीम को सिर्फ सही लीड्स मिलती हैं।","sub":"Bot 24x7 kaam karta hai, team ko sirf sahi leads milti hain 🙏"}
+]
